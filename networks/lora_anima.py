@@ -14,6 +14,151 @@ logger = logging.getLogger(__name__)
 from networks.lora_flux import LoRAModule, LoRAInfModule
 
 
+def _to_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+class DoRALoRAModule(LoRAModule):
+    """ComfyUI-compatible DoRA adapter for ordinary Linear layers.
+
+    The learnable magnitude tensor is intentionally named dora_scale so the
+    saved safetensors keys match ComfyUI's LoRA loader expectations.
+    """
+
+    def __init__(self, lora_name, org_module: torch.nn.Module, *args, **kwargs):
+        if org_module.__class__.__name__ != "Linear":
+            raise ValueError(f"DoRA v1 only supports ordinary Linear layers, got {org_module.__class__.__name__} for {lora_name}")
+        super().__init__(lora_name, org_module, *args, **kwargs)
+        self.org_module_ref = [org_module]
+        self.enabled = True
+        self.network = None
+        with torch.no_grad():
+            dora_scale = self._weight_norm_from_params(org_module.weight, self.lora_up.weight, self.lora_down.weight, self.scale)
+        self.dora_scale = torch.nn.Parameter(dora_scale.float())
+
+    def set_network(self, network):
+        self.network = network
+
+    @staticmethod
+    def _weight_norm(weight: torch.Tensor, lora_weight: torch.Tensor, scale: float) -> torch.Tensor:
+        compute_device = weight.device
+        combined = weight.to(device=compute_device, dtype=torch.float32) + lora_weight.to(
+            device=compute_device, dtype=torch.float32
+        ) * float(scale)
+        return torch.linalg.norm(combined, dim=1).to(weight.dtype)
+
+    def _weight_norm_from_params(self, weight: torch.Tensor, up_weight: torch.Tensor, down_weight: torch.Tensor, scale: float) -> torch.Tensor:
+        compute_device = weight.device
+        lora_weight = up_weight.to(compute_device) @ down_weight.to(compute_device)
+        return self._weight_norm(weight, lora_weight, scale)
+
+    @staticmethod
+    def _merge_weight(weight: torch.Tensor, up_weight: torch.Tensor, down_weight: torch.Tensor, dora_scale: torch.Tensor, scale: float) -> torch.Tensor:
+        compute_device = weight.device
+        lora_weight = up_weight.to(compute_device) @ down_weight.to(compute_device)
+        weight_norm = DoRALoRAModule._weight_norm(weight, lora_weight.detach(), scale).detach()
+        dora_scale = dora_scale.reshape(-1).to(weight_norm.device, dtype=weight_norm.dtype)
+        dora_factor = (dora_scale / weight_norm.clamp_min(1e-12)).view(-1, 1)
+        return dora_factor.to(weight.dtype) * (weight + lora_weight.to(weight.device, dtype=weight.dtype) * float(scale))
+
+    @staticmethod
+    def _comfy_dora_scale_from_raw(weight: torch.Tensor, up_weight: torch.Tensor, down_weight: torch.Tensor, raw_dora_scale: torch.Tensor, scale: float) -> torch.Tensor:
+        compute_device = weight.device
+        lora_weight = up_weight.to(compute_device) @ down_weight.to(compute_device)
+        base_norm = torch.linalg.norm(weight.to(device=compute_device, dtype=torch.float32).reshape(weight.shape[0], -1), dim=1)
+        combined_norm = DoRALoRAModule._weight_norm(weight, lora_weight.detach(), scale).detach().to(torch.float32)
+        comfy_scale = raw_dora_scale.reshape(-1).to(compute_device, dtype=torch.float32) * base_norm / combined_norm.clamp_min(1e-12)
+        return comfy_scale.reshape(weight.shape[0], *[1] * (weight.dim() - 1))
+
+    @staticmethod
+    def _raw_dora_scale_from_comfy(weight: torch.Tensor, up_weight: torch.Tensor, down_weight: torch.Tensor, comfy_dora_scale: torch.Tensor, scale: float) -> torch.Tensor:
+        compute_device = weight.device
+        lora_weight = up_weight.to(compute_device) @ down_weight.to(compute_device)
+        base_norm = torch.linalg.norm(weight.to(device=compute_device, dtype=torch.float32).reshape(weight.shape[0], -1), dim=1)
+        combined_norm = DoRALoRAModule._weight_norm(weight, lora_weight.detach(), scale).detach().to(torch.float32)
+        return comfy_dora_scale.reshape(-1).to(compute_device, dtype=torch.float32) * combined_norm / base_norm.clamp_min(1e-12)
+
+    def _current_merged_weight(self, org_weight: torch.Tensor) -> torch.Tensor:
+        return self._merge_weight(
+            org_weight.to(torch.float32),
+            self.lora_up.weight.to(torch.float32),
+            self.lora_down.weight.to(torch.float32),
+            self.dora_scale.to(torch.float32),
+            self.scale,
+        )
+
+    def _lora_result_and_scale(self, x: torch.Tensor) -> tuple[torch.Tensor, float]:
+        lx = self.lora_down(x)
+        if self.dropout is not None and self.training:
+            lx = torch.nn.functional.dropout(lx, p=self.dropout)
+        if self.rank_dropout is not None and self.training:
+            mask = torch.rand((lx.size(0), self.lora_dim), device=lx.device) > self.rank_dropout
+            if len(lx.size()) == 3:
+                mask = mask.unsqueeze(1)
+            elif len(lx.size()) == 4:
+                mask = mask.unsqueeze(-1).unsqueeze(-1)
+            lx = lx * mask
+            scale = self.scale * (1.0 / (1.0 - self.rank_dropout))
+        else:
+            scale = self.scale
+        return self.lora_up(lx), scale
+
+    def forward(self, x):
+        org_forwarded = self.org_forward(x)
+        if not getattr(self, "enabled", True):
+            return org_forwarded
+
+        if self.module_dropout is not None and self.training:
+            if torch.rand(1) < self.module_dropout:
+                return org_forwarded
+
+        org_module = self.org_module_ref[0]
+        lora_result, scale = self._lora_result_and_scale(x)
+
+        lora_weight = (self.lora_up.weight @ self.lora_down.weight).to(x.dtype)
+        weight = org_module.weight.to(x.dtype)
+        weight_norm = self._weight_norm(weight, lora_weight.detach(), scale).detach()
+        dora_factor = (self.dora_scale.reshape(-1).to(x.device, dtype=x.dtype) / weight_norm.to(x.device).clamp_min(1e-12)).view(
+            *([1] * (org_forwarded.dim() - 1)),
+            -1,
+        )
+
+        base_without_bias = org_forwarded
+        if org_module.bias is not None:
+            base_without_bias = base_without_bias - org_module.bias.to(org_forwarded.device, dtype=org_forwarded.dtype)
+
+        dora_delta = (dora_factor - 1.0) * base_without_bias + dora_factor * lora_result * float(scale)
+        return org_forwarded + dora_delta * float(self.multiplier)
+
+    def merge_to(self, sd, dtype, device):
+        org_module = self.org_module_ref[0]
+        org_sd = org_module.state_dict()
+        org_weight = org_sd["weight"]
+        org_dtype = org_weight.dtype if dtype is None else dtype
+        compute_device = org_weight.device if device is None else device
+
+        weight = org_weight.to(torch.float32).to(compute_device)
+        down_weight = sd["lora_down.weight"].to(torch.float32).to(compute_device)
+        up_weight = sd["lora_up.weight"].to(torch.float32).to(compute_device)
+        dora_scale = sd.get("dora_scale", self.dora_scale.detach()).to(torch.float32).to(compute_device)
+        merged = self._merge_weight(weight, up_weight, down_weight, dora_scale, self.scale)
+        merged_delta = merged - weight
+        org_sd["weight"] = (weight + merged_delta * float(self.multiplier)).to(org_dtype)
+        org_module.load_state_dict(org_sd)
+
+    def get_weight(self, multiplier=None):
+        if multiplier is None:
+            multiplier = self.multiplier
+        org_module = self.org_module_ref[0]
+        org_weight = org_module.state_dict()["weight"].to(torch.float32)
+        merged = self._current_merged_weight(org_weight)
+        return (merged - org_weight) * float(multiplier)
+
+
 # ---------------------------------------------------------------------------
 #  TP-aware LoRA modules
 #  These subclasses handle the extra communication that Tensor Parallel and
@@ -602,6 +747,7 @@ def create_network(
     module_dropout = kwargs.get("module_dropout", None)
     if module_dropout is not None:
         module_dropout = float(module_dropout)
+    use_dora = _to_bool(kwargs.get("use_dora", False))
 
     # verbose
     verbose = kwargs.get("verbose", False)
@@ -621,6 +767,7 @@ def create_network(
         type_dims=type_dims,
         emb_dims=emb_dims,
         train_block_indices=train_block_indices,
+        use_dora=use_dora,
         verbose=verbose,
     )
 
@@ -637,21 +784,34 @@ def create_network(
 
 
 def create_network_from_weights(multiplier, file, ae, text_encoders, unet, weights_sd=None, for_inference=False, **kwargs):
+    metadata = {}
+    if file is not None and os.path.splitext(file)[1] == ".safetensors":
+        try:
+            from safetensors import safe_open
+            with safe_open(file, framework="pt") as f:
+                metadata = f.metadata() or {}
+        except Exception:
+            metadata = {}
     if weights_sd is None:
         if os.path.splitext(file)[1] == ".safetensors":
             from safetensors.torch import load_file
             weights_sd = load_file(file)
         else:
             weights_sd = torch.load(file, map_location="cpu")
+    else:
+        metadata = metadata or kwargs.get("metadata", {}) or {}
 
     modules_dim = {}
     modules_alpha = {}
     train_llm_adapter = False
+    use_dora = False
     for key, value in weights_sd.items():
         if "." not in key:
             continue
 
         lora_name = key.split(".")[0]
+        if key.endswith(".dora_scale"):
+            use_dora = True
         if "alpha" in key:
             modules_alpha[lora_name] = value
         elif "lora_down" in key:
@@ -675,7 +835,7 @@ def create_network_from_weights(multiplier, file, ae, text_encoders, unet, weigh
             if lora_name in modules_alpha:
                 modules_alpha.setdefault(packed_name, modules_alpha[lora_name])
 
-    module_class = LoRAInfModule if for_inference else LoRAModule
+    module_class = DoRALoRAModule if use_dora or _to_bool(kwargs.get("use_dora", False)) else (LoRAInfModule if for_inference else LoRAModule)
 
     network = LoRANetwork(
         text_encoders,
@@ -685,7 +845,9 @@ def create_network_from_weights(multiplier, file, ae, text_encoders, unet, weigh
         modules_alpha=modules_alpha,
         module_class=module_class,
         train_llm_adapter=train_llm_adapter,
+        use_dora=use_dora or _to_bool(kwargs.get("use_dora", False)),
     )
+    network.dora_scale_format = metadata.get("ss_dora_scale_format")
     return network, weights_sd
 
 
@@ -717,9 +879,12 @@ class LoRANetwork(torch.nn.Module):
         type_dims: Optional[List[int]] = None,
         emb_dims: Optional[List[int]] = None,
         train_block_indices: Optional[List[bool]] = None,
+        use_dora: bool = False,
         verbose: Optional[bool] = False,
     ) -> None:
         super().__init__()
+        if use_dora and module_class is LoRAModule:
+            module_class = DoRALoRAModule
         self.multiplier = multiplier
         self.lora_dim = lora_dim
         self.alpha = alpha
@@ -730,6 +895,7 @@ class LoRANetwork(torch.nn.Module):
         self.type_dims = type_dims
         self.emb_dims = emb_dims
         self.train_block_indices = train_block_indices
+        self.use_dora = use_dora or module_class is DoRALoRAModule
 
         self.loraplus_lr_ratio = None
         self.loraplus_unet_lr_ratio = None
@@ -742,6 +908,8 @@ class LoRANetwork(torch.nn.Module):
         else:
             logger.info(f"create LoRA network. base dim (rank): {lora_dim}, alpha: {alpha}")
             logger.info(f"neuron dropout: p={self.dropout}, rank dropout: p={self.rank_dropout}, module dropout: p={self.module_dropout}")
+        if self.use_dora:
+            logger.info("DoRA enabled: saving ComfyUI-compatible dora_scale tensors")
 
         # create module instances
         def create_modules(
@@ -833,6 +1001,12 @@ class LoRANetwork(torch.nn.Module):
                                     skipped.append(lora_name)
                                 continue
 
+                            if self.use_dora and _cls_name != "Linear":
+                                raise ValueError(
+                                    f"DoRA v1 only supports single-GPU ordinary Linear layers; "
+                                    f"{lora_name} targets {_cls_name}."
+                                )
+
                             # Check if this is a TP parallel layer — use TP-aware LoRA class
                             tp_cls, tp_kwargs = _select_lora_class(
                                 child_module,
@@ -840,6 +1014,8 @@ class LoRANetwork(torch.nn.Module):
                                 use_sp=False,  # read from child_module attribute
                                 seq_dim=1,     # Anima uses batch-first (B, S, D)
                             )
+                            if self.use_dora and tp_cls is not None:
+                                raise ValueError("DoRA v1 does not support TP/SP parallel LoRA layers.")
                             actual_class = tp_cls if tp_cls is not None else module_class
 
                             lora = actual_class(
@@ -976,14 +1152,66 @@ class LoRANetwork(torch.nn.Module):
                 converted[f"{prefix}.alpha"] = found_alpha
         return converted
 
+    def _state_dict_to_comfy_dora_scale(self, state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        if not self.use_dora:
+            return state_dict
+        converted = dict(state_dict)
+        for lora in self.text_encoder_loras + self.unet_loras:
+            if not isinstance(lora, DoRALoRAModule):
+                continue
+            prefix = lora.lora_name
+            dora_key = f"{prefix}.dora_scale"
+            up_key = f"{prefix}.lora_up.weight"
+            down_key = f"{prefix}.lora_down.weight"
+            if dora_key not in converted or up_key not in converted or down_key not in converted:
+                continue
+            org_weight = lora.org_module_ref[0].weight.detach().to(torch.float32)
+            converted[dora_key] = DoRALoRAModule._comfy_dora_scale_from_raw(
+                org_weight,
+                converted[up_key].detach().to(torch.float32),
+                converted[down_key].detach().to(torch.float32),
+                converted[dora_key].detach().to(torch.float32),
+                lora.scale,
+            )
+        return converted
+
+    def _state_dict_from_comfy_dora_scale(self, state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        if not self.use_dora:
+            return state_dict
+        converted = dict(state_dict)
+        for lora in self.text_encoder_loras + self.unet_loras:
+            if not isinstance(lora, DoRALoRAModule):
+                continue
+            prefix = lora.lora_name
+            dora_key = f"{prefix}.dora_scale"
+            up_key = f"{prefix}.lora_up.weight"
+            down_key = f"{prefix}.lora_down.weight"
+            if dora_key not in converted or up_key not in converted or down_key not in converted:
+                continue
+            org_weight = lora.org_module_ref[0].weight.detach().to(torch.float32)
+            converted[dora_key] = DoRALoRAModule._raw_dora_scale_from_comfy(
+                org_weight,
+                converted[up_key].detach().to(torch.float32),
+                converted[down_key].detach().to(torch.float32),
+                converted[dora_key].detach().to(torch.float32),
+                lora.scale,
+            )
+        return converted
+
     def load_weights(self, file):
+        metadata = {}
         if os.path.splitext(file)[1] == ".safetensors":
+            from safetensors import safe_open
             from safetensors.torch import load_file
+            with safe_open(file, framework="pt") as f:
+                metadata = f.metadata() or {}
             weights_sd = load_file(file)
         else:
             weights_sd = torch.load(file, map_location="cpu")
 
         weights_sd = self._state_dict_from_standard_packed_lora_keys(weights_sd)
+        if metadata.get("ss_dora_scale_format") == "comfy_weight_norm":
+            weights_sd = self._state_dict_from_comfy_dora_scale(weights_sd)
         info = self.load_state_dict(weights_sd, False)
         return info
 
@@ -1007,6 +1235,8 @@ class LoRANetwork(torch.nn.Module):
 
     def merge_to(self, text_encoders, unet, weights_sd, dtype=None, device=None):
         weights_sd = self._state_dict_from_standard_packed_lora_keys(weights_sd)
+        if self.use_dora and getattr(self, "dora_scale_format", None) == "comfy_weight_norm":
+            weights_sd = self._state_dict_from_comfy_dora_scale(weights_sd)
         apply_text_encoder = apply_unet = False
         for key in weights_sd.keys():
             if key.startswith(LoRANetwork.LORA_PREFIX_TEXT_ENCODER):
@@ -1248,6 +1478,11 @@ class LoRANetwork(torch.nn.Module):
             metadata = None
 
         state_dict = self._state_dict_to_standard_packed_lora_keys(self.state_dict())
+        if self.use_dora and os.path.splitext(file)[1] == ".safetensors":
+            state_dict = self._state_dict_to_comfy_dora_scale(state_dict)
+            if metadata is None:
+                metadata = {}
+            metadata["ss_dora_scale_format"] = "comfy_weight_norm"
 
         if dtype is not None:
             for key in list(state_dict.keys()):
@@ -1304,6 +1539,9 @@ class LoRANetwork(torch.nn.Module):
             lora.enabled = False
 
     def apply_max_norm_regularization(self, max_norm_value, device):
+        if self.use_dora:
+            raise NotImplementedError("DoRA does not support max norm regularization because it would desynchronize dora_scale from LoRA weights.")
+
         downkeys = []
         upkeys = []
         alphakeys = []

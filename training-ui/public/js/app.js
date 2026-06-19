@@ -531,6 +531,7 @@ function populateConfig(config) {
   // redistributeForModuleChange to preserve user-edited state across modes.)
   loadNetworkArgs(n.network_args || []);
   updateLycorisExtrasUI($("cfg-network-module").value);
+  updateDoraOptionUI($("cfg-network-module").value);
 }
 function populateDataset(dataset) {
   const g = dataset.general || {};
@@ -1145,6 +1146,7 @@ function updateTrainingTypeUI(type) {
 $("cfg-training-type").addEventListener("change", (e) => {
   updateTrainingTypeUI(e.target.value);
   updateLycorisExtrasUI($("cfg-network-module").value);
+  updateDoraOptionUI($("cfg-network-module").value);
   checkDirty();
 });
 
@@ -1152,6 +1154,7 @@ $("cfg-training-type").addEventListener("change", (e) => {
 // and module-switch redistribution: dedicated values override matching keys in
 // the freeform Network Args text box.
 const LYCORIS_DEDICATED_KEYS = ["factor", "mod_dim", "rank_dropout", "module_dropout", "use_tucker"];
+const DORA_DEDICATED_KEYS = ["use_dora"];
 
 // Read a dedicated number field. Returns the value string if valid, else null.
 // Validation is regex-based on the string form because Number()-based checks
@@ -1178,12 +1181,19 @@ function updateLycorisExtrasUI(networkModule) {
   $("lycoris-extras-section").classList.toggle("hidden", !(isLoha || isLokr));
   $("lokr-only-fields").classList.toggle("hidden", !isLokr);
 }
+function updateDoraOptionUI(networkModule) {
+  const isAnimaLora = networkModule === "networks.lora_anima";
+  $("dora-option-group").classList.toggle("hidden", !isAnimaLora);
+  $("cfg-use-dora").disabled = !isAnimaLora;
+  if (!isAnimaLora) $("cfg-use-dora").checked = false;
+}
 $("cfg-network-module").addEventListener("change", (e) => {
   // Carry user-edited state across the active-set change: the dropdown handler
   // is the "user mid-edit" path, in contrast with populateForm which is the
   // "fresh load" path and just calls loadNetworkArgs directly.
   redistributeForModuleChange();
   updateLycorisExtrasUI(e.target.value);
+  updateDoraOptionUI(e.target.value);
   checkDirty();
 });
 
@@ -1201,6 +1211,7 @@ function redistributeForModuleChange() {
   const moduleDropout = _readNumberField("cfg-module-dropout", false);
   if (moduleDropout !== null) tokens.push(`module_dropout=${moduleDropout}`);
   if ($("cfg-use-tucker").checked) tokens.push("use_tucker=true");
+  if ($("cfg-use-dora").checked) tokens.push("use_dora=true");
   const freeform = $("cfg-network-args").value.trim();
   if (freeform) tokens.push(...freeform.split(/\s+/));
   const seen = new Set();
@@ -1218,9 +1229,10 @@ function redistributeForModuleChange() {
 // full set including factor; LoHa accepts everything except factor; other modules
 // treat dedicated fields as inactive (their values aren't emitted, freeform pass-through).
 function activeDedicatedKeys(networkModule) {
-  if (networkModule === "networks.lokr") return LYCORIS_DEDICATED_KEYS;
-  if (networkModule === "networks.loha") return LYCORIS_DEDICATED_KEYS.filter((k) => k !== "factor");
-  return [];
+  if (networkModule === "networks.lokr") return [...LYCORIS_DEDICATED_KEYS, ...DORA_DEDICATED_KEYS];
+  if (networkModule === "networks.loha") return [...LYCORIS_DEDICATED_KEYS.filter((k) => k !== "factor"), ...DORA_DEDICATED_KEYS];
+  if (networkModule === "networks.lora_anima") return DORA_DEDICATED_KEYS;
+  return DORA_DEDICATED_KEYS;
 }
 
 // Build the `network_args` array emitted into the per-job TOML. Dedicated fields
@@ -1247,6 +1259,9 @@ function gatherNetworkArgs() {
   }
   if (active.includes("use_tucker") && $("cfg-use-tucker").checked) {
     dedicated.push("use_tucker=true");
+  }
+  if (active.includes("use_dora") && $("cfg-use-dora").checked) {
+    dedicated.push("use_dora=true");
   }
   const freeformRaw = $("cfg-network-args").value.trim();
   const freeform = freeformRaw
@@ -1291,6 +1306,8 @@ function loadNetworkArgs(args) {
   $("cfg-module-dropout").value = dedicated.module_dropout ?? "";
   const tucker = (dedicated.use_tucker || "").toLowerCase();
   $("cfg-use-tucker").checked = ["true", "1", "yes", "y"].includes(tucker);
+  const dora = (dedicated.use_dora || "").toLowerCase();
+  $("cfg-use-dora").checked = ["true", "1", "yes", "y", "on"].includes(dora);
   $("cfg-network-args").value = freeform.join(" ");
 }
 

@@ -948,6 +948,22 @@ function buildEnvVar(name, value) {
     return isWindows ? `$env:${name}='${value}';` : `export ${name}='${value}';`;
 }
 
+function hasNetworkArg(config, key, truthyOnly = true) {
+    const args = config?.network_arguments?.network_args;
+    if (!Array.isArray(args)) return false;
+    for (const raw of args) {
+        const tok = String(raw).trim();
+        if (!tok) continue;
+        const eq = tok.indexOf('=');
+        const argKey = (eq >= 0 ? tok.slice(0, eq) : tok).trim();
+        if (argKey !== key) continue;
+        if (!truthyOnly) return true;
+        const val = eq >= 0 ? tok.slice(eq + 1).trim().toLowerCase() : 'true';
+        return ['1', 'true', 'yes', 'y', 'on'].includes(val);
+    }
+    return false;
+}
+
 // Returns { gpuEnv, accelerateFlags, tpTrainCmd } or { error }
 function buildLaunchConfig(gpuIds, mergedConfig, mergedConfigPath, jobArch) {
     const ta = mergedConfig.training_arguments || {};
@@ -957,6 +973,16 @@ function buildLaunchConfig(gpuIds, mergedConfig, mergedConfigPath, jobArch) {
     let gpuEnv = '';
     let accelerateFlags = '';
     let tpTrainCmd = null;
+    const useDora = hasNetworkArg(mergedConfig, 'use_dora');
+    if (useDora) {
+        const netModule = mergedConfig.network_arguments?.network_module || '';
+        if (netModule !== 'networks.lora_anima') {
+            return { error: 'DoRA v1 is only supported with networks.lora_anima.' };
+        }
+        if (mode !== 'ddp') {
+            return { error: 'DoRA v1 is single-GPU only. Use the DDP/single-process mode.' };
+        }
+    }
 
     if (gpuIds) {
         if (!/^[\d\s,]+$/.test(gpuIds))
@@ -965,6 +991,12 @@ function buildLaunchConfig(gpuIds, mergedConfig, mergedConfigPath, jobArch) {
         const validIds = gpuIds.split(',').map(s => s.trim()).filter(Boolean);
         if (validIds.some(id => isNaN(parseInt(id))))
             return { error: 'GPU IDs must be valid numbers.' };
+
+        if (useDora) {
+            if (validIds.length > 1) {
+                return { error: 'DoRA v1 is single-GPU only. Select one GPU and use the DDP/single-process mode.' };
+            }
+        }
 
         gpuEnv = buildEnvVar('CUDA_VISIBLE_DEVICES', validIds.join(','));
 

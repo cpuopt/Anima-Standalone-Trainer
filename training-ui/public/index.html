@@ -445,6 +445,10 @@
                                 <label><input type="checkbox" id="cfg-unet-only" checked> Train UNet Only</label>
                                 <small>Freeze text encoder. Recommended for most LoRA training.</small>
                             </div>
+                            <div class="form-group" id="dora-option-group">
+                                <label><input type="checkbox" id="cfg-use-dora"> Use DoRA</label>
+                                <small>Train ComfyUI-compatible DoRA weights. Saved checkpoints include dora_scale tensors.</small>
+                            </div>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>Network Dropout</label>
