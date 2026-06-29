@@ -13,6 +13,7 @@ caption_extension = ".txt"
   [[datasets.subsets]]
   image_dir = ""
   num_repeats = 1
+  epoch_sample_rate = 1.0
   keep_tokens = 1
   flip_aug = false
   caption_prefix = ""

@@ -268,7 +268,7 @@ function getDefaultDataset() {
     }
     return {
         general: { enable_bucket: true },
-        datasets: [{ resolution: [1536, 1536], batch_size: 4, caption_extension: '.txt', subsets: [{ image_dir: '', num_repeats: 1 }] }]
+        datasets: [{ resolution: [1536, 1536], batch_size: 4, caption_extension: '.txt', subsets: [{ image_dir: '', num_repeats: 1, epoch_sample_rate: 1.0 }] }]
     };
 }
 

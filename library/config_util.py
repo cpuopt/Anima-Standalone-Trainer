@@ -2,6 +2,7 @@ import argparse
 from dataclasses import (
     asdict,
     dataclass,
+    replace,
 )
 import functools
 import random
@@ -76,6 +77,7 @@ class BaseSubsetParams:
     validation_seed: int = 0
     validation_split: float = 0.0
     resize_interpolation: Optional[str] = None
+    epoch_sample_rate: float = 1.0
 
 
 @dataclass
@@ -198,6 +200,7 @@ class ConfigSanitizer:
         "caption_suffix": str,
         "custom_attributes": dict,
         "resize_interpolation": str,
+        "epoch_sample_rate": voluptuous.All(Any(float, int), voluptuous.Range(min=0.0, max=1.0)),
     }
     # DO means DropOut
     DO_SUBSET_ASCENDABLE_SCHEMA = {
@@ -515,7 +518,10 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
             subset_klass = FineTuningSubset
             dataset_klass = FineTuningDataset
 
-        subsets = [subset_klass(**asdict(subset_blueprint.params)) for subset_blueprint in dataset_blueprint.subsets]
+        subsets = [
+            subset_klass(**asdict(replace(subset_blueprint.params, epoch_sample_rate=1.0)))
+            for subset_blueprint in dataset_blueprint.subsets
+        ]
         dataset = dataset_klass(subsets=subsets, **asdict(dataset_blueprint.params), **extra_dataset_params)
         val_datasets.append(dataset)
 
@@ -563,6 +569,7 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
                     token_warmup_step: {subset.token_warmup_step},
                     alpha_mask: {subset.alpha_mask}
                     resize_interpolation: {subset.resize_interpolation}
+                    epoch_sample_rate: {subset.epoch_sample_rate}
                     custom_attributes: {subset.custom_attributes}
                 """), "  ")
 

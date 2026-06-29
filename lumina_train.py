@@ -150,6 +150,10 @@ def train(args):
 
     current_epoch = Value("i", 0)
     current_step = Value("i", 0)
+    current_epoch.value = 1
+    if hasattr(train_dataset_group, "set_epoch_shared_value"):
+        train_dataset_group.set_epoch_shared_value(current_epoch)
+    train_dataset_group.set_current_epoch(1)
     ds_for_collator = (
         train_dataset_group if args.max_data_loader_n_workers == 0 else None
     )
@@ -678,6 +682,7 @@ def train(args):
     for epoch in range(num_train_epochs):
         accelerator.print(f"\nepoch {epoch+1}/{num_train_epochs}")
         current_epoch.value = epoch + 1
+        train_util.set_current_epoch_for_dataloader(train_dataloader, epoch + 1)
 
         for m in training_models:
             m.train()

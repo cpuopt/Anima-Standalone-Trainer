@@ -436,6 +436,7 @@ class BaseSubset:
         validation_seed: Optional[int] = None,
         validation_split: Optional[float] = 0.0,
         resize_interpolation: Optional[str] = None,
+        epoch_sample_rate: float = 1.0,
     ) -> None:
         self.image_dir = image_dir
         self.alpha_mask = alpha_mask if alpha_mask is not None else False
@@ -467,6 +468,10 @@ class BaseSubset:
         self.validation_split = validation_split
 
         self.resize_interpolation = resize_interpolation
+        self.epoch_sample_rate = float(epoch_sample_rate)
+        assert (
+            0.0 <= self.epoch_sample_rate <= 1.0
+        ), f"epoch_sample_rate must be between 0.0 and 1.0: {self.epoch_sample_rate}"
 
 
 class DreamBoothSubset(BaseSubset):
@@ -500,6 +505,7 @@ class DreamBoothSubset(BaseSubset):
         validation_seed: Optional[int] = None,
         validation_split: Optional[float] = 0.0,
         resize_interpolation: Optional[str] = None,
+        epoch_sample_rate: float = 1.0,
     ) -> None:
         assert image_dir is not None, "image_dir must be specified / image_dirは指定が必須です"
 
@@ -528,6 +534,7 @@ class DreamBoothSubset(BaseSubset):
             validation_seed=validation_seed,
             validation_split=validation_split,
             resize_interpolation=resize_interpolation,
+            epoch_sample_rate=epoch_sample_rate,
         )
 
         self.is_reg = is_reg
@@ -571,6 +578,7 @@ class FineTuningSubset(BaseSubset):
         validation_seed: Optional[int] = None,
         validation_split: Optional[float] = 0.0,
         resize_interpolation: Optional[str] = None,
+        epoch_sample_rate: float = 1.0,
     ) -> None:
         assert metadata_file is not None, "metadata_file must be specified / metadata_fileは指定が必須です"
 
@@ -599,6 +607,7 @@ class FineTuningSubset(BaseSubset):
             validation_seed=validation_seed,
             validation_split=validation_split,
             resize_interpolation=resize_interpolation,
+            epoch_sample_rate=epoch_sample_rate,
         )
 
         self.metadata_file = metadata_file
@@ -638,6 +647,7 @@ class ControlNetSubset(BaseSubset):
         validation_seed: Optional[int] = None,
         validation_split: Optional[float] = 0.0,
         resize_interpolation: Optional[str] = None,
+        epoch_sample_rate: float = 1.0,
     ) -> None:
         assert image_dir is not None, "image_dir must be specified / image_dirは指定が必須です"
 
@@ -666,6 +676,7 @@ class ControlNetSubset(BaseSubset):
             validation_seed=validation_seed,
             validation_split=validation_split,
             resize_interpolation=resize_interpolation,
+            epoch_sample_rate=epoch_sample_rate,
         )
 
         self.conditioning_data_dir = conditioning_data_dir
@@ -729,6 +740,10 @@ class BaseDataset(torch.utils.data.Dataset):
 
         self.image_data: Dict[str, ImageInfo] = {}
         self.image_to_subset: Dict[str, Union[DreamBoothSubset, FineTuningSubset]] = {}
+        # Keep this aligned with self.subsets. Object ids are not stable when a
+        # dataset is serialized into spawn-based DataLoader workers on Windows.
+        self._subset_image_keys: List[List[str]] = []
+        self._uses_epoch_sampling = False
 
         self.replacements = {}
 
@@ -788,15 +803,21 @@ class BaseDataset(torch.utils.data.Dataset):
                 # inherit RANK=0 on Linux/WSL and would otherwise duplicate this.
                 if should_log:
                     logger.info("epoch is incremented. current_epoch: {}, epoch: {}".format(self.current_epoch, epoch))
-                
-                num_epochs = epoch - self.current_epoch
-                for _ in range(num_epochs):
-                    self.current_epoch += 1
-                    self.shuffle_buckets()
+
+                if self._uses_epoch_sampling:
+                    self.current_epoch = epoch
+                    self._rebuild_active_buckets()
+                else:
+                    num_epochs = epoch - self.current_epoch
+                    for _ in range(num_epochs):
+                        self.current_epoch += 1
+                        self.shuffle_buckets()
             else:
                 if should_log:
                     logger.warning("epoch is not incremented. current_epoch: {}, epoch: {}".format(self.current_epoch, epoch))
                 self.current_epoch = epoch
+                if self._uses_epoch_sampling:
+                    self._rebuild_active_buckets()
 
     def set_current_step(self, step):
         self.current_step = step
@@ -991,6 +1012,65 @@ class BaseDataset(torch.utils.data.Dataset):
         self.image_data[info.image_key] = info
         self.image_to_subset[info.image_key] = subset
 
+    def _cache_subset_image_keys(self):
+        self._subset_image_keys = []
+        for subset in self.subsets:
+            keys = [image_key for image_key, image_subset in self.image_to_subset.items() if image_subset is subset]
+            keys.sort()
+            self._subset_image_keys.append(keys)
+
+    def _get_epoch_sampled_image_keys(self, subset: BaseSubset, subset_index: int) -> List[str]:
+        keys = self._subset_image_keys[subset_index]
+        if len(keys) == 0:
+            return []
+
+        rate = subset.epoch_sample_rate
+        if rate >= 1.0:
+            return keys
+        if rate <= 0.0:
+            return []
+
+        sample_count = max(1, math.floor(len(keys) * rate))
+        if sample_count >= len(keys):
+            return keys
+
+        # Stable local RNG: deterministic for seed + epoch + subset order, without touching global random state.
+        rng_seed = self.seed + self.current_epoch * 1_000_003 + subset_index * 97_409
+        sampled = random.Random(rng_seed).sample(keys, sample_count)
+        sampled.sort()
+        return sampled
+
+    def _iter_active_image_keys(self, use_epoch_sampling: bool) -> List[str]:
+        active_image_keys = []
+        for subset_index, subset in enumerate(self.subsets):
+            if use_epoch_sampling:
+                subset_keys = self._get_epoch_sampled_image_keys(subset, subset_index)
+            else:
+                subset_keys = self._subset_image_keys[subset_index]
+            active_image_keys.extend(subset_keys)
+        return active_image_keys
+
+    def _rebuild_active_buckets(self, use_epoch_sampling: Optional[bool] = None, shuffle: bool = True):
+        if use_epoch_sampling is None:
+            use_epoch_sampling = self._uses_epoch_sampling
+
+        self.bucket_manager.buckets = [[] for _ in self.bucket_manager.buckets]
+
+        for image_key in self._iter_active_image_keys(use_epoch_sampling):
+            image_info = self.image_data[image_key]
+            for _ in range(image_info.num_repeats):
+                self.bucket_manager.add_image(image_info.bucket_reso, image_key)
+
+        self.buckets_indices: List[BucketBatchIndex] = []
+        for bucket_index, bucket in enumerate(self.bucket_manager.buckets):
+            batch_count = int(math.ceil(len(bucket) / self.batch_size))
+            for batch_index in range(batch_count):
+                self.buckets_indices.append(BucketBatchIndex(bucket_index, self.batch_size, batch_index))
+
+        if shuffle:
+            self.shuffle_buckets()
+        self._length = len(self.buckets_indices)
+
     def make_buckets(self):
         """
         bucketingを行わない場合も呼び出し必須（ひとつだけbucketを作る）
@@ -1053,9 +1133,9 @@ class BaseDataset(torch.utils.data.Dataset):
                 image_width, image_height = image_info.image_size
                 image_info.bucket_reso, image_info.resized_size, _ = self.bucket_manager.select_bucket(image_width, image_height)
 
-        for image_info in self.image_data.values():
-            for _ in range(image_info.num_repeats):
-                self.bucket_manager.add_image(image_info.bucket_reso, image_info.image_key)
+        self._cache_subset_image_keys()
+        self._uses_epoch_sampling = any(subset.epoch_sample_rate < 1.0 for subset in self.subsets)
+        self._rebuild_active_buckets(use_epoch_sampling=False, shuffle=False)
 
         # bucket情報を表示、格納する
         if self.enable_bucket:
@@ -1075,22 +1155,13 @@ class BaseDataset(torch.utils.data.Dataset):
             self.bucket_info["mean_img_ar_error"] = mean_img_ar_error
             logger.info(f"mean ar error (without repeats): {mean_img_ar_error}")
 
-        # データ参照用indexを作る。このindexはdatasetのshuffleに用いられる
-        self.buckets_indices: List[BucketBatchIndex] = []
-        for bucket_index, bucket in enumerate(self.bucket_manager.buckets):
-            batch_count = int(math.ceil(len(bucket) / self.batch_size))
-            for batch_index in range(batch_count):
-                self.buckets_indices.append(BucketBatchIndex(bucket_index, self.batch_size, batch_index))
-
-        self.shuffle_buckets()
-        self._length = len(self.buckets_indices)
+        self._rebuild_active_buckets()
 
     def shuffle_buckets(self):
-        # set random seed for this epoch
-        random.seed(self.seed + self.current_epoch)
-
-        random.shuffle(self.buckets_indices)
-        self.bucket_manager.shuffle()
+        rng = random.Random(self.seed + self.current_epoch)
+        rng.shuffle(self.buckets_indices)
+        for bucket in self.bucket_manager.buckets:
+            rng.shuffle(bucket)
 
     def verify_bucket_reso_steps(self, min_steps: int):
         assert self.bucket_reso_steps is None or self.bucket_reso_steps % min_steps == 0, (
@@ -2433,6 +2504,7 @@ class ControlNetDataset(BaseDataset):
                 subset.token_warmup_min,
                 subset.token_warmup_step,
                 resize_interpolation=subset.resize_interpolation,
+                epoch_sample_rate=subset.epoch_sample_rate,
             )
             db_subsets.append(db_subset)
 
@@ -2455,7 +2527,9 @@ class ControlNetDataset(BaseDataset):
         )
 
         # config_util等から参照される値をいれておく（若干微妙なのでなんとかしたい）
+        self.subsets = self.dreambooth_dataset_delegate.subsets
         self.image_data = self.dreambooth_dataset_delegate.image_data
+        self.image_to_subset = self.dreambooth_dataset_delegate.image_to_subset
         self.batch_size = batch_size
         self.num_train_images = self.dreambooth_dataset_delegate.num_train_images
         self.num_reg_images = self.dreambooth_dataset_delegate.num_reg_images
@@ -2507,6 +2581,28 @@ class ControlNetDataset(BaseDataset):
 
     def set_current_strategies(self):
         return self.dreambooth_dataset_delegate.set_current_strategies()
+
+    def set_seed(self, seed):
+        super().set_seed(seed)
+        self.dreambooth_dataset_delegate.set_seed(seed)
+
+    def set_caching_mode(self, mode):
+        super().set_caching_mode(mode)
+        self.dreambooth_dataset_delegate.set_caching_mode(mode)
+
+    def set_current_epoch(self, epoch):
+        self.dreambooth_dataset_delegate.set_current_epoch(epoch)
+        self.current_epoch = self.dreambooth_dataset_delegate.current_epoch
+        self.bucket_manager = self.dreambooth_dataset_delegate.bucket_manager
+        self.buckets_indices = self.dreambooth_dataset_delegate.buckets_indices
+
+    def set_current_step(self, step):
+        super().set_current_step(step)
+        self.dreambooth_dataset_delegate.set_current_step(step)
+
+    def set_max_train_steps(self, max_train_steps):
+        super().set_max_train_steps(max_train_steps)
+        self.dreambooth_dataset_delegate.set_max_train_steps(max_train_steps)
 
     def make_buckets(self):
         self.dreambooth_dataset_delegate.make_buckets()
@@ -2597,6 +2693,7 @@ class DatasetGroup(torch.utils.data.ConcatDataset):
         self.datasets: List[Union[DreamBoothDataset, FineTuningDataset]]
 
         super().__init__(datasets)
+        self._epoch_shared_value = None
 
         self.image_data = {}
         self.num_train_images = 0
@@ -2609,6 +2706,40 @@ class DatasetGroup(torch.utils.data.ConcatDataset):
             self.image_data.update(dataset.image_data)
             self.num_train_images += dataset.num_train_images
             self.num_reg_images += dataset.num_reg_images
+
+    def set_epoch_shared_value(self, epoch_shared_value):
+        self._epoch_shared_value = epoch_shared_value
+
+    def _refresh_cumulative_sizes(self):
+        self.cumulative_sizes = self.cumsum(self.datasets)
+
+    def _describe_epoch_sample_rates(self) -> str:
+        descriptions = []
+        for dataset_index, dataset in enumerate(self.datasets):
+            for subset_index, subset in enumerate(dataset.subsets):
+                source = getattr(subset, "image_dir", None) or getattr(subset, "metadata_file", None) or "<unknown>"
+                descriptions.append(
+                    f"dataset {dataset_index} subset {subset_index} source={source!r} "
+                    f"image_count={subset.img_count} epoch_sample_rate={subset.epoch_sample_rate}"
+                )
+        return "; ".join(descriptions)
+
+    def _raise_if_empty_after_epoch_sampling(self):
+        has_epoch_sampling = any(
+            subset.epoch_sample_rate < 1.0 for dataset in self.datasets for subset in dataset.subsets
+        )
+        if has_epoch_sampling and len(self) == 0:
+            raise ValueError(
+                "DatasetGroup is empty after applying epoch_sample_rate. "
+                f"Check subset rates: {self._describe_epoch_sample_rates()}"
+            )
+
+    def _sync_epoch_from_shared_value(self):
+        if self._epoch_shared_value is None:
+            return
+        epoch = self._epoch_shared_value.value
+        if epoch > 0 and any(dataset.current_epoch != epoch for dataset in self.datasets):
+            self.set_current_epoch(epoch)
 
     def add_replacement(self, str_from, str_to):
         for dataset in self.datasets:
@@ -2686,6 +2817,12 @@ class DatasetGroup(torch.utils.data.ConcatDataset):
     def set_current_epoch(self, epoch):
         for dataset in self.datasets:
             dataset.set_current_epoch(epoch)
+        self._refresh_cumulative_sizes()
+        self._raise_if_empty_after_epoch_sampling()
+
+    def __getitem__(self, idx):
+        self._sync_epoch_from_shared_value()
+        return super().__getitem__(idx)
 
     def set_current_step(self, step):
         for dataset in self.datasets:
@@ -2698,6 +2835,32 @@ class DatasetGroup(torch.utils.data.ConcatDataset):
     def disable_token_padding(self):
         for dataset in self.datasets:
             dataset.disable_token_padding()
+
+
+def set_current_epoch_for_dataloader(dataloader, epoch: int) -> bool:
+    """
+    Update the DatasetGroup behind a DataLoader or Accelerate DataLoader wrapper
+    before its iterator is created, so samplers see the current epoch length.
+    """
+    candidates = []
+    dataset = getattr(dataloader, "dataset", None)
+    if dataset is not None:
+        candidates.append(dataset)
+    base_dataloader = getattr(dataloader, "base_dataloader", None)
+    base_dataset = getattr(base_dataloader, "dataset", None)
+    if base_dataset is not None:
+        candidates.append(base_dataset)
+
+    seen = set()
+    for candidate in candidates:
+        candidate_id = id(candidate)
+        if candidate_id in seen:
+            continue
+        seen.add(candidate_id)
+        if hasattr(candidate, "set_current_epoch"):
+            candidate.set_current_epoch(epoch)
+            return True
+    return False
 
 
 def is_disk_cached_latents_is_expected(reso, npz_path: str, flip_aug: bool, alpha_mask: bool):

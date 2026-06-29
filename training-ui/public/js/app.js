@@ -563,6 +563,7 @@ function populateDataset(dataset) {
   currentSubsets = subsetsRaw.map((s) => ({
     image_dir: s.image_dir || "",
     num_repeats: s.num_repeats ?? 1,
+    epoch_sample_rate: clampFloat(s.epoch_sample_rate ?? 1.0, 0, 1),
     keep_tokens: s.keep_tokens ?? 1,
     flip_aug: s.flip_aug ?? false,
     caption_prefix: s.caption_prefix || "",
@@ -622,6 +623,10 @@ function safeFloat(val, fallback = 0.0) {
   if (val === "" || val === null || val === undefined) return fallback;
   const p = parseFloat(val);
   return isNaN(p) ? fallback : p;
+}
+function clampFloat(val, min, max, fallback = min) {
+  const p = safeFloat(val, fallback);
+  return Math.min(max, Math.max(min, p));
 }
 function gatherConfig() {
   const unit = document.querySelector(
@@ -858,6 +863,7 @@ function gatherDataset() {
             const subset = {
               image_dir: s.image_dir,
               num_repeats: safeInt(s.num_repeats),
+              epoch_sample_rate: clampFloat(s.epoch_sample_rate, 0, 1, 1.0),
               keep_tokens: safeInt(s.keep_tokens),
               flip_aug: s.flip_aug,
               caption_prefix: s.caption_prefix,
@@ -884,6 +890,7 @@ function addSubset(shouldRender = true) {
   currentSubsets.push({
     image_dir: "",
     num_repeats: 1,
+    epoch_sample_rate: 1.0,
     keep_tokens: 1,
     flip_aug: false,
     caption_prefix: "",
@@ -944,8 +951,17 @@ function renderSubsets() {
                         <input type="number" class="sub-num-repeats" value="${subset.num_repeats}" min="1">
                     </div>
                     <div class="form-group">
+                        <label style="font-size: 0.8rem;">Epoch Image Sample Rate</label>
+                        <input type="number" class="sub-epoch-sample-rate" value="${subset.epoch_sample_rate}" step="0.01" min="0" max="1">
+                        <small style="display:block; font-size: 0.7rem; color: var(--text-muted);">每轮训练参与比例。1 = use all, 0.5 = sample half each epoch.</small>
+                    </div>
+                </div>
+                <div class="form-row" style="margin-top: 10px;">
+                    <div class="form-group">
                         <label style="font-size: 0.8rem;">Keep Tokens</label>
                         <input type="number" class="sub-keep-tokens" value="${subset.keep_tokens}" min="0">
+                    </div>
+                    <div class="form-group">
                     </div>
                 </div>
                 <div class="form-group" style="margin-top: 10px;">
@@ -996,6 +1012,12 @@ function renderSubsets() {
         subset.image_dir = card.querySelector(".sub-image-dir").value;
         subset.num_repeats = safeInt(
           card.querySelector(".sub-num-repeats").value,
+        );
+        subset.epoch_sample_rate = clampFloat(
+          card.querySelector(".sub-epoch-sample-rate").value,
+          0,
+          1,
+          1.0,
         );
         subset.keep_tokens = safeInt(
           card.querySelector(".sub-keep-tokens").value,

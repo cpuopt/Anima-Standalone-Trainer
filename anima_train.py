@@ -292,6 +292,14 @@ class AnimaTrainer:
 
         current_epoch = Value("i", 0)
         current_step = Value("i", 0)
+        current_epoch.value = 1
+        if hasattr(train_dataset_group, "set_epoch_shared_value"):
+            train_dataset_group.set_epoch_shared_value(current_epoch)
+        train_dataset_group.set_current_epoch(1)
+        for _pds in _phase_dataset_groups:
+            if hasattr(_pds, "set_epoch_shared_value"):
+                _pds.set_epoch_shared_value(current_epoch)
+            _pds.set_current_epoch(1)
         ds_for_collator = train_dataset_group if args.max_data_loader_n_workers == 0 else None
         collator = train_util.collator_class(current_epoch, current_step, ds_for_collator)
 
@@ -821,7 +829,9 @@ class AnimaTrainer:
         # Initialize current_epoch based on resumed state
         # This prevents the "epoch is incremented. current_epoch: 0, epoch: X" log
         current_epoch.value = epoch_to_start + 1
-        train_dataset_group.set_current_epoch(epoch_to_start + 1)
+        train_util.set_current_epoch_for_dataloader(train_dataloader, epoch_to_start + 1)
+        for _phase_dl in phase_dataloaders:
+            train_util.set_current_epoch_for_dataloader(_phase_dl, epoch_to_start + 1)
 
         if accelerator.is_main_process:
             init_kwargs = {}
@@ -889,6 +899,9 @@ class AnimaTrainer:
 
             accelerator.print(f"\nepoch {epoch+1}/{num_train_epochs}")
             current_epoch.value = epoch + 1
+            train_util.set_current_epoch_for_dataloader(train_dataloader, epoch + 1)
+            for _phase_dl in phase_dataloaders:
+                train_util.set_current_epoch_for_dataloader(_phase_dl, epoch + 1)
 
             for m in training_models:
                 m.train()
