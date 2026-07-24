@@ -101,6 +101,10 @@ function stripQuotes(p) {
     return p.replace(/^['"]+|['"]+$/g, '');
 }
 
+function normalizeLogLanguage(value) {
+    return ['zh_CN', 'en', 'ja'].includes(value) ? value : 'zh_CN';
+}
+
 function getJobPath(name) {
     return path.join(JOBS_DIR, sanitizeName(name));
 }
@@ -125,7 +129,10 @@ function getGlobalConfig() {
             gemma2_path: '',
             lumina_vae_path: ''
         },
-        venv_path: path.join(ROOT_DIR, 'venv')
+        venv_path: path.join(ROOT_DIR, 'venv'),
+        ui: {
+            log_language: 'zh_CN'
+        }
     };
 }
 
@@ -369,6 +376,7 @@ function buildTrainingConfig(jobName, jobPath) {
     delete trainingArgs.cache_text_encoder_outputs_to_disk;
     merged.training_arguments = {
         ...trainingArgs,
+        console_log_language: normalizeLogLanguage(globalConfig.ui?.log_language),
         output_dir: outputDir,
         logging_dir: loggingDir,
         save_state: true,
@@ -520,6 +528,8 @@ app.put('/api/global-config', (req, res) => {
                 body.model_paths[key] = stripQuotes(body.model_paths[key]);
             }
         }
+        body.ui = body.ui || {};
+        body.ui.log_language = normalizeLogLanguage(body.ui.log_language);
         const tomlStr = TOML.stringify(body);
         fs.writeFileSync(GLOBAL_CONFIG_PATH, tomlStr, 'utf8');
         res.json({ success: true });
@@ -1609,6 +1619,10 @@ app.post('/api/jobs/:name/train/start', async (req, res) => {
         const trainEnvVars = [
             buildEnvVar('PYTHONIOENCODING', 'utf-8'),
             buildEnvVar('TOKENIZERS_PARALLELISM', 'false'),
+            buildEnvVar(
+                'ANIMA_LOG_LANGUAGE',
+                normalizeLogLanguage(globalConfig.ui?.log_language)
+            ),
             gpuEnv,
             mergedConfig.training_arguments?.step_profile ? buildEnvVar('STEP_PROFILE', '1') : '',
             mergedConfig.training_arguments?.profile_microbatch ? buildEnvVar('PROFILE_MICROBATCH', '1') : '',

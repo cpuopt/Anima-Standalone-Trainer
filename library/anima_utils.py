@@ -8,6 +8,7 @@ from safetensors.torch import load_file, save_file
 from accelerate.utils import set_module_tensor_to_device  # kept for potential future use
 
 from .utils import setup_logging
+from .i18n import tr
 
 setup_logging()
 import logging
@@ -50,7 +51,7 @@ def load_anima_dit(
     if transformer_dtype is None:
         transformer_dtype = dtype
 
-    logger.info(f"Loading Anima DiT from {dit_path}")
+    logger.info(tr("loading_model_from", model="Anima DiT", path=dit_path))
     if disable_mmap:
         from library.safetensors_utils import load_safetensors as load_safetensors_no_mmap
         state_dict = load_safetensors_no_mmap(dit_path, device="cpu", disable_mmap=True)
@@ -81,8 +82,15 @@ def load_anima_dit(
         use_llm_adapter = False
         llm_adapter_state_dict = None
 
-    logger.info(f"DiT config: model_channels={dit_config['model_channels']}, num_blocks={dit_config['num_blocks']}, "
-                f"num_heads={dit_config['num_heads']}, use_llm_adapter={use_llm_adapter}")
+    logger.info(
+        tr(
+            "dit_config",
+            channels=dit_config["model_channels"],
+            blocks=dit_config["num_blocks"],
+            heads=dit_config["num_heads"],
+            adapter=use_llm_adapter,
+        )
+    )
 
     # Build model normally on CPU — buffers get proper values from __init__
     dit = anima_models.MiniTrainDIT(**dit_config)
@@ -100,9 +108,19 @@ def load_anima_dit(
             buf_name in k for buf_name in ('seq', 'dim_spatial_range', 'dim_temporal_range', 'inv_freq')
         )]
         if unexpected_missing:
-            logger.warning(f"Missing keys in checkpoint: {unexpected_missing[:10]}{'...' if len(unexpected_missing) > 10 else ''}")
+            logger.warning(
+                tr(
+                    "checkpoint_missing_keys",
+                    keys=f"{unexpected_missing[:10]}{'...' if len(unexpected_missing) > 10 else ''}",
+                )
+            )
     if unexpected:
-        logger.info(f"Unexpected keys in checkpoint (ignored): {unexpected[:5]}{'...' if len(unexpected) > 5 else ''}")
+        logger.info(
+            tr(
+                "checkpoint_unexpected_keys",
+                keys=f"{unexpected[:5]}{'...' if len(unexpected) > 5 else ''}",
+            )
+        )
 
     # Apply per-parameter dtype (high precision for 1D/critical, transformer_dtype for rest)
     for name, p in dit.named_parameters():
@@ -112,7 +130,7 @@ def load_anima_dit(
         p.data = p.data.to(dtype=dtype_to_use)
 
     dit.to(device)
-    logger.info(f"Loaded Anima DiT successfully. Parameters: {sum(p.numel() for p in dit.parameters()):,}")
+    logger.info(tr("model_loaded", model="Anima DiT", count=f"{sum(p.numel() for p in dit.parameters()):,}"))
     return dit
 
 
@@ -123,7 +141,7 @@ def load_anima_vae(vae_path: str, dtype: torch.dtype = torch.float32, device: st
     """
     from library.anima_models import ANIMA_VAE_MEAN, ANIMA_VAE_STD
 
-    logger.info(f"Loading Anima VAE from {vae_path}")
+    logger.info(tr("loading_model_from", model="Anima VAE", path=vae_path))
 
     # VAE config (fixed for WanVAE)
     vae_config = dict(
@@ -156,7 +174,7 @@ def load_anima_vae(vae_path: str, dtype: torch.dtype = torch.float32, device: st
     std = torch.tensor(ANIMA_VAE_STD, dtype=dtype, device=device)
     scale = [mean, 1.0 / std]
 
-    logger.info(f"Loaded Anima VAE successfully.")
+    logger.info(tr("model_loaded_simple", model="Anima VAE"))
     return vae, mean, std, scale
 
 
@@ -204,7 +222,7 @@ def load_qwen3_text_encoder(qwen3_path: str, dtype: torch.dtype = torch.bfloat16
     import transformers
     from transformers import AutoTokenizer
 
-    logger.info(f"Loading Qwen3 text encoder from {qwen3_path}")
+    logger.info(tr("loading_model_from", model="Qwen3 text encoder", path=qwen3_path))
 
     if os.path.isdir(qwen3_path):
         # Directory with full model
@@ -241,7 +259,7 @@ def load_qwen3_text_encoder(qwen3_path: str, dtype: torch.dtype = torch.bfloat16
                 new_sd[k] = v
 
         info = model.load_state_dict(new_sd, strict=False)
-        logger.info(f"Loaded Qwen3 state dict: {info}")
+        logger.info(tr("state_dict_loaded", model="Qwen3", info=info))
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -249,7 +267,7 @@ def load_qwen3_text_encoder(qwen3_path: str, dtype: torch.dtype = torch.bfloat16
     model.config.use_cache = False
     model = model.requires_grad_(False).to(device, dtype=dtype)
 
-    logger.info(f"Loaded Qwen3 text encoder. Parameters: {sum(p.numel() for p in model.parameters()):,}")
+    logger.info(tr("model_loaded", model="Qwen3 text encoder", count=f"{sum(p.numel() for p in model.parameters()):,}"))
     return model, tokenizer
 
 
@@ -294,7 +312,7 @@ def save_anima_model(save_path: str, dit_state_dict: Dict[str, torch.Tensor], dt
         prefixed_sd['net.' + k] = v.contiguous()
 
     save_file(prefixed_sd, save_path, metadata={'format': 'pt'})
-    logger.info(f"Saved Anima model to {save_path}")
+    logger.info(tr("anima_model_saved", path=save_path))
 
 
 def vae_encode(tensor: torch.Tensor, vae, scale):

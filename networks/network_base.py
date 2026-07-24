@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union
 import torch
 from library.sdxl_original_unet import InferSdxlUNet2DConditionModel
 from library.utils import setup_logging
+from library.i18n import tr
 
 setup_logging()
 import logging
@@ -300,6 +301,7 @@ class AdditionalNetwork(torch.nn.Module):
         self.type_dims = type_dims
         self.emb_dims = emb_dims
         self.train_block_indices = train_block_indices
+        self.module_class = module_class
 
         self.loraplus_lr_ratio = None
         self.loraplus_unet_lr_ratio = None
@@ -309,11 +311,16 @@ class AdditionalNetwork(torch.nn.Module):
             module_kwargs = {}
 
         if modules_dim is not None:
-            logger.info(f"create {module_class.__name__} network from weights")
+            logger.info(tr("create_network_from_weights", network=module_class.__name__))
         else:
-            logger.info(f"create {module_class.__name__} network. base dim (rank): {lora_dim}, alpha: {alpha}")
+            logger.info(tr("create_network", network=module_class.__name__, dim=lora_dim, alpha=alpha))
             logger.info(
-                f"neuron dropout: p={self.dropout}, rank dropout: p={self.rank_dropout}, module dropout: p={self.module_dropout}"
+                tr(
+                    "network_dropout",
+                    neuron=self.dropout,
+                    rank=self.rank_dropout,
+                    module=self.module_dropout,
+                )
             )
 
         def str_to_re_patterns(patterns: Optional[List[str]]) -> List[re.Pattern]:
@@ -461,7 +468,14 @@ class AdditionalNetwork(torch.nn.Module):
                 te_prefix = arch_config.te_prefixes[i] if i < len(arch_config.te_prefixes) else arch_config.te_prefixes[0]
                 logger.info(f"create {module_class.__name__} for Text Encoder {i+1} (prefix={te_prefix}):")
                 te_loras, te_skipped = create_modules(te_prefix, text_encoder, arch_config.te_target_modules)
-                logger.info(f"create {module_class.__name__} for Text Encoder {i+1}: {len(te_loras)} modules.")
+                logger.info(
+                    tr(
+                        "created_network_modules",
+                        target=f"Text Encoder {i + 1}",
+                        count=len(te_loras),
+                        network=module_class.__name__,
+                    )
+                )
                 self.text_encoder_loras.extend(te_loras)
                 skipped_te += te_skipped
 
@@ -501,7 +515,14 @@ class AdditionalNetwork(torch.nn.Module):
                     existing_names.add(lora.lora_name)
                     self.unet_loras.append(lora)
 
-        logger.info(f"create {module_class.__name__} for UNet/DiT: {len(self.unet_loras)} modules.")
+        logger.info(
+            tr(
+                "created_network_modules",
+                target="UNet/DiT",
+                count=len(self.unet_loras),
+                network=module_class.__name__,
+            )
+        )
 
         if verbose:
             for lora in self.unet_loras:
@@ -509,7 +530,7 @@ class AdditionalNetwork(torch.nn.Module):
 
         skipped = skipped_te + skipped_un
         if verbose and len(skipped) > 0:
-            logger.warning(f"dim (rank) is 0, {len(skipped)} modules are skipped:")
+            logger.warning(tr("zero_rank_modules_skipped", count=len(skipped), network=module_class.__name__))
             for name in skipped:
                 logger.info(f"\t{name}")
 
@@ -573,12 +594,26 @@ class AdditionalNetwork(torch.nn.Module):
 
     def apply_to(self, text_encoders, unet, apply_text_encoder=True, apply_unet=True):
         if apply_text_encoder:
-            logger.info(f"enable modules for text encoder: {len(self.text_encoder_loras)} modules")
+            logger.info(
+                tr(
+                    "enabled_network_modules",
+                    target="text encoder",
+                    count=len(self.text_encoder_loras),
+                    network=self.module_class.__name__,
+                )
+            )
         else:
             self.text_encoder_loras = []
 
         if apply_unet:
-            logger.info(f"enable modules for UNet/DiT: {len(self.unet_loras)} modules")
+            logger.info(
+                tr(
+                    "enabled_network_modules",
+                    target="UNet/DiT",
+                    count=len(self.unet_loras),
+                    network=self.module_class.__name__,
+                )
+            )
         else:
             self.unet_loras = []
 
@@ -617,7 +652,7 @@ class AdditionalNetwork(torch.nn.Module):
                     sd_for_lora[key[len(lora.lora_name) + 1 :]] = weights_sd[key]
             lora.merge_to(sd_for_lora, dtype, device)
 
-        logger.info("weights are merged")
+        logger.info(tr("weights_merged"))
 
     def set_loraplus_lr_ratio(self, loraplus_lr_ratio, loraplus_unet_lr_ratio, loraplus_text_encoder_lr_ratio):
         self.loraplus_lr_ratio = loraplus_lr_ratio

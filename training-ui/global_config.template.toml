@@ -12,6 +12,7 @@ gemma2_path = ""
 lumina_vae_path = ""
 
 [ui]
+log_language = "zh_CN"
 background = ""
 background_position = "50% 50%"
 dim_level = 0

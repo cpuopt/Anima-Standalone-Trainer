@@ -50,6 +50,7 @@ from library.custom_train_functions import (
     apply_masked_loss,
 )
 from library.utils import setup_logging, add_logging_arguments
+from library.i18n import tr
 
 setup_logging()
 import logging
@@ -627,10 +628,10 @@ class NetworkTrainer:
     def train(self, args):
         session_id = random.randint(0, 2**32)
         training_started_at = time.time()
+        setup_logging(args, reset=True)
         train_util.verify_training_args(args)
         train_util.prepare_dataset_args(args, True)
         deepspeed_utils.prepare_deepspeed_args(args)
-        setup_logging(args, reset=True)
 
         cache_latents = args.cache_latents
         use_dreambooth_method = args.in_json is None
@@ -652,18 +653,14 @@ class NetworkTrainer:
         if args.dataset_class is None:
             blueprint_generator = BlueprintGenerator(ConfigSanitizer(True, True, args.masked_loss, True))
             if use_user_config:
-                logger.info(f"Loading dataset config from {args.dataset_config}")
+                logger.info(tr("loading_dataset_config", path=args.dataset_config))
                 user_config = config_util.load_user_config(args.dataset_config)
                 ignored = ["train_data_dir", "reg_data_dir", "in_json"]
                 if any(getattr(args, attr) is not None for attr in ignored):
-                    logger.warning(
-                        "ignoring the following options because config file is found: {0} / 設定ファイルが利用されるため以下のオプションは無視されます: {0}".format(
-                            ", ".join(ignored)
-                        )
-                    )
+                    logger.warning(tr("ignoring_config_options", options=", ".join(ignored)))
             else:
                 if use_dreambooth_method:
-                    logger.info("Using DreamBooth method.")
+                    logger.info(tr("using_dreambooth"))
                     user_config = {
                         "datasets": [
                             {
@@ -674,7 +671,7 @@ class NetworkTrainer:
                         ]
                     }
                 else:
-                    logger.info("Training with captions.")
+                    logger.info(tr("training_with_captions"))
                     user_config = {
                         "datasets": [
                             {
@@ -699,7 +696,7 @@ class NetworkTrainer:
                 _phase_fracs = [(int(p.split(":")[0].strip()), float(p.split(":")[1].strip()))
                                 for p in args.resolution_schedule.split(",")]
                 for phase_reso, _ in _phase_fracs:
-                    logger.info(f"[resolution_schedule] building dataset for {phase_reso}px phase")
+                    logger.info(tr("building_resolution_dataset", resolution=phase_reso))
                     _phase_dataset_groups.append(
                         _build_phase_dataset_group(
                             args, phase_reso, blueprint_generator,
@@ -735,9 +732,7 @@ class NetworkTrainer:
                 train_util.debug_dataset(val_dataset_group)
             return
         if len(train_dataset_group) == 0:
-            logger.error(
-                "No data found. Please verify arguments (train_data_dir must be the parent of folders with images) / 画像がありません。引数指定を確認してください（train_data_dirには画像があるフォルダではなく、画像があるフォルダの親フォルダを指定する必要があります）"
-            )
+            logger.error(tr("no_training_data"))
             return
 
         if cache_latents:
@@ -752,7 +747,7 @@ class NetworkTrainer:
         self.assert_extra_args(args, train_dataset_group, val_dataset_group)  # may change some args
 
         # acceleratorを準備する
-        logger.info("preparing accelerator")
+        logger.info(tr("preparing_accelerator"))
         accelerator = train_util.prepare_accelerator(args)
         is_main_process = accelerator.is_main_process
         tp_collective_save = int(getattr(args, "tp_degree", 1) or 1) > 1
@@ -767,7 +762,7 @@ class NetworkTrainer:
         model_version, text_encoder, vae, unet = self.load_target_model(args, weight_dtype, accelerator)
         if vae_dtype is None:
             vae_dtype = vae.dtype
-            logger.info(f"vae_dtype is set to {vae_dtype} by the model since cast_vae() is false")
+            logger.info(tr("vae_dtype_from_model", dtype=vae_dtype))
 
         # text_encoder is List[CLIPTextModel] or CLIPTextModel
         text_encoders = text_encoder if isinstance(text_encoder, list) else [text_encoder]
@@ -784,7 +779,7 @@ class NetworkTrainer:
 
             # Cache latents for all resolution-schedule phases
             for _pds in _phase_dataset_groups:
-                logger.info(f"[resolution_schedule] caching latents for phase dataset (reso={_pds.datasets[0].width})")
+                logger.info(tr("caching_phase_latents", resolution=_pds.datasets[0].width))
                 _pds.new_cache_latents(vae, accelerator)
 
             vae.to("cpu")
@@ -819,7 +814,7 @@ class NetworkTrainer:
 
         # 差分追加学習のためにモデルを読み込む
         sys.path.append(os.path.dirname(__file__))
-        accelerator.print("import network module:", args.network_module)
+        accelerator.print(tr("import_network_module", module=args.network_module))
         network_module = importlib.import_module(args.network_module)
 
         if args.base_weights is not None:
@@ -875,9 +870,7 @@ class NetworkTrainer:
         if hasattr(network, "prepare_network"):
             network.prepare_network(args)
         if args.scale_weight_norms and not hasattr(network, "apply_max_norm_regularization"):
-            logger.warning(
-                "warning: scale_weight_norms is specified but the network does not support it / scale_weight_normsが指定されていますが、ネットワークが対応していません"
-            )
+            logger.warning(tr("scale_weight_norm_unsupported"))
             args.scale_weight_norms = False
 
         self.post_process_network(args, accelerator, network, text_encoders, unet)
@@ -890,7 +883,7 @@ class NetworkTrainer:
         if args.network_weights is not None:
             # FIXME consider alpha of weights: this assumes that the alpha is not changed
             info = network.load_weights(args.network_weights)
-            accelerator.print(f"load network weights from {args.network_weights}: {info}")
+            accelerator.print(tr("load_network_weights", path=args.network_weights, info=info))
 
         if args.gradient_checkpointing:
             if args.cpu_offload_checkpointing:
@@ -906,7 +899,7 @@ class NetworkTrainer:
             network.enable_gradient_checkpointing()  # may have no effect
 
         # 学習に必要なクラスを準備する
-        accelerator.print("prepare optimizer, data loader etc.")
+        accelerator.print(tr("prepare_optimizer_data"))
 
         # make backward compatibility for text_encoder_lr
         support_multiple_lrs = hasattr(network, "prepare_optimizer_params_with_multiple_te_lrs")
@@ -1233,19 +1226,19 @@ class NetworkTrainer:
         # TODO: find a way to handle total batch size when there are multiple datasets
         total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
 
-        accelerator.print("running training / 学習開始")
-        accelerator.print(f"  num train images * repeats / 学習画像の数×繰り返し回数: {train_dataset_group.num_train_images}")
+        accelerator.print(tr("training_start"))
+        accelerator.print(tr("train_images", count=train_dataset_group.num_train_images))
         accelerator.print(
-            f"  num validation images * repeats / 学習画像の数×繰り返し回数: {val_dataset_group.num_train_images if val_dataset_group is not None else 0}"
+            tr("validation_images", count=val_dataset_group.num_train_images if val_dataset_group is not None else 0)
         )
-        accelerator.print(f"  num reg images / 正則化画像の数: {train_dataset_group.num_reg_images}")
-        accelerator.print(f"  num batches per epoch / 1epochのバッチ数: {len(train_dataloader)}")
-        accelerator.print(f"  num epochs / epoch数: {num_train_epochs}")
+        accelerator.print(tr("reg_images", count=train_dataset_group.num_reg_images))
+        accelerator.print(tr("batches_per_epoch", count=len(train_dataloader)))
+        accelerator.print(tr("epochs", count=num_train_epochs))
         accelerator.print(
-            f"  batch size per device / バッチサイズ: {', '.join([str(d.batch_size) for d in train_dataset_group.datasets])}"
+            tr("batch_sizes", values=", ".join([str(d.batch_size) for d in train_dataset_group.datasets]))
         )
-        accelerator.print(f"  gradient accumulation steps / 勾配を合計するステップ数 = {args.gradient_accumulation_steps}")
-        accelerator.print(f"  total optimization steps / 学習ステップ数: {args.max_train_steps}")
+        accelerator.print(tr("gradient_accumulation", count=args.gradient_accumulation_steps))
+        accelerator.print(tr("optimization_steps", count=args.max_train_steps))
 
         # TODO refactor metadata creation and move to util
         metadata = {
@@ -1546,7 +1539,7 @@ class NetworkTrainer:
             os.makedirs(args.output_dir, exist_ok=True)
             ckpt_file = os.path.join(args.output_dir, ckpt_name)
 
-            accelerator.print(f"\nsaving checkpoint: {ckpt_file}")
+            accelerator.print("\n" + tr("saving_checkpoint", path=ckpt_file))
             metadata["ss_training_finished_at"] = str(time.time())
             metadata["ss_steps"] = str(steps)
             metadata["ss_epoch"] = str(epoch_no)
@@ -1735,7 +1728,7 @@ class NetworkTrainer:
             if phase_dataloaders and global_step >= args.max_train_steps:
                 break
 
-            accelerator.print(f"\nepoch {epoch+1}/{num_train_epochs}\n")
+            accelerator.print(tr("epoch_progress", current=epoch + 1, total=num_train_epochs))
             current_epoch.value = epoch + 1
             train_util.set_current_epoch_for_dataloader(train_dataloader, epoch + 1)
             for _phase_dl in phase_dataloaders:
@@ -2089,7 +2082,7 @@ class NetworkTrainer:
             ckpt_name = train_util.get_last_ckpt_name(args, "." + args.save_model_as)
             save_model(ckpt_name, network, global_step, num_train_epochs, force_sync_upload=True)
 
-            logger.info("model saved.")
+            logger.info(tr("model_saved"))
 
 
 def setup_parser() -> argparse.ArgumentParser:

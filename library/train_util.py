@@ -78,6 +78,7 @@ import library.sai_model_spec as sai_model_spec
 import library.deepspeed_utils as deepspeed_utils
 import library.save_utils as save_utils
 from library.utils import setup_logging, resize_image, validate_interpolation_fn
+from library.i18n import set_language, tr
 
 setup_logging()
 import logging
@@ -802,7 +803,7 @@ class BaseDataset(torch.utils.data.Dataset):
                 # Only log on the real main process; forked DataLoader workers
                 # inherit RANK=0 on Linux/WSL and would otherwise duplicate this.
                 if should_log:
-                    logger.info("epoch is incremented. current_epoch: {}, epoch: {}".format(self.current_epoch, epoch))
+                    logger.info(tr("epoch_changed", previous=self.current_epoch, current=epoch))
 
                 if self._uses_epoch_sampling:
                     self.current_epoch = epoch
@@ -814,7 +815,7 @@ class BaseDataset(torch.utils.data.Dataset):
                         self.shuffle_buckets()
             else:
                 if should_log:
-                    logger.warning("epoch is not incremented. current_epoch: {}, epoch: {}".format(self.current_epoch, epoch))
+                    logger.warning(tr("epoch_not_incremented", previous=self.current_epoch, current=epoch))
                 self.current_epoch = epoch
                 if self._uses_epoch_sampling:
                     self._rebuild_active_buckets()
@@ -1076,10 +1077,10 @@ class BaseDataset(torch.utils.data.Dataset):
         bucketingを行わない場合も呼び出し必須（ひとつだけbucketを作る）
         min_size and max_size are ignored when enable_bucket is False
         """
-        logger.info("loading image sizes.")
+        logger.info(tr("loading_image_sizes"))
         
         optimal_workers = max(1, (os.cpu_count() or 2) * 3 // 4)
-        logger.info(f"Using {optimal_workers} workers for image size loading")
+        logger.info(tr("image_size_workers", count=optimal_workers))
 
         def _get_size(i, info):
             if info.image_size is None:
@@ -1089,14 +1090,19 @@ class BaseDataset(torch.utils.data.Dataset):
         values_list = list(self.image_data.values())
         with concurrent.futures.ThreadPoolExecutor(max_workers=optimal_workers) as executor:
             futures = [executor.submit(_get_size, i, info) for i, info in enumerate(values_list)]
-            for future in tqdm(concurrent.futures.as_completed(futures), total=len(values_list), desc="loading image sizes", disable=os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0")) != "0"):
+            for future in tqdm(
+                concurrent.futures.as_completed(futures),
+                total=len(values_list),
+                desc=tr("loading_image_sizes_progress"),
+                disable=os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0")) != "0",
+            ):
                 i, info, size = future.result()
                 info.image_size = size
 
         if self.enable_bucket:
-            logger.info("make buckets")
+            logger.info(tr("making_buckets"))
         else:
-            logger.info("prepare dataset")
+            logger.info(tr("preparing_dataset"))
 
         # bucketを作成し、画像をbucketに振り分ける
         if self.enable_bucket:
@@ -1111,9 +1117,7 @@ class BaseDataset(torch.utils.data.Dataset):
                 if not self.bucket_no_upscale:
                     self.bucket_manager.make_buckets()
                 else:
-                    logger.warning(
-                        "min_bucket_reso and max_bucket_reso are ignored if bucket_no_upscale is set, because bucket reso is defined by image size automatically / bucket_no_upscaleが指定された場合は、bucketの解像度は画像サイズから自動計算されるため、min_bucket_resoとmax_bucket_resoは無視されます"
-                    )
+                    logger.warning(tr("bucket_no_upscale_ignores_limits"))
 
             img_ar_errors = []
             for image_info in self.image_data.values():
@@ -1140,12 +1144,12 @@ class BaseDataset(torch.utils.data.Dataset):
         # bucket情報を表示、格納する
         if self.enable_bucket:
             self.bucket_info = {"buckets": {}}
-            logger.info("number of images (including repeats) / 各bucketの画像枚数（繰り返し回数を含む）")
+            logger.info(tr("bucket_image_counts"))
             for i, (reso, bucket) in enumerate(zip(self.bucket_manager.resos, self.bucket_manager.buckets)):
                 count = len(bucket)
                 if count > 0:
                     self.bucket_info["buckets"][i] = {"resolution": reso, "count": len(bucket)}
-                    logger.info(f"bucket {i}: resolution {reso}, count: {len(bucket)}")
+                    logger.info(tr("bucket_summary", index=i, resolution=reso, count=len(bucket)))
 
             if len(img_ar_errors) == 0:
                 mean_img_ar_error = 0  # avoid NaN
@@ -1153,7 +1157,7 @@ class BaseDataset(torch.utils.data.Dataset):
                 img_ar_errors = np.array(img_ar_errors)
                 mean_img_ar_error = np.mean(np.abs(img_ar_errors))
             self.bucket_info["mean_img_ar_error"] = mean_img_ar_error
-            logger.info(f"mean ar error (without repeats): {mean_img_ar_error}")
+            logger.info(tr("mean_aspect_ratio_error", value=mean_img_ar_error))
 
         self._rebuild_active_buckets()
 
@@ -2129,7 +2133,7 @@ class DreamBoothDataset(BaseDataset):
                         img_paths, sizes, self.is_training_dataset, self.validation_split, self.validation_seed
                     )
 
-            logger.info(f"found directory {subset.image_dir} contains {len(img_paths)} image files")
+            logger.info(tr("found_images", path=subset.image_dir, count=len(img_paths)))
 
             if use_cached_info_for_subset:
                 captions = [meta["caption"] for meta in metas.values()]
@@ -2138,7 +2142,7 @@ class DreamBoothDataset(BaseDataset):
                 import concurrent.futures
                 
                 optimal_workers = max(1, (os.cpu_count() or 2) * 3 // 4)
-                logger.info(f"Using {optimal_workers} workers for caption reading")
+                logger.info(tr("caption_workers", count=optimal_workers))
 
                 captions = [None] * len(img_paths)
                 missing_captions = []
@@ -2148,12 +2152,15 @@ class DreamBoothDataset(BaseDataset):
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=optimal_workers) as executor:
                     futures = [executor.submit(_process_caption, i, img_path) for i, img_path in enumerate(img_paths)]
-                    for future in tqdm(concurrent.futures.as_completed(futures), total=len(img_paths), desc="read caption", disable=os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0")) != "0"):
+                    for future in tqdm(
+                        concurrent.futures.as_completed(futures),
+                        total=len(img_paths),
+                        desc=tr("reading_captions_progress"),
+                        disable=os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0")) != "0",
+                    ):
                         i, img_path, cap_for_img = future.result()
                         if cap_for_img is None and subset.class_tokens is None:
-                            logger.warning(
-                                f"neither caption file nor class tokens are found. use empty caption for {img_path} / キャプションファイルもclass tokenも見つかりませんでした。空のキャプションを使用します: {img_path}"
-                            )
+                            logger.warning(tr("missing_caption_for_image", path=img_path))
                             captions[i] = ""
                             missing_captions.append(img_path)
                         else:
@@ -2170,9 +2177,7 @@ class DreamBoothDataset(BaseDataset):
                 number_of_missing_captions_to_show = 5
                 remaining_missing_captions = number_of_missing_captions - number_of_missing_captions_to_show
 
-                logger.warning(
-                    f"No caption file found for {number_of_missing_captions} images. Training will continue without captions for these images. If class token exists, it will be used. / {number_of_missing_captions}枚の画像にキャプションファイルが見つかりませんでした。これらの画像についてはキャプションなしで学習を続行します。class tokenが存在する場合はそれを使います。"
-                )
+                logger.warning(tr("missing_captions_summary", count=number_of_missing_captions))
                 for i, missing_caption in enumerate(missing_captions):
                     if i >= number_of_missing_captions_to_show:
                         logger.warning(missing_caption + f"... and {remaining_missing_captions} more")
@@ -2192,7 +2197,7 @@ class DreamBoothDataset(BaseDataset):
             # if sizes are not set, image size will be read in make_buckets
             return img_paths, captions, sizes
 
-        logger.info("prepare images.")
+        logger.info(tr("preparing_images"))
         num_train_images = 0
         num_reg_images = 0
         reg_infos: List[Tuple[ImageInfo, DreamBoothSubset]] = []
@@ -2237,17 +2242,17 @@ class DreamBoothDataset(BaseDataset):
             subset.img_count = len(img_paths)
             self.subsets.append(subset)
 
-        images_split_name = "train" if self.is_training_dataset else "validation"
-        logger.info(f"{num_train_images} {images_split_name} images with repeats.")
+        images_message_id = "training_images_with_repeats" if self.is_training_dataset else "validation_images_with_repeats"
+        logger.info(tr(images_message_id, count=num_train_images))
 
         self.num_train_images = num_train_images
 
-        logger.info(f"{num_reg_images} reg images with repeats.")
+        logger.info(tr("regularization_images_with_repeats", count=num_reg_images))
         if num_train_images < num_reg_images:
             logger.warning("some of reg images are not used / 正則化画像の数が多いので、一部使用されない正則化画像があります")
 
         if num_reg_images == 0:
-            logger.warning("no regularization images / 正則化画像が見つかりませんでした")
+            logger.warning(tr("no_regularization_images"))
         else:
             # num_repeatsを計算する：どうせ大した数ではないのでループで処理する
             n = 0
@@ -4595,7 +4600,7 @@ def verify_command_line_training_args(args: argparse.Namespace):
 
 def enable_high_vram(args: argparse.Namespace):
     if args.highvram:
-        logger.info("highvram is enabled / highvramが有効です")
+        logger.info(tr("high_vram_enabled"))
         global HIGH_VRAM
         HIGH_VRAM = True
 
@@ -4608,13 +4613,11 @@ def verify_training_args(args: argparse.Namespace):
     enable_high_vram(args)
 
     if args.v2 and args.clip_skip is not None:
-        logger.warning("v2 with clip_skip will be unexpected / v2でclip_skipを使用することは想定されていません")
+        logger.warning(tr("v2_clip_skip_warning"))
 
     if args.cache_latents_to_disk and not args.cache_latents:
         args.cache_latents = True
-        logger.warning(
-            "cache_latents_to_disk is enabled, so cache_latents is also enabled / cache_latents_to_diskが有効なため、cache_latentsを有効にします"
-        )
+        logger.warning(tr("cache_latents_to_disk_enabled"))
 
     # noise_offset, perlin_noise, multires_noise_iterations cannot be enabled at the same time
     # # Listを使って数えてもいいけど並べてしまえ
@@ -4895,6 +4898,7 @@ def add_sd_saving_arguments(parser: argparse.ArgumentParser):
 
 
 def read_config_from_file(args: argparse.Namespace, parser: argparse.ArgumentParser):
+    set_language(getattr(args, "console_log_language", None))
     if not args.config_file:
         return args
 
@@ -4903,7 +4907,7 @@ def read_config_from_file(args: argparse.Namespace, parser: argparse.ArgumentPar
     if args.output_config:
         # check if config file exists
         if os.path.exists(config_path):
-            logger.error(f"Config file already exists. Aborting... / 出力先の設定ファイルが既に存在します: {config_path}")
+            logger.error(tr("config_already_exists", path=config_path))
             exit(1)
 
         # convert args to dictionary
@@ -4931,14 +4935,13 @@ def read_config_from_file(args: argparse.Namespace, parser: argparse.ArgumentPar
         with open(config_path, "w") as f:
             toml.dump(args_dict, f)
 
-        logger.info(f"Saved config file / 設定ファイルを保存しました: {config_path}")
+        logger.info(tr("config_saved", path=config_path))
         exit(0)
 
     if not os.path.exists(config_path):
-        logger.info(f"{config_path} not found.")
+        logger.info(tr("config_not_found", path=config_path))
         exit(1)
 
-    logger.info(f"Loading settings from {config_path}...")
     with open(config_path, "r", encoding="utf-8") as f:
         config_dict = toml.load(f)
 
@@ -4953,6 +4956,9 @@ def read_config_from_file(args: argparse.Namespace, parser: argparse.ArgumentPar
         # if value is dict, save all key and value into one dict
         for key, value in section_dict.items():
             ignore_nesting_dict[key] = value
+
+    set_language(ignore_nesting_dict.get("console_log_language", getattr(args, "console_log_language", None)))
+    logger.info(tr("loading_settings", path=config_path))
 
     config_args = argparse.Namespace(**ignore_nesting_dict)
     args = parser.parse_args(namespace=config_args)

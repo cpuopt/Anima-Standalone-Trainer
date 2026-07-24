@@ -13,6 +13,7 @@ from library import anima_utils, train_util
 from library.strategy_base import LatentsCachingStrategy, TextEncodingStrategy, TokenizeStrategy, TextEncoderOutputsCachingStrategy
 
 from library.utils import setup_logging
+from library.i18n import tr
 
 setup_logging()
 import logging
@@ -109,7 +110,7 @@ class AnimaTextEncodingStrategy(TextEncodingStrategy):
         This matches diffusion-pipe-main behavior where empty caption embeddings
         are pre-cached and swapped in during caption dropout.
         """
-        logger.info("Caching unconditional embeddings for caption dropout (encoding empty caption)...")
+        logger.info(tr("cache_unconditional_embeddings"))
         tokens = tokenize_strategy.tokenize("")
         with torch.no_grad():
             uncond_outputs = self.encode_tokens(tokenize_strategy, models, tokens, enable_dropout=False)
@@ -118,7 +119,7 @@ class AnimaTextEncodingStrategy(TextEncodingStrategy):
         self._uncond_attn_mask = uncond_outputs[1].cpu()
         self._uncond_t5_input_ids = uncond_outputs[2].cpu()
         self._uncond_t5_attn_mask = uncond_outputs[3].cpu()
-        logger.info("  Unconditional embeddings cached successfully")
+        logger.info(tr("unconditional_embeddings_cached"))
 
     def encode_tokens(
         self,
@@ -250,7 +251,7 @@ class AnimaTextEncodingStrategy(TextEncodingStrategy):
                             t5_attn_mask[i] = self._uncond_t5_attn_mask[0].to(device=t5_attn_mask.device, dtype=t5_attn_mask.dtype)
                     else:
                         # Fallback: zero out (should not happen if cache_uncond_embeddings was called)
-                        logger.warning("Unconditional embeddings not cached, falling back to zeros for caption dropout")
+                        logger.warning(tr("unconditional_embeddings_missing"))
                         prompt_embeds[i] = torch.zeros_like(prompt_embeds[i])
                         if attn_mask is not None:
                             attn_mask[i] = torch.zeros_like(attn_mask[i])

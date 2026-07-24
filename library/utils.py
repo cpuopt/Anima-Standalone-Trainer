@@ -14,6 +14,12 @@ from diffusers.schedulers.scheduling_euler_ancestral_discrete import EulerAncest
 import cv2
 from PIL import Image
 import numpy as np
+from library.i18n import (
+    LANGUAGE_ENV_VAR,
+    SUPPORTED_LANGUAGES,
+    get_language,
+    set_language,
+)
 
 # Disable PIL image size limit and ignore the decompression bomb warning
 Image.MAX_IMAGE_PIXELS = None
@@ -42,9 +48,22 @@ def add_logging_arguments(parser):
         help="Log to a file instead of stderr / 標準エラー出力ではなくファイルにログを出力する",
     )
     parser.add_argument("--console_log_simple", action="store_true", help="Simple log output / シンプルなログ出力")
+    parser.add_argument(
+        "--console_log_language",
+        type=str,
+        default=get_language(),
+        choices=SUPPORTED_LANGUAGES,
+        help=(
+            f"Training log language: {', '.join(SUPPORTED_LANGUAGES)}. "
+            f"Default: zh_CN. Environment override: {LANGUAGE_ENV_VAR}"
+        ),
+    )
 
 
 def setup_logging(args=None, log_level=None, reset=False):
+    if args is not None:
+        set_language(getattr(args, "console_log_language", None))
+
     if logging.root.handlers:
         if reset:
             # remove all handlers

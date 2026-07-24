@@ -2453,6 +2453,7 @@ async function loadGlobalSettings() {
     }
   }
   $("cfg-global-venv").value = config.venv_path || "";
+  $("cfg-log-language").value = config.ui?.log_language || "zh_CN";
   // Theme
   const theme = config.ui?.theme || "github-dark";
   $("cfg-theme").value = theme;
@@ -2504,6 +2505,7 @@ async function saveGlobalSettings() {
     venv_path: $("cfg-global-venv").value,
     ui: {
       ...(existingConfig.ui || {}),
+      log_language: $("cfg-log-language").value || "zh_CN",
       theme: $("cfg-theme").value,
       background_position: `${bgPosPercent.x.toFixed(1)}% ${bgPosPercent.y.toFixed(1)}%`,
       dim_level: parseInt($("cfg-bg-dim").value),

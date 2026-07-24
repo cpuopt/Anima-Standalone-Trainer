@@ -14,6 +14,7 @@ init_ipex()
 from library import anima_models, anima_train_utils, anima_utils, strategy_anima, strategy_base, train_util
 import train_network
 from library.utils import setup_logging
+from library.i18n import tr
 
 setup_logging()
 import logging
@@ -55,10 +56,10 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
                         subset.caption_dropout_rate = 0.0
 
         if max_subset_dropout > 0 and global_dropout_rate == 0:
-            logger.info(f"Migrating subset caption dropout rate ({max_subset_dropout}) to global level for Anima strategy")
+            logger.info(tr("caption_dropout_migrated", rate=max_subset_dropout))
             args.caption_dropout_rate = max_subset_dropout
         elif global_dropout_rate > 0:
-            logger.info(f"Using global embedding-level caption dropout rate: {global_dropout_rate}")
+            logger.info(tr("global_caption_dropout", rate=global_dropout_rate))
 
         if args.cache_text_encoder_outputs:
             assert (
@@ -75,7 +76,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
 
         if getattr(args, 'unsloth_offload_checkpointing', False):
             if not args.gradient_checkpointing:
-                logger.warning("unsloth_offload_checkpointing is enabled, so gradient_checkpointing is also enabled")
+                logger.warning(tr("unsloth_enables_gradient_checkpointing"))
                 args.gradient_checkpointing = True
             assert not args.cpu_offload_checkpointing, \
                 "Cannot use both --unsloth_offload_checkpointing and --cpu_offload_checkpointing"
@@ -88,9 +89,9 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
             try:
                 if not anima_models.FLASH_ATTN_AVAILABLE:
                     raise ImportError("No supported Flash Attention backend is installed")
-                logger.info(f"Flash Attention enabled for DiT blocks ({anima_models.FLASH_ATTN_BACKEND})")
+                logger.info(tr("flash_attention_enabled", backend=anima_models.FLASH_ATTN_BACKEND))
             except ImportError:
-                logger.warning("flash_attn package not installed, falling back to PyTorch SDPA")
+                logger.warning(tr("flash_attention_fallback"))
                 args.flash_attn = False
                 
         if getattr(args, 'blockwise_fused_optimizers', False):
@@ -102,7 +103,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
 
     def load_target_model(self, args, weight_dtype, accelerator):
         # Load Qwen3 text encoder (tokenizers already loaded in get_tokenize_strategy)
-        logger.info("Loading Qwen3 text encoder...")
+        logger.info(tr("loading_qwen3"))
         self.qwen3_text_encoder, _ = anima_utils.load_qwen3_text_encoder(
             args.qwen3_path, dtype=weight_dtype, device="cpu"
         )
@@ -119,7 +120,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
             transformer_dtype = transformer_dtype_map.get(args.transformer_dtype, None)
 
         # Load DiT
-        logger.info("Loading Anima DiT...")
+        logger.info(tr("loading_anima_dit"))
         
         dit = anima_utils.load_anima_dit(
             args.dit_path,
@@ -140,11 +141,11 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
         # Block swap
         self.is_swapping_blocks = args.blocks_to_swap is not None and args.blocks_to_swap > 0
         if self.is_swapping_blocks:
-            logger.info(f"enable block swap: blocks_to_swap={args.blocks_to_swap}")
+            logger.info(tr("block_swap_enabled", count=args.blocks_to_swap))
             dit.enable_block_swap(args.blocks_to_swap, accelerator.device)
 
         # Load VAE
-        logger.info("Loading Anima VAE...")
+        logger.info(tr("loading_anima_vae"))
         self.vae, vae_mean, vae_std, self.vae_scale = anima_utils.load_anima_vae(
             args.vae_path, dtype=weight_dtype, device="cpu"
         )
@@ -217,14 +218,14 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
     ):
         if args.cache_text_encoder_outputs:
             if not args.lowram:
-                logger.info("move vae and unet to cpu to save memory")
+                logger.info(tr("move_models_to_cpu"))
                 org_vae_device = next(vae.parameters()).device
                 org_unet_device = unet.device
                 vae.to("cpu")
                 unet.to("cpu")
                 clean_memory_on_device(accelerator.device)
 
-            logger.info("move text encoder to gpu")
+            logger.info(tr("move_text_encoder_to_gpu"))
             text_encoders[0].to(accelerator.device, dtype=weight_dtype)
 
             with accelerator.autocast():
@@ -264,12 +265,12 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
             accelerator.wait_for_everyone()
 
             # move text encoder back to cpu
-            logger.info("move text encoder back to cpu")
+            logger.info(tr("move_text_encoder_to_cpu"))
             text_encoders[0].to("cpu")
             clean_memory_on_device(accelerator.device)
 
             if not args.lowram:
-                logger.info("move vae and unet back to original device")
+                logger.info(tr("move_models_back"))
                 vae.to(org_vae_device)
                 unet.to(org_unet_device)
         else:

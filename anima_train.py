@@ -25,6 +25,7 @@ from library import deepspeed_utils, anima_models, anima_train_utils, anima_util
 import library.train_util as train_util
 
 from library.utils import setup_logging, add_logging_arguments
+from library.i18n import tr
 
 setup_logging()
 import logging
@@ -172,29 +173,27 @@ class AnimaTrainer:
     # ------------------------------------------------------------------
 
     def train(self, args):
+        setup_logging(args, reset=True)
         self.on_train_begin(args)
         train_util.verify_training_args(args)
         train_util.prepare_dataset_args(args, True)
         deepspeed_utils.prepare_deepspeed_args(args)
-        setup_logging(args, reset=True)
 
         # backward compatibility
         if not args.skip_cache_check:
             args.skip_cache_check = args.skip_latents_validity_check
 
         if args.cache_text_encoder_outputs_to_disk and not args.cache_text_encoder_outputs:
-            logger.warning(
-                "cache_text_encoder_outputs_to_disk is enabled, so cache_text_encoder_outputs is also enabled"
-            )
+            logger.warning(tr("cache_text_outputs_to_disk_enabled"))
             args.cache_text_encoder_outputs = True
 
         if args.cpu_offload_checkpointing and not args.gradient_checkpointing:
-            logger.warning("cpu_offload_checkpointing is enabled, so gradient_checkpointing is also enabled")
+            logger.warning(tr("cpu_offload_enables_gradient_checkpointing"))
             args.gradient_checkpointing = True
 
         if getattr(args, 'unsloth_offload_checkpointing', False):
             if not args.gradient_checkpointing:
-                logger.warning("unsloth_offload_checkpointing is enabled, so gradient_checkpointing is also enabled")
+                logger.warning(tr("unsloth_enables_gradient_checkpointing"))
                 args.gradient_checkpointing = True
             assert not args.cpu_offload_checkpointing, \
                 "Cannot use both --unsloth_offload_checkpointing and --cpu_offload_checkpointing"
@@ -213,9 +212,9 @@ class AnimaTrainer:
             try:
                 if not anima_models.FLASH_ATTN_AVAILABLE:
                     raise ImportError("No supported Flash Attention backend is installed")
-                logger.info(f"Flash Attention enabled for DiT blocks ({anima_models.FLASH_ATTN_BACKEND})")
+                logger.info(tr("flash_attention_enabled", backend=anima_models.FLASH_ATTN_BACKEND))
             except ImportError:
-                logger.warning("flash_attn package not installed, falling back to PyTorch SDPA")
+                logger.warning(tr("flash_attention_fallback"))
                 args.flash_attn = False
 
         cache_latents = args.cache_latents
@@ -235,16 +234,14 @@ class AnimaTrainer:
         if args.dataset_class is None:
             blueprint_generator = BlueprintGenerator(ConfigSanitizer(True, True, args.masked_loss, True))
             if args.dataset_config is not None:
-                logger.info(f"Load dataset config from {args.dataset_config}")
+                logger.info(tr("loading_dataset_config", path=args.dataset_config))
                 user_config = config_util.load_user_config(args.dataset_config)
                 ignored = ["train_data_dir", "in_json"]
                 if any(getattr(args, attr) is not None for attr in ignored):
-                    logger.warning(
-                        "ignore following options because config file is found: {0}".format(", ".join(ignored))
-                    )
+                    logger.warning(tr("ignoring_config_options", options=", ".join(ignored)))
             else:
                 if use_dreambooth_method:
-                    logger.info("Using DreamBooth method.")
+                    logger.info(tr("using_dreambooth"))
                     user_config = {
                         "datasets": [
                             {
@@ -255,7 +252,7 @@ class AnimaTrainer:
                         ]
                     }
                 else:
-                    logger.info("Training with captions.")
+                    logger.info(tr("training_with_captions"))
                     user_config = {
                         "datasets": [
                             {
@@ -282,7 +279,7 @@ class AnimaTrainer:
             _use_user_cfg = args.dataset_config is not None
             for _ph_reso, _ in [(int(p.split(":")[0].strip()), float(p.split(":")[1].strip()))
                                  for p in args.resolution_schedule.split(",")]:
-                logger.info(f"[resolution_schedule] building dataset for {_ph_reso}px phase")
+                logger.info(tr("building_resolution_dataset", resolution=_ph_reso))
                 _phase_dataset_groups.append(
                     _build_phase_dataset_group(
                         args, _ph_reso, blueprint_generator,
@@ -317,10 +314,10 @@ class AnimaTrainer:
                     subset.caption_dropout_rate = 0.0
 
         if max_subset_dropout > 0 and global_dropout_rate == 0:
-            logger.info(f"Migrating subset caption dropout rate ({max_subset_dropout}) to global level for Anima strategy")
+            logger.info(tr("caption_dropout_migrated", rate=max_subset_dropout))
             args.caption_dropout_rate = max_subset_dropout
         elif global_dropout_rate > 0:
-            logger.info(f"Using global embedding-level caption dropout rate: {global_dropout_rate}")
+            logger.info(tr("global_caption_dropout", rate=global_dropout_rate))
 
         if args.debug_dataset:
             if args.cache_text_encoder_outputs:
@@ -336,7 +333,7 @@ class AnimaTrainer:
             train_util.debug_dataset(train_dataset_group, True)
             return
         if len(train_dataset_group) == 0:
-            logger.error("No data found. Please verify the metadata file and train_data_dir option.")
+            logger.error(tr("no_training_data"))
             return
 
         if cache_latents:
@@ -355,7 +352,7 @@ class AnimaTrainer:
             ), "blockwise_fused_optimizers does not work with gradient_accumulation_steps > 1"
 
         # prepare accelerator
-        logger.info("prepare accelerator")
+        logger.info(tr("preparing_accelerator"))
         accelerator = train_util.prepare_accelerator(args)
 
         # mixed precision dtype
@@ -372,7 +369,7 @@ class AnimaTrainer:
             transformer_dtype = transformer_dtype_map.get(args.transformer_dtype, None)
 
         # Load tokenizers and set strategies
-        logger.info("Loading tokenizers...")
+        logger.info(tr("loading_tokenizers"))
         qwen3_text_encoder, qwen3_tokenizer = anima_utils.load_qwen3_text_encoder(
             args.qwen3_path, dtype=weight_dtype, device="cpu"
         )
@@ -456,7 +453,7 @@ class AnimaTrainer:
             clean_memory_on_device(accelerator.device)
 
         # Load VAE and cache latents
-        logger.info("Loading Anima VAE...")
+        logger.info(tr("loading_anima_vae"))
         vae, vae_mean, vae_std, vae_scale = anima_utils.load_anima_vae(args.vae_path, dtype=weight_dtype, device="cpu")
 
         if cache_latents:
@@ -467,7 +464,7 @@ class AnimaTrainer:
             train_dataset_group.new_cache_latents(vae, accelerator)
 
             for _pds in _phase_dataset_groups:
-                logger.info(f"[resolution_schedule] caching latents for phase (reso={_pds.datasets[0].width})")
+                logger.info(tr("caching_phase_latents", resolution=_pds.datasets[0].width))
                 _pds.new_cache_latents(vae, accelerator)
 
             vae.to("cpu")
@@ -475,7 +472,7 @@ class AnimaTrainer:
             accelerator.wait_for_everyone()
 
         # Load DiT (MiniTrainDIT + optional LLM Adapter)
-        logger.info("Loading Anima DiT...")
+        logger.info(tr("loading_anima_dit"))
         dit = anima_utils.load_anima_dit(
             args.dit_path,
             dtype=weight_dtype,
@@ -505,7 +502,7 @@ class AnimaTrainer:
         # Block swap
         is_swapping_blocks = args.blocks_to_swap is not None and args.blocks_to_swap > 0
         if is_swapping_blocks:
-            logger.info(f"Enable block swap: blocks_to_swap={args.blocks_to_swap}")
+            logger.info(tr("block_swap_enabled", count=args.blocks_to_swap))
             dit.enable_block_swap(args.blocks_to_swap, accelerator.device)
 
         if not cache_latents:
@@ -549,7 +546,7 @@ class AnimaTrainer:
         accelerator.print(f"number of trainable parameters: {n_params:,}")
 
         # prepare optimizer
-        accelerator.print("prepare optimizer, data loader etc.")
+        accelerator.print(tr("prepare_optimizer_data"))
 
         if args.blockwise_fused_optimizers:
             # Split params into per-block groups for blockwise fused optimizer
@@ -806,15 +803,15 @@ class AnimaTrainer:
         if (args.save_n_epoch_ratio is not None) and (args.save_n_epoch_ratio > 0):
             args.save_every_n_epochs = math.floor(num_train_epochs / args.save_n_epoch_ratio) or 1
 
-        accelerator.print("running training")
-        accelerator.print(f"  num examples: {train_dataset_group.num_train_images}")
-        accelerator.print(f"  num batches per epoch: {len(train_dataloader)}")
-        accelerator.print(f"  num epochs: {num_train_epochs}")
+        accelerator.print(tr("training_start"))
+        accelerator.print(tr("train_images", count=train_dataset_group.num_train_images))
+        accelerator.print(tr("batches_per_epoch", count=len(train_dataloader)))
+        accelerator.print(tr("epochs", count=num_train_epochs))
         accelerator.print(
-            f"  batch size per device: {', '.join([str(d.batch_size) for d in train_dataset_group.datasets])}"
+            tr("batch_sizes", values=", ".join([str(d.batch_size) for d in train_dataset_group.datasets]))
         )
-        accelerator.print(f"  gradient accumulation steps = {args.gradient_accumulation_steps}")
-        accelerator.print(f"  total optimization steps: {args.max_train_steps}")
+        accelerator.print(tr("gradient_accumulation", count=args.gradient_accumulation_steps))
+        accelerator.print(tr("optimization_steps", count=args.max_train_steps))
 
         global_step = initial_step
 
@@ -897,7 +894,7 @@ class AnimaTrainer:
             if phase_dataloaders and global_step >= args.max_train_steps:
                 break
 
-            accelerator.print(f"\nepoch {epoch+1}/{num_train_epochs}")
+            accelerator.print(tr("epoch_progress", current=epoch + 1, total=num_train_epochs))
             current_epoch.value = epoch + 1
             train_util.set_current_epoch_for_dataloader(train_dataloader, epoch + 1)
             for _phase_dl in phase_dataloaders:
@@ -1165,7 +1162,7 @@ class AnimaTrainer:
                 global_step,
                 dit,
             )
-            logger.info("model saved.")
+            logger.info(tr("model_saved"))
 
         accelerator.end_training()
         optimizer_eval_fn()

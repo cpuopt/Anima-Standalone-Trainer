@@ -1,5 +1,0 @@
-[setup] cuda_direct_backend verified.
-[setup] wd_parallel verified.
-Template validated: config_template.toml
-Template validated: dataset_template.toml
-Anima Training UI running at http://localhost:3001

@@ -22,6 +22,7 @@ from library.device_utils import init_ipex, clean_memory_on_device
 init_ipex()
 
 from .utils import setup_logging
+from .i18n import tr
 
 setup_logging()
 import logging
@@ -291,13 +292,13 @@ def get_anima_param_groups(
         else:
             base_params.append(p)
 
-    logger.info(f"Parameter groups:")
-    logger.info(f"  base_params: {len(base_params)} (lr={base_lr})")
-    logger.info(f"  self_attn_params: {len(self_attn_params)} (lr={self_attn_lr})")
-    logger.info(f"  cross_attn_params: {len(cross_attn_params)} (lr={cross_attn_lr})")
-    logger.info(f"  mlp_params: {len(mlp_params)} (lr={mlp_lr})")
-    logger.info(f"  mod_params: {len(mod_params)} (lr={mod_lr})")
-    logger.info(f"  llm_adapter_params: {len(llm_adapter_params)} (lr={llm_adapter_lr})")
+    logger.info(tr("parameter_groups"))
+    logger.info(tr("parameter_group", name="base_params", count=len(base_params), lr=base_lr))
+    logger.info(tr("parameter_group", name="self_attn_params", count=len(self_attn_params), lr=self_attn_lr))
+    logger.info(tr("parameter_group", name="cross_attn_params", count=len(cross_attn_params), lr=cross_attn_lr))
+    logger.info(tr("parameter_group", name="mlp_params", count=len(mlp_params), lr=mlp_lr))
+    logger.info(tr("parameter_group", name="mod_params", count=len(mod_params), lr=mod_lr))
+    logger.info(tr("parameter_group", name="llm_adapter_params", count=len(llm_adapter_params), lr=llm_adapter_lr))
 
     param_groups = []
     for lr, params, name in [
@@ -311,12 +312,12 @@ def get_anima_param_groups(
         if lr == 0:
             for p in params:
                 p.requires_grad_(False)
-            logger.info(f"  Frozen {name} params ({len(params)} parameters)")
+            logger.info(tr("frozen_parameter_group", name=name, count=len(params)))
         elif len(params) > 0:
             param_groups.append({'params': params, 'lr': lr})
 
     total_trainable = sum(p.numel() for group in param_groups for p in group['params'] if p.requires_grad)
-    logger.info(f"Total trainable parameters: {total_trainable:,}")
+    logger.info(tr("total_trainable_parameters", count=f"{total_trainable:,}"))
 
     return param_groups
 
@@ -599,10 +600,10 @@ def sample_images(
 
     rank = accelerator.process_index
     num_processes = accelerator.num_processes
-    logger.info(f"[GPU {rank}] Generating sample images at step {steps}")
+    logger.info(tr("generating_samples", rank=rank, steps=steps))
 
     if not os.path.isfile(args.sample_prompts) and sample_prompts_te_outputs is None:
-        logger.error(f"No prompt file: {args.sample_prompts}")
+        logger.error(tr("no_prompt_file", path=args.sample_prompts))
         accelerator.wait_for_everyone()
         return
 
@@ -618,9 +619,9 @@ def sample_images(
     # Distribute prompts across GPUs using round-robin assignment
     my_prompts = [p for i, p in enumerate(prompts) if i % num_processes == rank]
     if my_prompts:
-        logger.info(f"[GPU {rank}] Assigned {len(my_prompts)}/{len(prompts)} prompts")
+        logger.info(tr("assigned_prompts", rank=rank, assigned=len(my_prompts), total=len(prompts)))
     else:
-        logger.info(f"[GPU {rank}] No prompts assigned (fewer prompts than GPUs), waiting...")
+        logger.info(tr("no_assigned_prompts", rank=rank))
 
     # Save RNG state
     rng_state = torch.get_rng_state()
@@ -687,7 +688,16 @@ def _sample_image_inference(
     height = max(64, height - height % 16)
     width = max(64, width - width % 16)
 
-    logger.info(f"  prompt: {prompt}, size: {width}x{height}, steps: {sample_steps}, scale: {scale}")
+    logger.info(
+        tr(
+            "sample_prompt_summary",
+            prompt=prompt,
+            width=width,
+            height=height,
+            steps=sample_steps,
+            scale=scale,
+        )
+    )
 
     # Encode prompt
     def encode_prompt(prpt):
@@ -701,7 +711,7 @@ def _sample_image_inference(
 
     encoded = encode_prompt(prompt)
     if encoded is None:
-        logger.warning("Cannot encode prompt, skipping sample")
+        logger.warning(tr("cannot_encode_prompt"))
         return
 
     prompt_embeds, attn_mask, t5_input_ids, t5_attn_mask = encoded
@@ -762,7 +772,7 @@ def _sample_image_inference(
 
     try:
         if original_blocks_to_swap and original_blocks_to_swap > 0:
-            logger.info("Temporarily disabling block swap for faster sampling")
+            logger.info(tr("disable_block_swap_for_sampling"))
             from library.custom_offloading_utils import weighs_to_device
             for block in dit.blocks:
                 weighs_to_device(block, accelerator.device)
@@ -786,7 +796,7 @@ def _sample_image_inference(
 
     except torch.cuda.OutOfMemoryError as e:
         if original_blocks_to_swap and original_blocks_to_swap > 0:
-            logger.warning("OOM. Falling back to block swapping")
+            logger.warning(tr("sampling_oom_fallback"))
             clean_memory_on_device(accelerator.device)
             
             # Restore block swap early
@@ -812,7 +822,7 @@ def _sample_image_inference(
     finally:
         if original_blocks_to_swap and original_blocks_to_swap > 0:
             if getattr(dit, "blocks_to_swap", 0) == 0:
-                logger.info("Restoring block swap after sampling")
+                logger.info(tr("restore_block_swap"))
                 dit.blocks_to_swap = original_blocks_to_swap
                 dit.prepare_block_swap_before_forward()
             if dit_secondary is not None and getattr(dit_secondary, "blocks_to_swap", 0) == 0:

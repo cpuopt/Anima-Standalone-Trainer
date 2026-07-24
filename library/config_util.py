@@ -36,6 +36,7 @@ from .train_util import (
     DatasetGroup,
 )
 from .utils import setup_logging
+from .i18n import tr
 
 setup_logging()
 import logging
@@ -375,7 +376,7 @@ class ConfigSanitizer:
             return self.user_config_validator(user_config)
         except MultipleInvalid:
             # TODO: エラー発生時のメッセージをわかりやすくする
-            logger.error("Invalid user config / ユーザ設定の形式が正しくないようです")
+            logger.error(tr("invalid_user_config"))
             raise
 
     # NOTE: In nature, argument parser result is not needed to be sanitize
@@ -596,12 +597,12 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
     seed = random.randint(0, 2**31)  # actual seed is seed + epoch_no
 
     for i, dataset in enumerate(datasets):
-        logger.info(f"[Prepare dataset {i}]")
+        logger.info(tr("prepare_dataset_index", index=i))
         dataset.make_buckets()
         dataset.set_seed(seed)
 
     for i, dataset in enumerate(val_datasets):
-        logger.info(f"[Prepare validation dataset {i}]")
+        logger.info(tr("prepare_validation_dataset_index", index=i))
         dataset.make_buckets()
         dataset.set_seed(seed)
 
