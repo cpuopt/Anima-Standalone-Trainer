@@ -51,6 +51,7 @@ network_train_unet_only = true
 
 # Suggested network_args per module:
 #   LoRA:  network_args = [ ]
+#   DoRA:  network_args = [ "use_dora=true", "dora_scale_fp32=true" ]
 #   LoHa:  network_args = [ "mod_dim=4" ]
 #   LoKr:  network_args = [ "factor=-1", "mod_dim=4" ]
 #

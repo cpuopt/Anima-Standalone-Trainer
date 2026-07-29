@@ -749,6 +749,7 @@ def create_network(
     if module_dropout is not None:
         module_dropout = float(module_dropout)
     use_dora = _to_bool(kwargs.get("use_dora", False))
+    dora_scale_fp32 = _to_bool(kwargs.get("dora_scale_fp32", False))
 
     # verbose
     verbose = kwargs.get("verbose", False)
@@ -769,6 +770,7 @@ def create_network(
         emb_dims=emb_dims,
         train_block_indices=train_block_indices,
         use_dora=use_dora,
+        dora_scale_fp32=dora_scale_fp32,
         verbose=verbose,
     )
 
@@ -837,6 +839,7 @@ def create_network_from_weights(multiplier, file, ae, text_encoders, unet, weigh
                 modules_alpha.setdefault(packed_name, modules_alpha[lora_name])
 
     module_class = DoRALoRAModule if use_dora or _to_bool(kwargs.get("use_dora", False)) else (LoRAInfModule if for_inference else LoRAModule)
+    dora_scale_fp32 = _to_bool(kwargs.get("dora_scale_fp32", False))
 
     network = LoRANetwork(
         text_encoders,
@@ -847,6 +850,7 @@ def create_network_from_weights(multiplier, file, ae, text_encoders, unet, weigh
         module_class=module_class,
         train_llm_adapter=train_llm_adapter,
         use_dora=use_dora or _to_bool(kwargs.get("use_dora", False)),
+        dora_scale_fp32=dora_scale_fp32,
     )
     network.dora_scale_format = metadata.get("ss_dora_scale_format")
     return network, weights_sd
@@ -881,6 +885,7 @@ class LoRANetwork(torch.nn.Module):
         emb_dims: Optional[List[int]] = None,
         train_block_indices: Optional[List[bool]] = None,
         use_dora: bool = False,
+        dora_scale_fp32: bool = False,
         verbose: Optional[bool] = False,
     ) -> None:
         super().__init__()
@@ -897,6 +902,7 @@ class LoRANetwork(torch.nn.Module):
         self.emb_dims = emb_dims
         self.train_block_indices = train_block_indices
         self.use_dora = use_dora or module_class is DoRALoRAModule
+        self.dora_scale_fp32 = bool(dora_scale_fp32)
 
         self.loraplus_lr_ratio = None
         self.loraplus_unet_lr_ratio = None
@@ -918,6 +924,8 @@ class LoRANetwork(torch.nn.Module):
             )
         if self.use_dora:
             logger.info(tr("dora_enabled"))
+            if self.dora_scale_fp32:
+                logger.info(tr("dora_scale_fp32_enabled"))
 
         # create module instances
         def create_modules(
@@ -1523,7 +1531,12 @@ class LoRANetwork(torch.nn.Module):
         if dtype is not None:
             for key in list(state_dict.keys()):
                 v = state_dict[key]
-                v = v.detach().clone().to("cpu").to(dtype)
+                target_dtype = dtype
+                if self.use_dora and self.dora_scale_fp32 and (
+                    key.endswith(".dora_scale") or key.endswith(".alpha")
+                ):
+                    target_dtype = torch.float32
+                v = v.detach().clone().to("cpu").to(target_dtype)
                 state_dict[key] = v
 
         if os.path.splitext(file)[1] == ".safetensors":

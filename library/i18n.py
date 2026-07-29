@@ -551,6 +551,11 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "en": "DoRA enabled; ComfyUI-compatible dora_scale tensors will be saved",
         "ja": "DoRA を有効化し、ComfyUI 互換の dora_scale テンソルを保存します",
     },
+    "dora_scale_fp32_enabled": {
+        "zh_CN": "DoRA 的 dora_scale 和 alpha 张量将以 FP32 保存",
+        "en": "DoRA dora_scale and alpha tensors will be saved in FP32",
+        "ja": "DoRA の dora_scale と alpha テンソルを FP32 で保存します",
+    },
     "created_network_modules": {
         "zh_CN": "已为 {target} 创建 {count} 个 {network} 模块",
         "en": "Created {count} {network} modules for {target}",

@@ -92,6 +92,55 @@ class DoRALoRAAnimaTests(unittest.TestCase):
                 actual = reloaded(x)
             self.assertTrue(torch.allclose(actual, expected, atol=1e-6, rtol=1e-6))
 
+    def test_dora_scale_fp32_preserves_only_scale_tensors(self):
+        try:
+            from safetensors.torch import load_file
+        except ImportError:
+            self.skipTest("safetensors is not installed")
+
+        model = TinyAnima()
+        network = lora_anima.create_network(
+            1.0,
+            2,
+            2,
+            None,
+            [],
+            model,
+            use_dora="true",
+            dora_scale_fp32="true",
+        )
+        network.apply_to([], model)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "dora_mixed_precision.safetensors")
+            network.save_weights(path, torch.bfloat16, {})
+            sd = load_file(path)
+
+        for key, value in sd.items():
+            if key.endswith(".dora_scale") or key.endswith(".alpha"):
+                self.assertEqual(torch.float32, value.dtype, key)
+            elif key.endswith(".lora_up.weight") or key.endswith(".lora_down.weight"):
+                self.assertEqual(torch.bfloat16, value.dtype, key)
+
+    def test_dora_scale_fp32_disabled_follows_save_precision(self):
+        try:
+            from safetensors.torch import load_file
+        except ImportError:
+            self.skipTest("safetensors is not installed")
+
+        model = TinyAnima()
+        network = lora_anima.create_network(1.0, 2, 2, None, [], model, use_dora="true")
+        network.apply_to([], model)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "dora_bf16.safetensors")
+            network.save_weights(path, torch.bfloat16, {})
+            sd = load_file(path)
+
+        self.assertTrue(sd)
+        for key, value in sd.items():
+            self.assertEqual(torch.bfloat16, value.dtype, key)
+
 
 if __name__ == "__main__":
     unittest.main()

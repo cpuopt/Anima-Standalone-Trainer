@@ -1176,7 +1176,7 @@ $("cfg-training-type").addEventListener("change", (e) => {
 // and module-switch redistribution: dedicated values override matching keys in
 // the freeform Network Args text box.
 const LYCORIS_DEDICATED_KEYS = ["factor", "mod_dim", "rank_dropout", "module_dropout", "use_tucker"];
-const DORA_DEDICATED_KEYS = ["use_dora"];
+const DORA_DEDICATED_KEYS = ["use_dora", "dora_scale_fp32"];
 
 // Read a dedicated number field. Returns the value string if valid, else null.
 // Validation is regex-based on the string form because Number()-based checks
@@ -1207,8 +1207,21 @@ function updateDoraOptionUI(networkModule) {
   const isAnimaLora = networkModule === "networks.lora_anima";
   $("dora-option-group").classList.toggle("hidden", !isAnimaLora);
   $("cfg-use-dora").disabled = !isAnimaLora;
-  if (!isAnimaLora) $("cfg-use-dora").checked = false;
+  if (!isAnimaLora) {
+    $("cfg-use-dora").checked = false;
+    $("cfg-dora-scale-fp32").checked = false;
+  }
+  updateDoraPrecisionUI();
 }
+function updateDoraPrecisionUI() {
+  const enabled =
+    $("cfg-network-module").value === "networks.lora_anima" &&
+    $("cfg-use-dora").checked;
+  $("dora-fp32-option-group").classList.toggle("hidden", !enabled);
+  $("cfg-dora-scale-fp32").disabled = !enabled;
+  if (!enabled) $("cfg-dora-scale-fp32").checked = false;
+}
+$("cfg-use-dora").addEventListener("change", updateDoraPrecisionUI);
 $("cfg-network-module").addEventListener("change", (e) => {
   // Carry user-edited state across the active-set change: the dropdown handler
   // is the "user mid-edit" path, in contrast with populateForm which is the
@@ -1234,6 +1247,7 @@ function redistributeForModuleChange() {
   if (moduleDropout !== null) tokens.push(`module_dropout=${moduleDropout}`);
   if ($("cfg-use-tucker").checked) tokens.push("use_tucker=true");
   if ($("cfg-use-dora").checked) tokens.push("use_dora=true");
+  if ($("cfg-dora-scale-fp32").checked) tokens.push("dora_scale_fp32=true");
   const freeform = $("cfg-network-args").value.trim();
   if (freeform) tokens.push(...freeform.split(/\s+/));
   const seen = new Set();
@@ -1285,6 +1299,13 @@ function gatherNetworkArgs() {
   if (active.includes("use_dora") && $("cfg-use-dora").checked) {
     dedicated.push("use_dora=true");
   }
+  if (
+    active.includes("dora_scale_fp32") &&
+    $("cfg-use-dora").checked &&
+    $("cfg-dora-scale-fp32").checked
+  ) {
+    dedicated.push("dora_scale_fp32=true");
+  }
   const freeformRaw = $("cfg-network-args").value.trim();
   const freeform = freeformRaw
     ? freeformRaw.split(/\s+/).filter((tok) => {
@@ -1330,6 +1351,11 @@ function loadNetworkArgs(args) {
   $("cfg-use-tucker").checked = ["true", "1", "yes", "y"].includes(tucker);
   const dora = (dedicated.use_dora || "").toLowerCase();
   $("cfg-use-dora").checked = ["true", "1", "yes", "y", "on"].includes(dora);
+  const doraScaleFp32 = (dedicated.dora_scale_fp32 || "").toLowerCase();
+  $("cfg-dora-scale-fp32").checked =
+    $("cfg-use-dora").checked &&
+    ["true", "1", "yes", "y", "on"].includes(doraScaleFp32);
+  updateDoraPrecisionUI();
   $("cfg-network-args").value = freeform.join(" ");
 }
 
