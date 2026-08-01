@@ -1992,6 +1992,7 @@ class DreamBoothDataset(BaseDataset):
         validation_split: float,
         validation_seed: Optional[int],
         resize_interpolation: Optional[str],
+        balance_regularization_images: bool = False,
     ) -> None:
         super().__init__(resolution, network_multiplier, debug_dataset, resize_interpolation)
 
@@ -2000,6 +2001,7 @@ class DreamBoothDataset(BaseDataset):
         self.batch_size = batch_size
         self.size = min(self.width, self.height)  # 短いほう
         self.prior_loss_weight = prior_loss_weight
+        self.balance_regularization_images = balance_regularization_images
         self.latents_cache = None
         self.is_training_dataset = is_training_dataset
         self.validation_seed = validation_seed
@@ -2253,6 +2255,12 @@ class DreamBoothDataset(BaseDataset):
 
         if num_reg_images == 0:
             logger.warning(tr("no_regularization_images"))
+        elif not self.balance_regularization_images:
+            # Keep the configured repeats exactly as-is. Historically regularization
+            # images were always repeated (or truncated) to match the training image
+            # count; that behavior is now opt-in.
+            for info, subset in reg_infos:
+                self.register_image(info, subset)
         else:
             # num_repeatsを計算する：どうせ大した数ではないのでループで処理する
             n = 0

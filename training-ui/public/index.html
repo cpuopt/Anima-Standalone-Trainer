@@ -364,6 +364,11 @@
                             <small>Use image alpha channel as loss mask. Images without alpha train normally.</small>
                         </div>
 
+                        <div class="form-group">
+                            <label><input type="checkbox" id="cfg-balance-reg-images"> Auto-Balance Regularization Images</label>
+                            <small>Repeat or limit regularization images to approximately match the training image count. Disabled by default; when disabled, regularization datasets use only their configured repeat counts.</small>
+                        </div>
+
                         <h4>Bucketing</h4>
                         <div class="form-group">
                             <label><input type="checkbox" id="cfg-enable-bucket" checked> Enable Aspect Ratio

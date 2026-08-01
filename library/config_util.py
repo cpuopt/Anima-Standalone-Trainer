@@ -121,6 +121,7 @@ class DreamBoothDatasetParams(BaseDatasetParams):
     bucket_reso_steps: int = 64
     bucket_no_upscale: bool = False
     prior_loss_weight: float = 1.0
+    balance_regularization_images: bool = False
     
 @dataclass
 class FineTuningDatasetParams(BaseDatasetParams):
@@ -238,6 +239,7 @@ class ConfigSanitizer:
     # datasets schema
     DATASET_ASCENDABLE_SCHEMA = {
         "batch_size": int,
+        "balance_regularization_images": bool,
         "bucket_no_upscale": bool,
         "bucket_reso_steps": int,
         "enable_bucket": bool,

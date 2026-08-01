@@ -553,6 +553,7 @@ function populateDataset(dataset) {
   $("cfg-caption-ext").value = d.caption_extension || ".txt";
   $("cfg-enable-bucket").checked = g.enable_bucket ?? true;
   $("cfg-bucket-no-upscale").checked = g.bucket_no_upscale ?? true;
+  $("cfg-balance-reg-images").checked = g.balance_regularization_images ?? false;
   $("cfg-min-bucket").value = g.min_bucket_reso ?? 512;
   $("cfg-max-bucket").value = g.max_bucket_reso ?? 1536;
   $("cfg-bucket-steps").value = g.bucket_reso_steps ?? 64;
@@ -842,6 +843,7 @@ function gatherDataset() {
     general: {
       enable_bucket: $("cfg-enable-bucket").checked,
       bucket_no_upscale: $("cfg-bucket-no-upscale").checked,
+      balance_regularization_images: $("cfg-balance-reg-images").checked,
       min_bucket_reso: safeInt($("cfg-min-bucket").value),
       max_bucket_reso: safeInt($("cfg-max-bucket").value),
       bucket_reso_steps: safeInt($("cfg-bucket-steps").value),
