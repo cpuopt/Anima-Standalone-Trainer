@@ -2,6 +2,7 @@ const express = require('express');
 const { spawn, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { snapshotSamplePrompts } = require('./lib/prompt-snapshot');
 const TOML = require('@iarna/toml');
 const net = require('net');
 const http = require('http');
@@ -1515,6 +1516,10 @@ app.post('/api/jobs/:name/train/start', async (req, res) => {
 
         // Build merged config and write to temp file
         const mergedConfig = buildTrainingConfig(jobName, jobPath);
+        // The trainer caches text-encoder outputs once, but re-reads its prompt
+        // file for every sampling pass. Keep the active run on a snapshot so a
+        // prompt save in the UI cannot invalidate that cache mid-training.
+        snapshotSamplePrompts(jobPath, mergedConfig);
 
         // TP/SP: strip options that are incompatible with the TP training script.
         const launchMode = mergedConfig.training_arguments?.multigpu_mode
