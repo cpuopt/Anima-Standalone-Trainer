@@ -2780,12 +2780,15 @@ document.querySelectorAll(".tab").forEach((tab) => {
       clearInterval(samplesPollTimer);
       samplesPollTimer = null;
     }
-    // Auto-refresh data on tab switch
+    // Auto-refresh data on tab switch. Prompts deliberately stay in the
+    // in-memory currentPrompts model while navigating between tabs: their input
+    // handlers keep that model up to date, and reloading the prompts file here
+    // would overwrite unsaved edits. Prompt data is loaded when the job itself
+    // is selected instead.
     if (tab.dataset.tab === "samples") {
       loadSamples();
       samplesPollTimer = setInterval(() => loadSamples(true), 3000);
     }
-    if (tab.dataset.tab === "prompts") loadPrompts();
     if (tab.dataset.tab === "tensorboard") checkTensorBoard();
   });
 });
