@@ -583,6 +583,39 @@ function populateDataset(dataset) {
   renderSubsets();
   // Rebuild progressive phase rows now that resolution field is populated
   if ($("cfg-progressive-reso").checked) renderProgressivePhases();
+  updateLbai();
+}
+
+function updateLbai() {
+  const meter = $("lbai-meter");
+  if (!meter || typeof LBAI === "undefined") return;
+  const epochMode = document.querySelector('input[name="duration-unit"]:checked')?.value === "epochs";
+  // Each image has its subset's repeat count. Show the highest training-subset
+  // exposure so the indicator conservatively warns about overtraining.
+  const repeats = Math.max(0, ...currentSubsets.filter((s) => !s.is_reg).map((s) => Number(s.num_repeats) || 0));
+  const result = epochMode ? LBAI.calculate({
+    repeats,
+    epochs: $("cfg-max-epochs").value,
+    learningRate: $("cfg-learning-rate").value,
+    rank: $("cfg-network-dim").value,
+    scheduler: $("cfg-lr-scheduler").value,
+    minLrRatio: $("cfg-lr-min-ratio").value,
+  }) : null;
+  if (!result) {
+    $("lbai-value").textContent = "—";
+    $("lbai-percent").textContent = "epoch mode required";
+    $("lbai-current").style.display = "none";
+    meter.classList.remove("is-low", "is-high");
+    return;
+  }
+  const midpoint = (LBAI.RECOMMENDED_MIN + LBAI.RECOMMENDED_MAX) / 2;
+  $("lbai-value").textContent = result.value.toPrecision(4);
+  $("lbai-percent").textContent = `${Math.round((result.value / midpoint) * 100)}% of target`;
+  $("lbai-current").style.display = "block";
+  $("lbai-current").style.left = `${Math.max(0, Math.min(100, (result.value / 0.018) * 100))}%`;
+  meter.classList.toggle("is-low", result.value < LBAI.RECOMMENDED_MIN);
+  meter.classList.toggle("is-high", result.value > LBAI.RECOMMENDED_MAX);
+  meter.title = `Exposure ${result.exposure}; effective LR ${result.effectiveLearningRate.toPrecision(4)}; rank factor ${result.rankFactor.toFixed(3)}. Recommended: 0.012–0.0144. Uses the highest non-regularization repeat count.`;
 }
 function updateOptimizerOptions() {
   const optimizer = $("cfg-optimizer").value;
@@ -3618,11 +3651,13 @@ async function init() {
     if (e.target.id && e.target.id.startsWith("cfg-")) {
       checkDirty();
     }
+    updateLbai();
   });
   document.addEventListener("change", (e) => {
     if (e.target.id && e.target.id.startsWith("cfg-")) {
       checkDirty();
     }
+    updateLbai();
   });
   // Optimizer custom bindings
   $("cfg-optimizer").addEventListener("change", updateOptimizerOptions);
