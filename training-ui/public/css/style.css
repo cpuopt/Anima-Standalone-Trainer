@@ -316,6 +316,21 @@ body {
     font-weight: 600;
 }
 
+.lbai-meter { width: min(420px, 38vw); margin-left: auto; padding: 5px 14px 15px; }
+.lbai-heading { display: flex; align-items: baseline; gap: 8px; font-size: .72rem; color: var(--text-secondary); }
+.lbai-heading strong { color: var(--text-primary); font-size: .86rem; }
+#lbai-percent { margin-left: auto; }
+.lbai-track-wrap { position: relative; margin-top: 5px; }
+.lbai-track { height: 7px; position: relative; border-radius: 999px; background: var(--bg-tertiary); border: 1px solid var(--border); }
+.lbai-recommended { position: absolute; left: 66.6667%; width: 13.3333%; height: 100%; background: var(--success); opacity: .75; }
+.lbai-current { position: absolute; top: 50%; left: 0; width: 11px; height: 11px; border-radius: 50%; background: var(--accent); border: 2px solid var(--text-primary); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--bg-primary); }
+.lbai-node { position: absolute; top: 9px; font-size: .61rem; color: var(--text-muted); transform: translateX(-50%); }
+.lbai-node-min { left: 66.6667%; }
+.lbai-node-max { left: 80%; }
+.lbai-meter.is-low .lbai-current { background: var(--warning); }
+.lbai-meter.is-high .lbai-current { background: var(--danger); }
+@media (max-width: 1050px) { .editor-header { flex-wrap: wrap; } .lbai-meter { order: 3; width: 100%; margin: 4px 0 0; } }
+
 .editor-actions {
     display: flex;
     gap: 8px;
