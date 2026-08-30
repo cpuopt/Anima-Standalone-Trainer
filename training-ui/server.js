@@ -3,6 +3,7 @@ const { spawn, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { snapshotSamplePrompts } = require('./lib/prompt-snapshot');
+const LBAI = require('./public/js/lbai');
 const TOML = require('@iarna/toml');
 const net = require('net');
 const http = require('http');
@@ -106,6 +107,14 @@ function normalizeLogLanguage(value) {
     return ['zh_CN', 'en', 'ja'].includes(value) ? value : 'zh_CN';
 }
 
+function applyGlobalConfigDefaults(config) {
+    const normalized = config && typeof config === 'object' ? config : {};
+    normalized.ui = normalized.ui && typeof normalized.ui === 'object' ? normalized.ui : {};
+    normalized.ui.log_language = normalizeLogLanguage(normalized.ui.log_language);
+    normalized.ui.lbai_targets = LBAI.normalizeTargets(normalized.ui.lbai_targets);
+    return normalized;
+}
+
 function getJobPath(name) {
     return path.join(JOBS_DIR, sanitizeName(name));
 }
@@ -114,12 +123,12 @@ function getGlobalConfig() {
     if (fs.existsSync(GLOBAL_CONFIG_PATH)) {
         try {
             const config = TOML.parse(fs.readFileSync(GLOBAL_CONFIG_PATH, 'utf8'));
-            return config;
+            return applyGlobalConfigDefaults(config);
         } catch (err) {
             console.error('Failed to parse global config:', err.message);
         }
     }
-    return {
+    return applyGlobalConfigDefaults({
         model_paths: {
             // Anima
             dit_path: '',
@@ -134,7 +143,7 @@ function getGlobalConfig() {
         ui: {
             log_language: 'zh_CN'
         }
-    };
+    });
 }
 
 // Serve architecture registry to frontend
@@ -531,6 +540,7 @@ app.put('/api/global-config', (req, res) => {
         }
         body.ui = body.ui || {};
         body.ui.log_language = normalizeLogLanguage(body.ui.log_language);
+        body.ui.lbai_targets = LBAI.normalizeTargets(body.ui.lbai_targets);
         const tomlStr = TOML.stringify(body);
         fs.writeFileSync(GLOBAL_CONFIG_PATH, tomlStr, 'utf8');
         res.json({ success: true });

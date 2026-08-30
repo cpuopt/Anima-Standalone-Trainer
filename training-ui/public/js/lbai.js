@@ -3,8 +3,120 @@
   if (typeof module === "object" && module.exports) module.exports = api;
   root.LBAI = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  const RECOMMENDED_MIN = 0.012;
-  const RECOMMENDED_MAX = 0.0144;
+  const DEFAULT_TARGETS = Object.freeze([
+    Object.freeze({
+      name: "my conf 1",
+      color: "#3fb950",
+      type: "range",
+      min: 0.012,
+      max: 0.0144,
+    }),
+    Object.freeze({
+      name: "官方lora推荐值",
+      color: "#d29922",
+      type: "range",
+      min: 0.00125,
+      max: 0.0015,
+    }),
+  ]);
+
+  function defaultTargets() {
+    return DEFAULT_TARGETS.map((target) => ({ ...target }));
+  }
+
+  function normalizeColor(value) {
+    return /^#[0-9a-f]{6}$/i.test(String(value || ""))
+      ? String(value).toLowerCase()
+      : "#3fb950";
+  }
+
+  function nonNegativeNumber(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === "string" && !value.trim()) return null;
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
+
+  function normalizeTarget(target, index = 0) {
+    if (!target || typeof target !== "object") return null;
+    const type = target.type === "point" ? "point" : "range";
+    const normalized = {
+      name: String(target.name || "").trim() || `Configuration ${index + 1}`,
+      color: normalizeColor(target.color),
+      type,
+    };
+    if (type === "point") {
+      const value = nonNegativeNumber(target.value);
+      if (value === null) return null;
+      normalized.value = value;
+      return normalized;
+    }
+    let min = nonNegativeNumber(target.min);
+    let max = nonNegativeNumber(target.max);
+    if (min === null || max === null) return null;
+    if (min > max) [min, max] = [max, min];
+    normalized.min = min;
+    normalized.max = max;
+    return normalized;
+  }
+
+  function normalizeTargets(targets, useDefaultsWhenMissing = true) {
+    if (!Array.isArray(targets)) return useDefaultsWhenMissing ? defaultTargets() : [];
+    return targets.map(normalizeTarget).filter(Boolean);
+  }
+
+  function targetBounds(target) {
+    return target.type === "point"
+      ? { min: target.value, max: target.value }
+      : { min: target.min, max: target.max };
+  }
+
+  function scaleMaximum(targets, fallback = 0.018) {
+    const maximum = normalizeTargets(targets, false).reduce(
+      (result, target) => Math.max(result, targetBounds(target).max),
+      0,
+    );
+    return Math.max(fallback, maximum * 1.25);
+  }
+
+  function layoutTargets(targets, scaleMax, trackWidth, minRangeWidth = 8, minHitWidth = 16) {
+    const width = Math.max(1, Number(trackWidth) || 0);
+    const scale = Math.max(Number(scaleMax) || 0, Number.EPSILON);
+    const layouts = normalizeTargets(targets, false).map((target) => {
+      const bounds = targetBounds(target);
+      const centerValue = (bounds.min + bounds.max) / 2;
+      const naturalWidth = target.type === "point"
+        ? 4
+        : ((bounds.max - bounds.min) / scale) * width;
+      const visualWidth = target.type === "point"
+        ? 4
+        : Math.max(minRangeWidth, naturalWidth);
+      const centerPx = (centerValue / scale) * width;
+      const startPx = centerPx - visualWidth / 2;
+      const endPx = centerPx + visualWidth / 2;
+      return {
+        target,
+        bounds,
+        centerPercent: (centerValue / scale) * 100,
+        visualWidth,
+        hitWidth: Math.max(minHitWidth, visualWidth),
+        compact: target.type === "range" && naturalWidth < minRangeWidth,
+        startPx,
+        endPx,
+        lane: 0,
+      };
+    });
+    const laneEnds = [-Infinity, -Infinity];
+    [...layouts].sort((a, b) => a.startPx - b.startPx).forEach((layout) => {
+      let lane = layout.startPx > laneEnds[0] + 2 ? 0 : 1;
+      if (lane === 1 && layout.startPx <= laneEnds[1] + 2) {
+        lane = laneEnds[0] <= laneEnds[1] ? 0 : 1;
+      }
+      layout.lane = lane;
+      laneEnds[lane] = Math.max(laneEnds[lane], layout.endPx);
+    });
+    return layouts.map(({ startPx, endPx, ...layout }) => layout);
+  }
 
   function schedulerAverageFactor(scheduler, minLrRatio = 0) {
     switch (scheduler) {
@@ -42,5 +154,16 @@
     };
   }
 
-  return { RECOMMENDED_MIN, RECOMMENDED_MAX, schedulerAverageFactor, averageCurve, calculate };
+  return {
+    DEFAULT_TARGETS,
+    defaultTargets,
+    normalizeTarget,
+    normalizeTargets,
+    targetBounds,
+    scaleMaximum,
+    layoutTargets,
+    schedulerAverageFactor,
+    averageCurve,
+    calculate,
+  };
 });

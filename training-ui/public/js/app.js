@@ -13,6 +13,9 @@ let isDraggingBg = false;
 let bgPosPercent = { x: 50, y: 50 };
 let currentSubsets = [];
 let archRegistry = null; // Loaded from /api/architectures
+let lbaiTargets = typeof LBAI !== "undefined" ? LBAI.defaultTargets() : [];
+let activeLbaiTargetIndex = 0;
+let lbaiResizeObserver = null;
 // --- DOM Refs ---
 const $ = (id) => document.getElementById(id);
 const jobListEl = $("job-list");
@@ -589,6 +592,58 @@ function populateDataset(dataset) {
 function updateLbai() {
   const meter = $("lbai-meter");
   if (!meter || typeof LBAI === "undefined") return;
+  const targets = LBAI.normalizeTargets(lbaiTargets, false);
+  activeLbaiTargetIndex = targets.length
+    ? Math.max(0, Math.min(targets.length - 1, activeLbaiTargetIndex))
+    : 0;
+  const comparisonTarget = targets[activeLbaiTargetIndex] || null;
+  const scaleMax = LBAI.scaleMaximum(targets);
+  const targetLayer = $("lbai-targets");
+  const axisLabels = $("lbai-axis-labels");
+  targetLayer.replaceChildren();
+  axisLabels.replaceChildren();
+  const trackWidth = targetLayer.getBoundingClientRect().width;
+  LBAI.layoutTargets(targets, scaleMax, trackWidth).forEach((layout, index) => {
+    const { target, bounds } = layout;
+    const marker = document.createElement("div");
+    marker.className = `lbai-target lbai-target-${target.type} lbai-target-lane-${layout.lane}${layout.compact ? " is-compact" : ""}${index === activeLbaiTargetIndex ? " is-active" : ""}`;
+    marker.style.left = `${Math.max(0, Math.min(100, layout.centerPercent))}%`;
+    marker.style.width = `${layout.hitWidth}px`;
+    marker.tabIndex = 0;
+    marker.setAttribute("role", "button");
+    marker.setAttribute("aria-pressed", index === activeLbaiTargetIndex ? "true" : "false");
+    const visual = document.createElement("div");
+    visual.className = "lbai-target-visual";
+    visual.style.width = `${layout.visualWidth}px`;
+    visual.style.backgroundColor = target.color;
+    marker.appendChild(visual);
+    marker.title = target.type === "point"
+      ? `${target.name}: ${formatLbaiNumber(target.value)} — click to compare`
+      : `${target.name}: ${formatLbaiNumber(target.min)}–${formatLbaiNumber(target.max)} — click to compare`;
+    marker.setAttribute("aria-label", marker.title);
+    const selectTarget = () => {
+      activeLbaiTargetIndex = index;
+      updateLbai();
+    };
+    marker.addEventListener("click", selectTarget);
+    marker.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectTarget();
+      }
+    });
+    targetLayer.appendChild(marker);
+  });
+  if (comparisonTarget) {
+    const bounds = LBAI.targetBounds(comparisonTarget);
+    [...new Set([bounds.min, bounds.max])].forEach((value) => {
+      const label = document.createElement("span");
+      label.className = "lbai-axis-label";
+      label.style.left = `${Math.max(0, Math.min(100, (value / scaleMax) * 100))}%`;
+      label.textContent = formatLbaiNumber(value);
+      axisLabels.appendChild(label);
+    });
+  }
   const epochMode = document.querySelector('input[name="duration-unit"]:checked')?.value === "epochs";
   // Each image has its subset's repeat count. Show the highest training-subset
   // exposure so the indicator conservatively warns about overtraining.
@@ -608,14 +663,41 @@ function updateLbai() {
     meter.classList.remove("is-low", "is-high");
     return;
   }
-  const midpoint = (LBAI.RECOMMENDED_MIN + LBAI.RECOMMENDED_MAX) / 2;
   $("lbai-value").textContent = result.value.toPrecision(4);
-  $("lbai-percent").textContent = `${Math.round((result.value / midpoint) * 100)}% of target`;
+  if (comparisonTarget) {
+    const bounds = LBAI.targetBounds(comparisonTarget);
+    const targetValue = (bounds.min + bounds.max) / 2;
+    $("lbai-percent").textContent = targetValue > 0
+      ? `${comparisonTarget.name} · ${Math.round((result.value / targetValue) * 100)}%`
+      : `${comparisonTarget.name} · —`;
+  } else {
+    $("lbai-percent").textContent = "no target configured";
+  }
   $("lbai-current").style.display = "block";
-  $("lbai-current").style.left = `${Math.max(0, Math.min(100, (result.value / 0.018) * 100))}%`;
-  meter.classList.toggle("is-low", result.value < LBAI.RECOMMENDED_MIN);
-  meter.classList.toggle("is-high", result.value > LBAI.RECOMMENDED_MAX);
-  meter.title = `Exposure ${result.exposure}; effective LR ${result.effectiveLearningRate.toPrecision(4)}; rank factor ${result.rankFactor.toFixed(3)}. Recommended: 0.012–0.0144. Uses the highest non-regularization repeat count.`;
+  $("lbai-current").style.left = `${Math.max(0, Math.min(100, (result.value / scaleMax) * 100))}%`;
+  const selectedBounds = comparisonTarget ? LBAI.targetBounds(comparisonTarget) : null;
+  const minimum = selectedBounds?.min ?? null;
+  const maximum = selectedBounds?.max ?? null;
+  meter.classList.toggle("is-low", minimum !== null && result.value < minimum);
+  meter.classList.toggle("is-high", maximum !== null && result.value > maximum);
+  const configured = targets.length
+    ? ` Configured targets: ${targets.map((target) => target.name).join(", ")}.`
+    : " No configured targets.";
+  const comparing = comparisonTarget ? ` Comparing against ${comparisonTarget.name}.` : "";
+  meter.title = `Exposure ${result.exposure}; effective LR ${result.effectiveLearningRate.toPrecision(4)}; rank factor ${result.rankFactor.toFixed(3)}.${configured}${comparing} Uses the highest non-regularization repeat count.`;
+}
+
+function formatLbaiNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? String(Number(number.toPrecision(4))) : "—";
+}
+
+function escapeAttribute(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 function updateOptimizerOptions() {
   const optimizer = $("cfg-optimizer").value;
@@ -2463,12 +2545,17 @@ function buildGlobalSettingsTabs(registry) {
     content.insertBefore(pane, $("gtab-app"));
     isFirst = false;
   }
-  // Application tab button (always last)
-  const appBtn = document.createElement("button");
-  appBtn.className = "tab";
-  appBtn.dataset.gtab = "app";
-  appBtn.textContent = "Application";
-  nav.appendChild(appBtn);
+  // Static tabs (always after architecture model paths)
+  [
+    { id: "lbai", label: "Training Estimate" },
+    { id: "app", label: "Application" },
+  ].forEach(({ id, label }) => {
+    const btn = document.createElement("button");
+    btn.className = "tab";
+    btn.dataset.gtab = id;
+    btn.textContent = label;
+    nav.appendChild(btn);
+  });
   // Bind tab switching
   nav.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -2505,6 +2592,79 @@ function buildGlobalSettingsTabs(registry) {
     }
   }
 }
+
+function renderLbaiTargetSettings(targets) {
+  const container = $("lbai-target-settings");
+  container.replaceChildren();
+  if (!targets.length) {
+    const empty = document.createElement("div");
+    empty.className = "lbai-target-settings-empty";
+    empty.textContent = "No targets configured. Add a point or range to display it on the meter.";
+    container.appendChild(empty);
+    return;
+  }
+  targets.forEach((target, index) => {
+    const card = document.createElement("div");
+    card.className = "lbai-target-card";
+    card.dataset.index = String(index);
+    const isPoint = target.type === "point";
+    card.innerHTML = `
+      <div class="lbai-target-card-main">
+        <label>Name<input class="lbai-setting-name" type="text" value="${escapeAttribute(target.name)}" maxlength="80"></label>
+        <label>Type<select class="lbai-setting-type"><option value="range"${isPoint ? "" : " selected"}>Range</option><option value="point"${isPoint ? " selected" : ""}>Point</option></select></label>
+        <label>Color<input class="lbai-target-color lbai-setting-color" type="color" value="${target.color}"></label>
+        <button type="button" class="btn btn-ghost btn-sm lbai-target-remove" title="Remove target">Remove</button>
+      </div>
+      <div class="lbai-target-card-values lbai-range-values${isPoint ? " hidden" : ""}">
+        <label>Lower bound<input class="lbai-setting-min" type="number" min="0" step="any" value="${isPoint ? "" : target.min}"></label>
+        <label>Upper bound<input class="lbai-setting-max" type="number" min="0" step="any" value="${isPoint ? "" : target.max}"></label>
+      </div>
+      <div class="lbai-target-card-values lbai-point-values${isPoint ? "" : " hidden"}">
+        <label>Point value<input class="lbai-setting-value" type="number" min="0" step="any" value="${isPoint ? target.value : ""}"></label>
+      </div>`;
+    card.querySelector(".lbai-setting-type").addEventListener("change", (event) => {
+      const point = event.target.value === "point";
+      card.querySelector(".lbai-range-values").classList.toggle("hidden", point);
+      card.querySelector(".lbai-point-values").classList.toggle("hidden", !point);
+    });
+    card.querySelector(".lbai-target-remove").addEventListener("click", () => {
+      card.remove();
+      if (!container.querySelector(".lbai-target-card")) renderLbaiTargetSettings([]);
+    });
+    container.appendChild(card);
+  });
+}
+
+function collectLbaiTargetSettings() {
+  const targets = [];
+  const cards = $("lbai-target-settings").querySelectorAll(".lbai-target-card");
+  for (const [index, card] of [...cards].entries()) {
+    const name = card.querySelector(".lbai-setting-name").value.trim();
+    const color = card.querySelector(".lbai-setting-color").value;
+    const type = card.querySelector(".lbai-setting-type").value;
+    if (!name) return { error: `Training estimate target ${index + 1} needs a name.` };
+    if (type === "point") {
+      const rawValue = card.querySelector(".lbai-setting-value").value.trim();
+      const value = Number(rawValue);
+      if (!rawValue || !Number.isFinite(value) || value < 0) {
+        return { error: `${name}: point value must be a non-negative number.` };
+      }
+      targets.push({ name, color, type, value });
+      continue;
+    }
+    const rawMin = card.querySelector(".lbai-setting-min").value.trim();
+    const rawMax = card.querySelector(".lbai-setting-max").value.trim();
+    const min = Number(rawMin);
+    const max = Number(rawMax);
+    if (!rawMin || !rawMax || ![min, max].every((value) => Number.isFinite(value) && value >= 0)) {
+      return { error: `${name}: both bounds must be non-negative numbers.` };
+    }
+    if (min > max) return { error: `${name}: lower bound cannot exceed upper bound.` };
+    targets.push({ name, color, type, min, max });
+  }
+  return { targets: LBAI.normalizeTargets(targets, false) };
+}
+
 async function loadGlobalSettings() {
   // Fetch registry if not cached
   if (!archRegistry) {
@@ -2512,6 +2672,9 @@ async function loadGlobalSettings() {
     buildGlobalSettingsTabs(archRegistry);
   }
   const config = await api("/api/global-config");
+  lbaiTargets = LBAI.normalizeTargets(config.ui?.lbai_targets);
+  renderLbaiTargetSettings(lbaiTargets);
+  updateLbai();
   // Populate path inputs dynamically from registry
   for (const [archId, arch] of Object.entries(archRegistry.architectures)) {
     for (const configKey of Object.keys(arch.global_paths)) {
@@ -2557,6 +2720,11 @@ async function loadGlobalSettings() {
 async function saveGlobalSettings() {
   // Read existing config first to preserve bg settings
   const existingConfig = await api("/api/global-config");
+  const lbaiSettings = collectLbaiTargetSettings();
+  if (lbaiSettings.error) {
+    showToast(lbaiSettings.error, "danger");
+    return;
+  }
   // Build model_paths dynamically from registry
   const model_paths = {};
   if (archRegistry) {
@@ -2572,6 +2740,7 @@ async function saveGlobalSettings() {
     venv_path: $("cfg-global-venv").value,
     ui: {
       ...(existingConfig.ui || {}),
+      lbai_targets: lbaiSettings.targets,
       log_language: $("cfg-log-language").value || "zh_CN",
       theme: $("cfg-theme").value,
       background_position: `${bgPosPercent.x.toFixed(1)}% ${bgPosPercent.y.toFixed(1)}%`,
@@ -2595,6 +2764,8 @@ async function saveGlobalSettings() {
     );
   }
   await api("/api/global-config", { method: "PUT", body: config });
+  lbaiTargets = lbaiSettings.targets;
+  updateLbai();
   closeModal("modal-global-settings");
   showToast("Global settings saved");
 }
@@ -3463,6 +3634,21 @@ $("btn-close-global").addEventListener("click", () =>
   closeModal("modal-global-settings"),
 );
 $("btn-save-global").addEventListener("click", saveGlobalSettings);
+$("btn-add-lbai-target").addEventListener("click", () => {
+  const current = collectLbaiTargetSettings();
+  if (current.error) {
+    showToast(current.error, "danger");
+    return;
+  }
+  current.targets.push({
+    name: `my conf ${current.targets.length + 1}`,
+    color: "#58a6ff",
+    type: "range",
+    min: 0.012,
+    max: 0.0144,
+  });
+  renderLbaiTargetSettings(current.targets);
+});
 // Prompts
 $("btn-add-prompt").addEventListener("click", addPrompt);
 $("btn-apply-global").addEventListener("click", applyGlobalSettings);
@@ -3648,6 +3834,12 @@ async function init() {
     } catch (e) { }
   }
   // 2. Normal Init
+  if (typeof ResizeObserver !== "undefined") {
+    lbaiResizeObserver = new ResizeObserver(() => updateLbai());
+    lbaiResizeObserver.observe($("lbai-meter"));
+  } else {
+    window.addEventListener("resize", updateLbai);
+  }
   connectWS();
   await loadJobs();
   // Start status polling
@@ -3710,6 +3902,8 @@ async function init() {
   }
   // 3. Sync Settings: Load from server and refresh cache
   const globalConfig = await api("/api/global-config");
+  lbaiTargets = LBAI.normalizeTargets(globalConfig?.ui?.lbai_targets);
+  updateLbai();
   if (globalConfig?.ui?.theme) {
     applyTheme(globalConfig.ui.theme);
   }

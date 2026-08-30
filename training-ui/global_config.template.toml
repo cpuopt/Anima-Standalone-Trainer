@@ -21,3 +21,16 @@ blur_level = 0
 text_shadow_size = 0
 theme = "github-dark"
 
+[[ui.lbai_targets]]
+name = "my conf 1"
+color = "#3fb950"
+type = "range"
+min = 0.012
+max = 0.0144
+
+[[ui.lbai_targets]]
+name = "官方lora推荐值"
+color = "#d29922"
+type = "range"
+min = 0.00125
+max = 0.0015

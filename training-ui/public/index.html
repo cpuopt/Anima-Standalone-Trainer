@@ -67,8 +67,8 @@
                     <div id="lbai-meter" class="lbai-meter" title="LBAI = repeats × epochs × average effective LR × (rank / 32)">
                         <div class="lbai-heading"><span>LoRA Bias Accumulation Index</span><strong id="lbai-value">—</strong><span id="lbai-percent">—</span></div>
                         <div class="lbai-track-wrap">
-                            <div class="lbai-track"><div class="lbai-recommended"></div><div id="lbai-current" class="lbai-current"></div></div>
-                            <span class="lbai-node lbai-node-min">0.012</span><span class="lbai-node lbai-node-max">0.0144</span>
+                            <div class="lbai-track"><div id="lbai-targets" class="lbai-targets"></div><div id="lbai-current" class="lbai-current"></div></div>
+                            <div id="lbai-axis-labels" class="lbai-axis-labels"></div>
                         </div>
                     </div>
                     <div class="editor-actions">
@@ -1086,6 +1086,19 @@
 
             <div class="tab-content" id="global-tabs-content" style="border: 1px solid var(--border); padding: 15px; border-radius: 8px;">
                 <!-- Architecture path tabs injected dynamically -->
+
+                <!-- Training Estimate Tab (static) -->
+                <div id="gtab-lbai" class="gtab-pane hidden">
+                    <div class="settings-section-heading">
+                        <div>
+                            <h4>Training Estimate Targets</h4>
+                            <small>Configure one or more named points or ranges shown on the LBAI training-degree meter.</small>
+                        </div>
+                        <button id="btn-add-lbai-target" type="button" class="btn btn-secondary btn-sm">＋ Add Target</button>
+                    </div>
+                    <div id="lbai-target-settings" class="lbai-target-settings"></div>
+                    <small class="lbai-settings-hint">Target names appear when hovering over their colored marker on the training-degree meter.</small>
+                </div>
 
                 <!-- Application Tab (static) -->
                 <div id="gtab-app" class="gtab-pane hidden">
