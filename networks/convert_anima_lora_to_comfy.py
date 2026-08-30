@@ -148,7 +148,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Convert Anima LoRA/LoHa/LoKr format between sd-scripts and ComfyUI")
+    parser = argparse.ArgumentParser(description="Convert Anima LoRA/DoRA/LoHa/LoKr/DoKr keys between sd-scripts and ComfyUI")
     parser.add_argument(
         "src_path",
         type=str,

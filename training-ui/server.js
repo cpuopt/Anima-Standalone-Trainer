@@ -987,11 +987,11 @@ function buildLaunchConfig(gpuIds, mergedConfig, mergedConfigPath, jobArch) {
     const useDora = hasNetworkArg(mergedConfig, 'use_dora');
     if (useDora) {
         const netModule = mergedConfig.network_arguments?.network_module || '';
-        if (netModule !== 'networks.lora_anima') {
-            return { error: 'DoRA v1 is only supported with networks.lora_anima.' };
+        if (netModule !== 'networks.lora_anima' && netModule !== 'networks.lokr') {
+            return { error: 'DoRA/DoKr is only supported with networks.lora_anima or networks.lokr.' };
         }
         if (mode !== 'ddp') {
-            return { error: 'DoRA v1 is single-GPU only. Use the DDP/single-process mode.' };
+            return { error: 'DoRA/DoKr is single-GPU only. Use the DDP/single-process mode.' };
         }
     }
 
@@ -1005,7 +1005,7 @@ function buildLaunchConfig(gpuIds, mergedConfig, mergedConfigPath, jobArch) {
 
         if (useDora) {
             if (validIds.length > 1) {
-                return { error: 'DoRA v1 is single-GPU only. Select one GPU and use the DDP/single-process mode.' };
+                return { error: 'DoRA/DoKr is single-GPU only. Select one GPU and use the DDP/single-process mode.' };
             }
         }
 

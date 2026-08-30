@@ -1240,9 +1240,15 @@ function updateLycorisExtrasUI(networkModule) {
 }
 function updateDoraOptionUI(networkModule) {
   const isAnimaLora = networkModule === "networks.lora_anima";
-  $("dora-option-group").classList.toggle("hidden", !isAnimaLora);
-  $("cfg-use-dora").disabled = !isAnimaLora;
-  if (!isAnimaLora) {
+  const isLokr = networkModule === "networks.lokr";
+  const supported = isAnimaLora || isLokr;
+  $("dora-option-group").classList.toggle("hidden", !supported);
+  $("cfg-use-dora").disabled = !supported;
+  $("dora-option-label").textContent = isLokr ? "Use DoKr" : "Use DoRA";
+  $("dora-option-help").textContent = isLokr
+    ? "Apply DoRA weight decomposition to LoKr. Saved checkpoints include ComfyUI-compatible dora_scale tensors."
+    : "Train ComfyUI-compatible DoRA weights. Saved checkpoints include dora_scale tensors.";
+  if (!supported) {
     $("cfg-use-dora").checked = false;
     $("cfg-dora-scale-fp32").checked = false;
   }
@@ -1250,7 +1256,7 @@ function updateDoraOptionUI(networkModule) {
 }
 function updateDoraPrecisionUI() {
   const enabled =
-    $("cfg-network-module").value === "networks.lora_anima" &&
+    ["networks.lora_anima", "networks.lokr"].includes($("cfg-network-module").value) &&
     $("cfg-use-dora").checked;
   $("dora-fp32-option-group").classList.toggle("hidden", !enabled);
   $("cfg-dora-scale-fp32").disabled = !enabled;
@@ -1301,9 +1307,9 @@ function redistributeForModuleChange() {
 // treat dedicated fields as inactive (their values aren't emitted, freeform pass-through).
 function activeDedicatedKeys(networkModule) {
   if (networkModule === "networks.lokr") return [...LYCORIS_DEDICATED_KEYS, ...DORA_DEDICATED_KEYS];
-  if (networkModule === "networks.loha") return [...LYCORIS_DEDICATED_KEYS.filter((k) => k !== "factor"), ...DORA_DEDICATED_KEYS];
+  if (networkModule === "networks.loha") return LYCORIS_DEDICATED_KEYS.filter((k) => k !== "factor");
   if (networkModule === "networks.lora_anima") return DORA_DEDICATED_KEYS;
-  return DORA_DEDICATED_KEYS;
+  return [];
 }
 
 // Build the `network_args` array emitted into the per-job TOML. Dedicated fields

@@ -458,12 +458,12 @@
                                 <small>Freeze text encoder. Recommended for most LoRA training.</small>
                             </div>
                             <div class="form-group" id="dora-option-group">
-                                <label><input type="checkbox" id="cfg-use-dora"> Use DoRA</label>
-                                <small>Train ComfyUI-compatible DoRA weights. Saved checkpoints include dora_scale tensors.</small>
+                                <label><input type="checkbox" id="cfg-use-dora"> <span id="dora-option-label">Use DoRA</span></label>
+                                <small id="dora-option-help">Train ComfyUI-compatible DoRA weights. Saved checkpoints include dora_scale tensors.</small>
                             </div>
                             <div class="form-group hidden" id="dora-fp32-option-group">
-                                <label><input type="checkbox" id="cfg-dora-scale-fp32"> Save DoRA Scale in FP32</label>
-                                <small>Keep dora_scale and alpha in FP32 while LoRA up/down weights use the selected save precision.</small>
+                                <label><input type="checkbox" id="cfg-dora-scale-fp32"> Save Magnitude Scale in FP32</label>
+                                <small>Keep dora_scale and alpha in FP32 while the remaining adapter weights use the selected save precision.</small>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">

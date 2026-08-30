@@ -7,6 +7,7 @@
 import math
 import os
 import logging
+import json
 from typing import Dict, List, Optional
 
 import torch
@@ -24,9 +25,18 @@ from .network_base import (
     _is_tp_active,
 )
 from library.utils import setup_logging
+from library.i18n import tr
 
 setup_logging()
 logger = logging.getLogger(__name__)
+
+
+def _to_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
 
 
 def factorization(dimension: int, factor: int = -1) -> tuple:
@@ -113,6 +123,84 @@ def make_kron(w1, w2, scale):
     return rebuild
 
 
+def _rebuild_lokr_weight_from_state(sd: Dict[str, torch.Tensor], target_shape=None) -> torch.Tensor:
+    """Rebuild a LoKr delta from one module's state dict.
+
+    ``sd`` uses local (prefix-stripped) names such as ``lokr_w1``.  The scale is
+    derived from the checkpoint tensors rather than constructor-time settings so
+    conversion and merge paths also work for factor-inferred checkpoints.
+    """
+    w1 = sd["lokr_w1"]
+    alpha = sd.get("alpha")
+    if isinstance(alpha, torch.Tensor):
+        alpha = float(alpha.detach().float().item())
+    elif alpha is not None:
+        alpha = float(alpha)
+
+    if "lokr_w2" in sd:
+        w2 = sd["lokr_w2"]
+        scale = 1.0
+    elif "lokr_t2" in sd:
+        w2a = sd["lokr_w2_a"]
+        w2b = sd["lokr_w2_b"]
+        w2 = rebuild_tucker(sd["lokr_t2"], w2a, w2b)
+        dim = int(w2a.shape[0])
+        scale = (alpha if alpha is not None else dim) / dim
+    else:
+        w2a = sd["lokr_w2_a"]
+        w2b = sd["lokr_w2_b"]
+        w2 = w2a @ w2b
+        dim = int(w2a.shape[1])
+        scale = (alpha if alpha is not None else dim) / dim
+
+    diff = make_kron(w1, w2, scale)
+    if target_shape is not None and tuple(diff.shape) != tuple(target_shape):
+        diff = diff.reshape(target_shape)
+    return diff
+
+
+def _weight_row_norm(weight: torch.Tensor) -> torch.Tensor:
+    weight = weight.to(torch.float32)
+    return torch.linalg.vector_norm(weight.reshape(weight.shape[0], -1), dim=1).reshape(
+        weight.shape[0], *([1] * (weight.dim() - 1))
+    )
+
+
+def _merge_dokr_weight(weight: torch.Tensor, diff_weight: torch.Tensor, dora_scale: torch.Tensor) -> torch.Tensor:
+    """Return the DoKr effective weight using LyCORIS absolute-magnitude semantics."""
+    compute_device = weight.device
+    weight_fp32 = weight.to(device=compute_device, dtype=torch.float32)
+    diff_fp32 = diff_weight.to(device=compute_device, dtype=torch.float32)
+    direction = weight_fp32 + diff_fp32
+    direction_norm = _weight_row_norm(direction).detach().clamp_min(torch.finfo(torch.float32).eps)
+    magnitude = dora_scale.to(device=compute_device, dtype=torch.float32).reshape(direction_norm.shape)
+    return direction * (magnitude / direction_norm)
+
+
+def _raw_dokr_scale_to_comfy(
+    weight: torch.Tensor, diff_weight: torch.Tensor, raw_scale: torch.Tensor
+) -> torch.Tensor:
+    """Convert LyCORIS absolute magnitude to the scale expected by ComfyUI."""
+    base_norm = _weight_row_norm(weight).clamp_min(torch.finfo(torch.float32).eps)
+    direction_norm = _weight_row_norm(weight.to(torch.float32) + diff_weight.to(torch.float32)).clamp_min(
+        torch.finfo(torch.float32).eps
+    )
+    raw_scale = raw_scale.to(torch.float32).reshape(direction_norm.shape)
+    return raw_scale * base_norm / direction_norm
+
+
+def _comfy_dokr_scale_to_raw(
+    weight: torch.Tensor, diff_weight: torch.Tensor, comfy_scale: torch.Tensor
+) -> torch.Tensor:
+    """Convert a ComfyUI-exported scale back to LyCORIS absolute magnitude."""
+    base_norm = _weight_row_norm(weight).clamp_min(torch.finfo(torch.float32).eps)
+    direction_norm = _weight_row_norm(weight.to(torch.float32) + diff_weight.to(torch.float32)).clamp_min(
+        torch.finfo(torch.float32).eps
+    )
+    comfy_scale = comfy_scale.to(torch.float32).reshape(direction_norm.shape)
+    return comfy_scale * direction_norm / base_norm
+
+
 def rebuild_tucker(t, wa, wb):
     """Rebuild weight from Tucker decomposition: einsum("i j ..., i p, j r -> p r ...", t, wa, wb).
 
@@ -136,6 +224,7 @@ class LoKrModule(torch.nn.Module):
         module_dropout=None,
         factor=-1,
         use_tucker=False,
+        use_dora=False,
         **kwargs,
     ):
         super().__init__()
@@ -172,6 +261,11 @@ class LoKrModule(torch.nn.Module):
 
         self.in_dim = in_dim
         self.out_dim = out_dim
+        self.use_dora = _to_bool(use_dora)
+        if self.use_dora and org_module.__class__.__name__ != "Linear":
+            raise ValueError(
+                f"DoKr only supports ordinary Linear layers, got {org_module.__class__.__name__} for {lora_name}."
+            )
 
         factor = int(factor)
         self.use_w2 = False
@@ -230,6 +324,13 @@ class LoKrModule(torch.nn.Module):
 
         self.multiplier = multiplier
         self.org_module = org_module  # remove in applying
+        if self.use_dora:
+            # Keep the frozen base module reachable without registering it as a child
+            # module (a list is intentional). DoKr needs its weight for normalization.
+            self.org_module_ref = [org_module]
+            self.enabled = True
+            with torch.no_grad():
+                self.dora_scale = nn.Parameter(_weight_row_norm(org_module.weight).float())
         self.dropout = dropout
         self.rank_dropout = rank_dropout
         self.module_dropout = module_dropout
@@ -266,6 +367,9 @@ class LoKrModule(torch.nn.Module):
 
     def forward(self, x):
         org_forwarded = self.org_forward(x)
+
+        if self.use_dora and not getattr(self, "enabled", True):
+            return org_forwarded
 
         if self.module_dropout is not None and self.training:
             if torch.rand(1) < self.module_dropout:
@@ -308,7 +412,29 @@ class LoKrModule(torch.nn.Module):
                     dilation=self.dilation, groups=self.groups
                 ) * self.multiplier * scale
         else:
-            return org_forwarded + F.linear(x, diff_weight) * self.multiplier * scale
+            diff_output = F.linear(x, diff_weight) * scale
+            if not self.use_dora:
+                return org_forwarded + diff_output * self.multiplier
+
+            org_module = self.org_module_ref[0]
+            base_weight = org_module.weight.to(device=diff_weight.device, dtype=torch.float32)
+            direction_weight = base_weight + diff_weight.to(torch.float32) * float(scale)
+            direction_norm = _weight_row_norm(direction_weight).detach().clamp_min(
+                torch.finfo(torch.float32).eps
+            )
+            dora_factor = (
+                self.dora_scale.to(device=x.device, dtype=torch.float32).reshape(direction_norm.shape)
+                / direction_norm.to(x.device)
+            ).to(org_forwarded.dtype)
+            dora_factor = dora_factor.reshape(*([1] * (org_forwarded.dim() - 1)), self.out_dim)
+
+            base_without_bias = org_forwarded
+            if org_module.bias is not None:
+                base_without_bias = base_without_bias - org_module.bias.to(
+                    device=org_forwarded.device, dtype=org_forwarded.dtype
+                )
+            dokr_output = dora_factor * (base_without_bias + diff_output)
+            return org_forwarded + (dokr_output - base_without_bias) * float(self.multiplier)
 
     @property
     def device(self):
@@ -333,7 +459,17 @@ class LoKrInfModule(LoKrModule):
     ):
         factor = kwargs.pop("factor", -1)
         use_tucker = kwargs.pop("use_tucker", False)
-        super().__init__(lora_name, org_module, multiplier, lora_dim, alpha, factor=factor, use_tucker=use_tucker)
+        use_dora = kwargs.pop("use_dora", False)
+        super().__init__(
+            lora_name,
+            org_module,
+            multiplier,
+            lora_dim,
+            alpha,
+            factor=factor,
+            use_tucker=use_tucker,
+            use_dora=use_dora,
+        )
 
         self.org_module_ref = [org_module]
         self.enabled = True
@@ -356,38 +492,18 @@ class LoKrInfModule(LoKrModule):
         if device is None:
             device = org_device
 
-        w1 = sd["lokr_w1"].to(torch.float).to(device)
-
-        # Derive scale from the saved alpha/dim, NOT self.scale: self.scale comes from the
-        # init-time `factor` (via the full-matrix use_w2 alpha-forcing), which is unknown for
-        # .pt / --no_metadata checkpoints and would otherwise mis-scale a non-default-factor
-        # merge. Mirrors the factor-independent logic in merge_weights_to_tensor().
-        alpha = sd.get("alpha", None)
-        if alpha is not None:
-            alpha = alpha.item() if hasattr(alpha, "item") else float(alpha)
-
-        if "lokr_w2" in sd:
-            w2 = sd["lokr_w2"].to(torch.float).to(device)
-            scale = 1.0  # full-matrix mode
-        elif "lokr_t2" in sd:
-            t2 = sd["lokr_t2"].to(torch.float).to(device)
-            w2a = sd["lokr_w2_a"].to(torch.float).to(device)
-            w2b = sd["lokr_w2_b"].to(torch.float).to(device)
-            w2 = rebuild_tucker(t2, w2a, w2b)
-            dim = w2a.shape[0]
-            scale = (alpha if alpha is not None else dim) / dim
+        sd_on_device = {
+            key: value.to(torch.float32).to(device) if isinstance(value, torch.Tensor) else value
+            for key, value in sd.items()
+        }
+        diff_weight = _rebuild_lokr_weight_from_state(sd_on_device, weight.shape)
+        weight = weight.to(device)
+        if self.use_dora:
+            dora_scale = sd_on_device.get("dora_scale", self.dora_scale.detach().to(device))
+            merged = _merge_dokr_weight(weight, diff_weight, dora_scale)
+            weight = weight + (merged - weight) * float(self.multiplier)
         else:
-            w2a = sd["lokr_w2_a"].to(torch.float).to(device)
-            w2b = sd["lokr_w2_b"].to(torch.float).to(device)
-            w2 = w2a @ w2b
-            dim = w2a.shape[1]
-            scale = (alpha if alpha is not None else dim) / dim
-
-        diff_weight = make_kron(w1, w2, scale)
-        if diff_weight.shape != weight.shape:
-            diff_weight = diff_weight.reshape(weight.shape)
-
-        weight = weight.to(device) + self.multiplier * diff_weight
+            weight = weight + self.multiplier * diff_weight
 
         org_sd["weight"] = weight.to(dtype)
         org_module.load_state_dict(org_sd)
@@ -409,7 +525,18 @@ class LoKrInfModule(LoKrModule):
         else:
             w2 = (self.lokr_w2_a @ self.lokr_w2_b).to(torch.float)
 
-        weight = make_kron(w1, w2, self.scale) * multiplier
+        diff_weight = make_kron(w1, w2, self.scale)
+
+        if self.use_dora:
+            org_weight = self.org_module_ref[0].weight.detach().to(
+                device=diff_weight.device, dtype=torch.float32
+            )
+            if tuple(diff_weight.shape) != tuple(org_weight.shape):
+                diff_weight = diff_weight.reshape(org_weight.shape)
+            merged = _merge_dokr_weight(org_weight, diff_weight, self.dora_scale)
+            return (merged - org_weight) * float(multiplier)
+
+        weight = diff_weight * multiplier
 
         if self.is_conv:
             if self.conv_mode == "1x1":
@@ -420,21 +547,128 @@ class LoKrInfModule(LoKrModule):
         return weight
 
     def default_forward(self, x):
-        diff_weight = self.get_diff_weight()
-        if self.is_conv:
-            if self.conv_mode == "1x1":
-                diff_weight = diff_weight.unsqueeze(2).unsqueeze(3)
-            return self.org_forward(x) + F.conv2d(
-                x, diff_weight, stride=self.stride, padding=self.padding,
-                dilation=self.dilation, groups=self.groups
-            ) * self.multiplier
-        else:
-            return self.org_forward(x) + F.linear(x, diff_weight) * self.multiplier
+        return super().forward(x)
 
     def forward(self, x):
         if not self.enabled:
             return self.org_forward(x)
         return self.default_forward(x)
+
+
+class LoKrNetwork(AdditionalNetwork):
+    """AdditionalNetwork with DoKr checkpoint conversion and precision handling."""
+
+    def __init__(self, *args, use_dora=False, dora_scale_fp32=False, **kwargs):
+        self.use_dora = _to_bool(use_dora)
+        self.dora_scale_fp32 = _to_bool(dora_scale_fp32)
+        self.dora_scale_format = None
+        super().__init__(*args, **kwargs)
+        if self.use_dora:
+            logger.info(tr("dokr_enabled"))
+            if self.dora_scale_fp32:
+                logger.info(tr("dokr_scale_fp32_enabled"))
+
+    @staticmethod
+    def _metadata_for_file(file):
+        if file is None or os.path.splitext(str(file))[1] != ".safetensors":
+            return {}
+        try:
+            from safetensors import safe_open
+
+            with safe_open(file, framework="pt") as f:
+                return f.metadata() or {}
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _local_module_state(state_dict, prefix, device):
+        local = {}
+        prefix_dot = prefix + "."
+        for key, value in state_dict.items():
+            if key.startswith(prefix_dot):
+                local[key[len(prefix_dot) :]] = (
+                    value.detach().to(device=device, dtype=torch.float32)
+                    if isinstance(value, torch.Tensor)
+                    else value
+                )
+        return local
+
+    def _convert_dora_scales(self, state_dict, to_comfy):
+        if not self.use_dora:
+            return state_dict
+        converted = dict(state_dict)
+        for lora in self.text_encoder_loras + self.unet_loras:
+            if not isinstance(lora, LoKrModule) or not lora.use_dora:
+                continue
+            prefix = lora.lora_name
+            dora_key = f"{prefix}.dora_scale"
+            if dora_key not in converted:
+                continue
+            org_weight = lora.org_module_ref[0].weight.detach().to(torch.float32)
+            local = self._local_module_state(converted, prefix, org_weight.device)
+            try:
+                diff_weight = _rebuild_lokr_weight_from_state(local, org_weight.shape)
+            except KeyError:
+                continue
+            if to_comfy:
+                converted[dora_key] = _raw_dokr_scale_to_comfy(
+                    org_weight, diff_weight, local["dora_scale"]
+                )
+            else:
+                converted[dora_key] = _comfy_dokr_scale_to_raw(
+                    org_weight, diff_weight, local["dora_scale"]
+                )
+        return converted
+
+    def load_weights(self, file):
+        metadata = self._metadata_for_file(file)
+        if os.path.splitext(file)[1] == ".safetensors":
+            from safetensors.torch import load_file
+
+            weights_sd = load_file(file)
+        else:
+            weights_sd = torch.load(file, map_location="cpu")
+        if metadata.get("ss_dora_scale_format") == "comfy_weight_norm":
+            weights_sd = self._convert_dora_scales(weights_sd, to_comfy=False)
+        return self._load_state_dict_checked(weights_sd, file)
+
+    def merge_to(self, text_encoders, unet, weights_sd, dtype=None, device=None):
+        if self.use_dora and self.dora_scale_format == "comfy_weight_norm":
+            weights_sd = self._convert_dora_scales(weights_sd, to_comfy=False)
+        return super().merge_to(text_encoders, unet, weights_sd, dtype, device)
+
+    def save_weights(self, file, dtype, metadata):
+        if metadata is not None and len(metadata) == 0:
+            metadata = None
+
+        state_dict = self.state_dict()
+        if self.use_dora and os.path.splitext(file)[1] == ".safetensors":
+            state_dict = self._convert_dora_scales(state_dict, to_comfy=True)
+            if metadata is None:
+                metadata = {}
+            metadata["ss_dora_scale_format"] = "comfy_weight_norm"
+
+        if dtype is not None:
+            for key, value in list(state_dict.items()):
+                target_dtype = dtype
+                if self.use_dora and self.dora_scale_fp32 and (
+                    key.endswith(".dora_scale") or key.endswith(".alpha")
+                ):
+                    target_dtype = torch.float32
+                state_dict[key] = value.detach().clone().to("cpu").to(target_dtype)
+
+        if os.path.splitext(file)[1] == ".safetensors":
+            from safetensors.torch import save_file
+            from library import train_util
+
+            if metadata is None:
+                metadata = {}
+            model_hash, legacy_hash = train_util.precalculate_safetensors_hashes(state_dict, metadata)
+            metadata["sshs_model_hash"] = model_hash
+            metadata["sshs_legacy_hash"] = legacy_hash
+            save_file(state_dict, file, metadata)
+        else:
+            torch.save(state_dict, file)
 
 
 def create_network(
@@ -463,10 +697,14 @@ def create_network(
     type_dims, emb_dims, train_block_indices = _parse_anima_kwargs(kwargs, unet)
     common = _parse_common_create_network_kwargs(kwargs, arch_config)
     factor = int(kwargs.get("factor", -1))
+    use_dora = _to_bool(kwargs.get("use_dora", False))
+    dora_scale_fp32 = _to_bool(kwargs.get("dora_scale_fp32", False))
 
-    network = AdditionalNetwork(
+    network = LoKrNetwork(
         text_encoders,
         unet,
+        use_dora=use_dora,
+        dora_scale_fp32=dora_scale_fp32,
         arch_config=arch_config,
         multiplier=multiplier,
         lora_dim=network_dim,
@@ -475,7 +713,7 @@ def create_network(
         rank_dropout=common["rank_dropout"],
         module_dropout=common["module_dropout"],
         module_class=LoKrModule,
-        module_kwargs={"factor": factor, "use_tucker": common["use_tucker"]},
+        module_kwargs={"factor": factor, "use_tucker": common["use_tucker"], "use_dora": use_dora},
         conv_lora_dim=common["conv_lora_dim"],
         conv_alpha=common["conv_alpha"],
         train_llm_adapter=common["train_llm_adapter"],
@@ -499,6 +737,7 @@ def create_network_from_weights(multiplier, file, vae, text_encoder, unet, weigh
             "LoKr does not support TP/SP yet; use networks.lora_anima for multi-GPU runs."
         )
 
+    metadata = LoKrNetwork._metadata_for_file(file)
     if weights_sd is None:
         if os.path.splitext(file)[1] == ".safetensors":
             from safetensors.torch import load_file
@@ -511,11 +750,14 @@ def create_network_from_weights(multiplier, file, vae, text_encoder, unet, weigh
     modules_alpha = {}
     train_llm_adapter = False
     use_tucker = False
+    use_dora = _to_bool(kwargs.get("use_dora", False))
     for key, value in weights_sd.items():
         if "." not in key:
             continue
 
         lora_name = key.split(".")[0]
+        if key.endswith(".dora_scale"):
+            use_dora = True
         if "alpha" in key:
             modules_alpha[lora_name] = value
         elif "lokr_w2_a" in key:
@@ -548,7 +790,6 @@ def create_network_from_weights(multiplier, file, vae, text_encoder, unet, weigh
         factor = None
         if file is not None and str(file).endswith(".safetensors"):
             try:
-                import json
                 from safetensors import safe_open
 
                 with safe_open(file, framework="pt") as f:
@@ -562,11 +803,14 @@ def create_network_from_weights(multiplier, file, vae, text_encoder, unet, weigh
             factor = _infer_lokr_factor_from_weights(weights_sd)
 
     module_class = LoKrInfModule if for_inference else LoKrModule
-    module_kwargs = {"factor": factor, "use_tucker": use_tucker}
+    module_kwargs = {"factor": factor, "use_tucker": use_tucker, "use_dora": use_dora}
+    dora_scale_fp32 = _to_bool(kwargs.get("dora_scale_fp32", False))
 
-    network = AdditionalNetwork(
+    network = LoKrNetwork(
         text_encoders,
         unet,
+        use_dora=use_dora,
+        dora_scale_fp32=dora_scale_fp32,
         arch_config=arch_config,
         multiplier=multiplier,
         modules_dim=modules_dim,
@@ -575,6 +819,7 @@ def create_network_from_weights(multiplier, file, vae, text_encoder, unet, weigh
         module_kwargs=module_kwargs,
         train_llm_adapter=train_llm_adapter,
     )
+    network.dora_scale_format = metadata.get("ss_dora_scale_format")
     return network, weights_sd
 
 
@@ -585,10 +830,13 @@ def merge_weights_to_tensor(
     lora_weight_keys: set,
     multiplier: float,
     calc_device: torch.device,
+    dora_scale_format: Optional[str] = None,
 ) -> torch.Tensor:
     """Merge LoKr weights directly into a model weight tensor.
 
-    Supports standard LoKr, non-Tucker Conv2d 3x3, and Tucker Conv2d 3x3.
+    Supports standard LoKr, DoKr, non-Tucker Conv2d 3x3, and Tucker Conv2d 3x3.
+    ``dora_scale_format`` must be ``comfy_weight_norm`` for checkpoints exported
+    by this trainer; absent/None uses LyCORIS absolute-magnitude semantics.
     No Module/Network creation needed. Consumed keys are removed from lora_weight_keys.
     Returns model_weight unchanged if no matching LoKr keys found.
     """
@@ -598,6 +846,7 @@ def merge_weights_to_tensor(
     w2b_key = lora_name + ".lokr_w2_b"
     t2_key = lora_name + ".lokr_t2"
     alpha_key = lora_name + ".alpha"
+    dora_key = lora_name + ".dora_scale"
 
     if w1_key not in lora_weight_keys:
         return model_weight
@@ -657,9 +906,23 @@ def merge_weights_to_tensor(
     if diff_weight.shape != model_weight.shape:
         diff_weight = diff_weight.reshape(model_weight.shape)
 
-    model_weight = model_weight + multiplier * diff_weight
+    has_dora = dora_key in lora_weight_keys
+    if has_dora:
+        dora_scale = lora_sd[dora_key].to(calc_device, dtype=torch.float32)
+        base_weight = model_weight.to(calc_device, dtype=torch.float32)
+        diff_fp32 = diff_weight.to(calc_device, dtype=torch.float32)
+        if dora_scale_format == "comfy_weight_norm":
+            base_norm = _weight_row_norm(base_weight).clamp_min(torch.finfo(torch.float32).eps)
+            factor = dora_scale.reshape(base_norm.shape) / base_norm
+            merged_weight = (base_weight + diff_fp32) * factor
+        else:
+            merged_weight = _merge_dokr_weight(base_weight, diff_fp32, dora_scale)
+        model_weight = base_weight + (merged_weight - base_weight) * float(multiplier)
+        consumed_keys.append(dora_key)
+    else:
+        model_weight = model_weight + multiplier * diff_weight
 
-    if original_dtype.itemsize == 1:
+    if original_dtype.itemsize == 1 or has_dora:
         model_weight = model_weight.to(original_dtype)
 
     for key in consumed_keys:

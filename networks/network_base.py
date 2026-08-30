@@ -565,6 +565,10 @@ class AdditionalNetwork(torch.nn.Module):
         else:
             weights_sd = torch.load(file, map_location="cpu")
 
+        return self._load_state_dict_checked(weights_sd, file)
+
+    def _load_state_dict_checked(self, weights_sd, file):
+        """Load adapter tensors while preserving the shared strict partial-load checks."""
         try:
             info = self.load_state_dict(weights_sd, False)
         except RuntimeError as e:

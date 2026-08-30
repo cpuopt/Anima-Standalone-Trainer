@@ -3,7 +3,7 @@
 
 # Anima Standalone Trainer
 
-A lightweight, decoupled training environment for circlestone-labs' Anima model, with LoRA, LoHa, LoKr, and DoRA adapter training support. Windows and Linux support. Built upon the [original Anima Standalone Trainer](https://github.com/gazingstars123/Anima-Standalone-Trainer) and [sd-scripts](https://github.com/kohya-ss/sd-scripts).
+A lightweight, decoupled training environment for circlestone-labs' Anima model, with LoRA, LoHa, LoKr, DoRA, and DoKr adapter training support. Windows and Linux support. Built upon the [original Anima Standalone Trainer](https://github.com/gazingstars123/Anima-Standalone-Trainer) and [sd-scripts](https://github.com/kohya-ss/sd-scripts).
 
 <img width="2554" height="1234" alt="image" src="https://github.com/user-attachments/assets/cb5ff930-ce8c-49d6-a77a-3da393fe719d" />
 
@@ -16,6 +16,7 @@ This fork contains the original repository through commit [`8cc2c08`](https://gi
 | Anima LoRA training | Supported | Supported |
 | Anima LoHa / LoKr | Training, checkpoint reload, and sd-scripts/ComfyUI conversion | Not available |
 | Anima DoRA v1 | Single-GPU training with ComfyUI-compatible `dora_scale` weights | Not available |
+| Anima DoKr | Single-GPU LoKr weight-decomposition training with ComfyUI-compatible `dora_scale` weights | Not available |
 | Per-epoch dataset subsampling | `epoch_sample_rate` with deterministic epoch-based resampling | Not available |
 | Muon full-finetune optimizer | Not included | Experimental support through a separate training script |
 | DiT checkpoint prefixes | Handles the original `net.` prefix | Also handles `model.diffusion_model.` |
@@ -25,6 +26,7 @@ This fork contains the original repository through commit [`8cc2c08`](https://gi
 
 - **LoHa and LoKr for Anima:** select `networks.loha` or `networks.lokr` in the Web UI or training configuration. Dedicated controls are provided for factor, modulation dimension, rank/module dropout, and Tucker decomposition. Advanced module selection, per-module dimensions and learning rates, LoRA+, checkpoint structure validation, and LoKr factor recovery are also supported. See [Anima_lora_configs.toml](./Anima_lora_configs.toml).
 - **DoRA v1 for Anima LoRA:** enable **Use DoRA** in the Web UI or pass `use_dora=true`. Saved safetensors use ComfyUI-compatible `dora_scale` keys. Enable **Save DoRA Scale in FP32** or pass `dora_scale_fp32=true` to keep `dora_scale` and `alpha` in FP32 while saving the LoRA up/down weights at the global save precision. A conversion utility for checkpoints created before the compatible export fix is available at [networks/convert_anima_dora_to_comfy.py](./networks/convert_anima_dora_to_comfy.py).
+- **DoKr for Anima LoKr:** select `networks.lokr` and enable **Use DoKr**, or pass `use_dora=true`. DoKr retains the LoKr tensors and adds a per-output-channel `dora_scale`. Safetensors are exported in the same ComfyUI-compatible scale convention as Anima DoRA; `dora_scale_fp32=true` keeps the magnitude and alpha tensors in FP32.
 - **Per-epoch dataset subsampling:** set `epoch_sample_rate` from `0.0` to `1.0` on a dataset subset. The active images and buckets are rebuilt deterministically for each epoch, including with persistent DataLoader workers. See [training-ui/templates/dataset_template.toml](./training-ui/templates/dataset_template.toml).
 - **Safer adapter and UI behavior:** incompatible or partially loaded checkpoints now fail explicitly; LoKr reload/merge and fp16 AdaLN paths are hardened; ComfyUI AdaLN key conversion is corrected; and training/sample launch is blocked when UI autosave fails.
 - **Localized training logs:** trainer-owned logs support Simplified Chinese, English, and Japanese. Simplified Chinese is the default.
@@ -32,7 +34,7 @@ This fork contains the original repository through commit [`8cc2c08`](https://gi
 ### Current limitations
 
 - LoHa and LoKr do not support TP/SP training, and the bundled `anima_gen.py` does not yet generate with LoHa/LoKr checkpoints.
-- DoRA v1 supports ordinary Linear layers on a single GPU only. TP/SP and max-norm regularization are not supported.
+- DoRA v1 and DoKr support ordinary Linear layers on a single GPU only. TP/SP and max-norm regularization are not supported.
 - The following later upstream changes are intentionally not included yet:
   - Experimental Muon optimizer support ([`1eeb4b2`](https://github.com/gazingstars123/Anima-Standalone-Trainer/commit/1eeb4b264a50ea32cd157fb4fbe802c5dbeda35f)).
   - Loading DiT checkpoints with the `model.diffusion_model.` prefix ([`426147f`](https://github.com/gazingstars123/Anima-Standalone-Trainer/commit/426147f185dde6df52d33d9cc080ac53438ffdd2)).
