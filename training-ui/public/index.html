@@ -662,6 +662,22 @@
                                     <label>Seed</label>
                                     <input type="number" id="global-d" value="0">
                                 </div>
+                                <div class="compact-input compact-select">
+                                    <label>Sampler</label>
+                                    <select id="global-sampler">
+                                        <option value="euler" selected>Euler</option>
+                                        <option value="heun">Heun</option>
+                                    </select>
+                                </div>
+                                <div class="compact-input compact-select">
+                                    <label>Scheduler</label>
+                                    <select id="global-scheduler">
+                                        <option value="linear" selected>Linear</option>
+                                        <option value="karras">Karras</option>
+                                        <option value="exponential">Exponential</option>
+                                        <option value="quadratic">Quadratic</option>
+                                    </select>
+                                </div>
                                 <button id="btn-apply-global" class="btn btn-primary btn-xs"
                                     title="Apply these settings to all prompts below"
                                     style="margin-left:auto; font-size:0.75rem;">Apply to All</button>

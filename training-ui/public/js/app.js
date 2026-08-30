@@ -576,6 +576,8 @@ function populateDataset(dataset) {
     caption_dropout_every_n_epochs: s.caption_dropout_every_n_epochs ?? 0,
     shuffle_caption: s.shuffle_caption ?? false,
     is_reg: s.is_reg ?? false,
+    _imageCount: null,
+    _imageCountPath: "",
   }));
   // Edge case: if empty, force at least 1
   if (currentSubsets.length === 0) {
@@ -645,11 +647,25 @@ function updateLbai() {
     });
   }
   const epochMode = document.querySelector('input[name="duration-unit"]:checked')?.value === "epochs";
-  // Each image has its subset's repeat count. Show the highest training-subset
-  // exposure so the indicator conservatively warns about overtraining.
-  const repeats = Math.max(0, ...currentSubsets.filter((s) => !s.is_reg).map((s) => Number(s.num_repeats) || 0));
-  const result = epochMode ? LBAI.calculate({
-    repeats,
+  const trainingSubsets = currentSubsets.filter((subset) => !subset.is_reg);
+  const imageCountsReady = trainingSubsets.length > 0 && trainingSubsets.every((subset) => {
+    const directory = String(subset.image_dir || "").trim();
+    return directory
+      && subset._imageCountPath === directory
+      && Number.isInteger(subset._imageCount)
+      && subset._imageCount >= 0;
+  });
+  const samplesPerEpoch = imageCountsReady
+    ? trainingSubsets.reduce(
+      (total, subset) => total
+        + subset._imageCount
+        * Math.max(0, Number(subset.num_repeats) || 0)
+        * Math.max(0, Math.min(1, Number(subset.epoch_sample_rate) || 0)),
+      0,
+    )
+    : null;
+  const result = epochMode && imageCountsReady ? LBAI.calculate({
+    samplesPerEpoch,
     epochs: $("cfg-max-epochs").value,
     learningRate: $("cfg-learning-rate").value,
     rank: $("cfg-network-dim").value,
@@ -658,7 +674,9 @@ function updateLbai() {
   }) : null;
   if (!result) {
     $("lbai-value").textContent = "—";
-    $("lbai-percent").textContent = "epoch mode required";
+    $("lbai-percent").textContent = epochMode
+      ? (trainingSubsets.length ? "image count unavailable" : "no training dataset")
+      : "epoch mode required";
     $("lbai-current").style.display = "none";
     meter.classList.remove("is-low", "is-high");
     return;
@@ -684,7 +702,7 @@ function updateLbai() {
     ? ` Configured targets: ${targets.map((target) => target.name).join(", ")}.`
     : " No configured targets.";
   const comparing = comparisonTarget ? ` Comparing against ${comparisonTarget.name}.` : "";
-  meter.title = `Exposure ${result.exposure}; effective LR ${result.effectiveLearningRate.toPrecision(4)}; rank factor ${result.rankFactor.toFixed(3)}.${configured}${comparing} Uses the highest non-regularization repeat count.`;
+  meter.title = `Effective images per epoch ${formatLbaiNumber(result.samplesPerEpoch)}; total exposure ${formatLbaiNumber(result.exposure)}; effective LR ${result.effectiveLearningRate.toPrecision(4)}; rank factor ${result.rankFactor.toFixed(3)}.${configured}${comparing} Uses the summed image count × repeats × epoch sample rate of all non-regularization datasets.`;
 }
 
 function formatLbaiNumber(value) {
@@ -1017,6 +1035,8 @@ function addSubset(shouldRender = true) {
     shuffle_caption: false,
     is_reg: false,
     collapsed: false,
+    _imageCount: null,
+    _imageCountPath: "",
   });
   if (shouldRender) {
     renderSubsets();
@@ -1048,7 +1068,7 @@ function renderSubsets() {
             <div class="prompt-card-header" style="justify-content: space-between; align-items: center; border-bottom: ${isCollapsed ? "none" : "1px solid var(--border)"}; padding-bottom: ${isCollapsed ? "0" : "8px"}; margin-bottom: ${isCollapsed ? "0" : "12px"};">
                 <div style="display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1;" class="subset-toggle">
                     <span style="font-size: 0.8rem; transition: transform 0.2s; transform: rotate(${isCollapsed ? "-90deg" : "0deg"})">▼</span>
-                    <label style="font-weight: 600; cursor: pointer;">Dataset ${idx + 1} ${subset.is_reg ? '<span style="font-size: 0.7rem; color: var(--text-muted); background: var(--border); padding: 1px 6px; border-radius: 4px; margin-left: 6px;">REG</span>' : ""}<span style="font-weight: normal; font-size: 0.8rem; color: var(--text-muted); margin-left: 10px;">${isCollapsed ? "(" + dirName + ")" : ""}</span></label>
+                    <label style="font-weight: 600; cursor: pointer;">Dataset ${idx + 1} ${subset.is_reg ? '<span style="font-size: 0.7rem; color: var(--text-muted); background: var(--border); padding: 1px 6px; border-radius: 4px; margin-left: 6px;">REG</span>' : ""}<span class="subset-image-count">Images: …</span><span style="font-weight: normal; font-size: 0.8rem; color: var(--text-muted); margin-left: 10px;">${isCollapsed ? "(" + dirName + ")" : ""}</span></label>
                 </div>
                 <button class="btn btn-ghost btn-sm btn-delete-subset" title="Delete Dataset" 
                     ${isLastOne ? "disabled" : ""} 
@@ -1162,6 +1182,18 @@ function renderSubsets() {
           input.addEventListener("change", updateSubset);
         }
       });
+      const imageDirInput = card.querySelector(".sub-image-dir");
+      const imageCountBadge = card.querySelector(".subset-image-count");
+      let imageCountTimer = null;
+      imageDirInput.addEventListener("input", () => {
+        clearTimeout(imageCountTimer);
+        imageCountBadge.textContent = imageDirInput.value.trim() ? "Images: …" : "Images: —";
+        imageCountBadge.classList.remove("is-error");
+        imageCountTimer = setTimeout(
+          () => refreshSubsetImageCount(subset, imageCountBadge, true),
+          400,
+        );
+      });
       card
         .querySelector(".btn-open-dir")
         .addEventListener("click", async () => {
@@ -1188,7 +1220,65 @@ function renderSubsets() {
         });
     }
     container.appendChild(card);
+    refreshSubsetImageCount(subset, card.querySelector(".subset-image-count"));
   });
+}
+
+async function refreshSubsetImageCount(subset, badge, force = false) {
+  const directory = String(subset.image_dir || "").trim();
+  if (!directory) {
+    subset._imageCount = null;
+    subset._imageCountPath = "";
+    badge.textContent = "Images: —";
+    badge.title = "Enter an image directory to count its images.";
+    badge.classList.remove("is-error");
+    return;
+  }
+  if (!force && subset._imageCountPath === directory && Number.isInteger(subset._imageCount)) {
+    badge.textContent = `Images: ${subset._imageCount}`;
+    badge.title = "Supported images in the top level of this dataset directory.";
+    badge.classList.remove("is-error");
+    return;
+  }
+  badge.textContent = "Images: …";
+  badge.title = "Counting dataset images…";
+  badge.classList.remove("is-error");
+  subset._imageCount = null;
+  subset._imageCountPath = "";
+  updateLbai();
+  try {
+    const result = await api("/api/system/dataset-image-count", {
+      method: "POST",
+      body: { path: directory },
+    });
+    if (String(subset.image_dir || "").trim() !== directory) return;
+    subset._imageCountPath = directory;
+    if (!result.exists) {
+      subset._imageCount = null;
+      badge.textContent = "Images: path not found";
+      badge.title = `Directory not found: ${directory}`;
+      badge.classList.add("is-error");
+    } else if (!result.readable) {
+      subset._imageCount = null;
+      badge.textContent = "Images: unreadable";
+      badge.title = result.error || "The directory could not be read.";
+      badge.classList.add("is-error");
+    } else {
+      subset._imageCount = result.count;
+      badge.textContent = `Images: ${result.count}`;
+      badge.title = "Supported images in the top level of this dataset directory.";
+      badge.classList.remove("is-error");
+    }
+    updateLbai();
+  } catch (err) {
+    if (String(subset.image_dir || "").trim() !== directory) return;
+    subset._imageCount = null;
+    subset._imageCountPath = directory;
+    badge.textContent = "Images: error";
+    badge.title = err.message;
+    badge.classList.add("is-error");
+    updateLbai();
+  }
 }
 // ==========================================
 //  Save
@@ -1497,7 +1587,25 @@ document.addEventListener("input", (e) => {
 // ==========================================
 //  Prompts
 // ==========================================
-let currentPrompts = []; // Array of objects { text, w, h, s, l, d }
+const SAMPLE_SAMPLERS = [
+  { value: "euler", label: "Euler" },
+  { value: "heun", label: "Heun" },
+];
+const SAMPLE_SCHEDULERS = [
+  { value: "linear", label: "Linear" },
+  { value: "karras", label: "Karras" },
+  { value: "exponential", label: "Exponential" },
+  { value: "quadratic", label: "Quadratic" },
+];
+const sampleOptionsHtml = (options, selected) =>
+  options
+    .map(
+      ({ value, label }) =>
+        `<option value="${value}"${value === selected ? " selected" : ""}>${label}</option>`,
+    )
+    .join("");
+
+let currentPrompts = []; // Array of objects { text, w, h, s, l, d, sampler, scheduler }
 async function loadPrompts() {
   if (!currentJob) return;
   const data = await api(`/api/jobs/${currentJob}/prompts`);
@@ -1507,7 +1615,17 @@ async function loadPrompts() {
 }
 function parsePromptLine(line) {
   // Defaults
-  const p = { text: "", w: 832, h: 1216, s: 20, l: 7.5, d: 1, skip: false };
+  const p = {
+    text: "",
+    w: 832,
+    h: 1216,
+    s: 20,
+    l: 7.5,
+    d: 1,
+    sampler: "euler",
+    scheduler: "linear",
+    skip: false,
+  };
   // Check if skipped
   if (line.trim().startsWith("#")) {
     p.skip = true;
@@ -1524,9 +1642,18 @@ function parsePromptLine(line) {
     if (match[1] === "d") p.d = parseInt(val);
     if (match[1] === "l") p.l = parseFloat(val);
   }
+  const samplerMatch = line.match(/\s+--ss\s+(\S+)/i);
+  const schedulerMatch = line.match(/\s+--sched\s+(\S+)/i);
+  if (samplerMatch && SAMPLE_SAMPLERS.some(({ value }) => value === samplerMatch[1].toLowerCase())) {
+    p.sampler = samplerMatch[1].toLowerCase();
+  }
+  if (schedulerMatch && SAMPLE_SCHEDULERS.some(({ value }) => value === schedulerMatch[1].toLowerCase())) {
+    p.scheduler = schedulerMatch[1].toLowerCase();
+  }
   // Extract text (strip out specific params and the negative prompt string)
   p.text = line
     .replace(/\s+--n\s+.*$/i, "") // Remove global negative prompt and everything after it
+    .replace(/\s+--(?:ss|sched)\s+\S+/gi, "") // Remove sampler and scheduler flags
     .replace(/\s+--[whdsl]\s+\S+/gi, "") // Remove regular parameter flags
     .trim();
   return p;
@@ -1534,7 +1661,7 @@ function parsePromptLine(line) {
 function serializePrompt(p) {
   // Reconstruct line, ensuring no newlines break the backend parsing parser
   const safeText = p.text.replace(/[\r\n]+/g, " ").trim();
-  let line = `${safeText} --w ${p.w} --h ${p.h} --s ${p.s} --d ${p.d} --l ${p.l}`;
+  let line = `${safeText} --w ${p.w} --h ${p.h} --s ${p.s} --d ${p.d} --l ${p.l} --ss ${p.sampler || "euler"} --sched ${p.scheduler || "linear"}`;
   // Append global negative prompt without newlines
   const neg = $("global-negative-prompt")
     .value.replace(/[\r\n]+/g, " ")
@@ -1597,6 +1724,14 @@ function renderPrompts() {
                     <label>Seed</label>
                     <input type="number" class="p-d" value="${p.d}">
                 </div>
+                <div class="compact-input compact-select">
+                    <label>Sampler</label>
+                    <select class="p-sampler">${sampleOptionsHtml(SAMPLE_SAMPLERS, p.sampler)}</select>
+                </div>
+                <div class="compact-input compact-select">
+                    <label>Scheduler</label>
+                    <select class="p-scheduler">${sampleOptionsHtml(SAMPLE_SCHEDULERS, p.scheduler)}</select>
+                </div>
                 <button class="btn btn-ghost btn-sm btn-delete-prompt" title="Delete">🗑️</button>
             </div>
         `;
@@ -1609,6 +1744,8 @@ function renderPrompts() {
       p.s = parseInt(card.querySelector(".p-s").value);
       p.l = parseFloat(card.querySelector(".p-l").value);
       p.d = parseInt(card.querySelector(".p-d").value);
+      p.sampler = card.querySelector(".p-sampler").value;
+      p.scheduler = card.querySelector(".p-scheduler").value;
       card.classList.toggle("skipped", p.skip);
       checkDirty();
     };
@@ -1620,8 +1757,8 @@ function renderPrompts() {
     tx.addEventListener("input", autoResize);
     // Initial resize
     setTimeout(autoResize, 1);
-    card.querySelectorAll("input, textarea").forEach((el) => {
-      el.addEventListener("input", updateState);
+    card.querySelectorAll("input, textarea, select").forEach((el) => {
+      el.addEventListener(el.tagName === "SELECT" ? "change" : "input", updateState);
     });
     card
       .querySelector(".btn-delete-prompt")
@@ -1640,12 +1777,14 @@ function addPrompt() {
   const h = parseInt($("global-h").value) || 1216;
   const s = parseInt($("global-s").value) || 28;
   const l = parseFloat($("global-l").value) || 3.5;
+  const sampler = $("global-sampler").value || "euler";
+  const scheduler = $("global-scheduler").value || "linear";
   let d = parseInt($("global-d").value);
   // If global seed is 0 or empty, randomize for the new prompt
   if (!d || d === 0) {
     d = Math.floor(Math.random() * 99999) + 1;
   }
-  currentPrompts.push({ text: "", w, h, s, l, d, skip: false });
+  currentPrompts.push({ text: "", w, h, s, l, d, sampler, scheduler, skip: false });
   renderPrompts();
   checkDirty();
 }
@@ -1655,11 +1794,15 @@ function applyGlobalSettings() {
   const s = parseInt($("global-s").value);
   const l = parseFloat($("global-l").value);
   const d = parseInt($("global-d").value);
+  const sampler = $("global-sampler").value;
+  const scheduler = $("global-scheduler").value;
   currentPrompts.forEach((p) => {
     if (w) p.w = w;
     if (h) p.h = h;
     if (s) p.s = s;
     if (l) p.l = l;
+    p.sampler = sampler;
+    p.scheduler = scheduler;
     // Seed handling: 0 = random for each prompt, non-zero = apply same seed to all
     if (d === 0) {
       p.d = Math.floor(Math.random() * 99999) + 1; // Random seed 1-99999
@@ -1667,7 +1810,6 @@ function applyGlobalSettings() {
       p.d = d;
     }
   });
-  renderPrompts();
   renderPrompts();
   checkDirty();
   showToast(
@@ -1689,6 +1831,8 @@ function savePromptTransientSettings() {
     global_s: $("global-s").value,
     global_l: $("global-l").value,
     global_d: $("global-d").value,
+    global_sampler: $("global-sampler").value,
+    global_scheduler: $("global-scheduler").value,
     selected_lora: $("gen-lora-select").value,
     negative_prompt: $("global-negative-prompt").value,
     gen_gpu_ids: getSelectedGenGPUs(),
@@ -1723,6 +1867,10 @@ function loadPromptTransientSettings() {
       $("global-l").value = settings.global_l;
     if (settings.global_d !== undefined)
       $("global-d").value = settings.global_d;
+    if (settings.global_sampler !== undefined)
+      $("global-sampler").value = settings.global_sampler;
+    if (settings.global_scheduler !== undefined)
+      $("global-scheduler").value = settings.global_scheduler;
     if (settings.negative_prompt !== undefined)
       $("global-negative-prompt").value = settings.negative_prompt;
     // Restore gen GPU selection
@@ -3664,6 +3812,8 @@ $("btn-apply-global").addEventListener("click", applyGlobalSettings);
   "global-s",
   "global-l",
   "global-d",
+  "global-sampler",
+  "global-scheduler",
 ].forEach((id) => {
   $(id).addEventListener("change", savePromptTransientSettings);
   if ($(id).tagName === "INPUT") {

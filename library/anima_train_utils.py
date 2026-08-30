@@ -386,7 +386,53 @@ def save_anima_model_on_epoch_end_or_stepwise(
     )
 
 
-# Sampling (Euler discrete for rectified flow)
+# Sampling for rectified flow
+ANIMA_SAMPLE_SAMPLERS = {"euler", "heun"}
+ANIMA_SAMPLE_SCHEDULERS = {"linear", "karras", "exponential", "quadratic"}
+
+
+def _normalize_sample_method(value: Optional[str], supported: set, default: str, kind: str) -> str:
+    normalized = str(value or default).strip().lower()
+    if normalized not in supported:
+        logger.warning(f"Unsupported Anima sample {kind} '{value}'; falling back to {default}.")
+        return default
+    return normalized
+
+
+def _build_sigma_schedule(
+    steps: int,
+    scheduler: str,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Build a descending rectified-flow sigma schedule from 1 to 0."""
+    if steps < 1:
+        raise ValueError("Sampling steps must be at least 1.")
+
+    scheduler = _normalize_sample_method(
+        scheduler, ANIMA_SAMPLE_SCHEDULERS, "linear", "scheduler"
+    )
+    # Construct schedules in FP32 so low precision sampling does not collapse
+    # small Karras/exponential timesteps, then cast for the model timestep input.
+    if scheduler == "linear":
+        sigmas = torch.linspace(1.0, 0.0, steps + 1, device=device, dtype=torch.float32)
+    elif scheduler == "quadratic":
+        ramp = torch.linspace(1.0, 0.0, steps + 1, device=device, dtype=torch.float32)
+        sigmas = ramp.square()
+    else:
+        ramp = torch.linspace(0.0, 1.0, steps, device=device, dtype=torch.float32)
+        sigma_min = 1e-3
+        if scheduler == "karras":
+            rho = 7.0
+            min_inv_rho = sigma_min ** (1.0 / rho)
+            sigmas = (1.0 + ramp * (min_inv_rho - 1.0)).pow(rho)
+        else:  # exponential
+            sigmas = torch.exp(ramp * math.log(sigma_min))
+        sigmas = torch.cat([sigmas, sigmas.new_zeros(1)])
+
+    return sigmas.to(dtype=dtype)
+
+
 def do_sample(
     height: int,
     width: int,
@@ -399,8 +445,10 @@ def do_sample(
     guidance_scale: float = 1.0,
     neg_crossattn_emb: Optional[torch.Tensor] = None,
     dit_secondary: Optional[anima_models.MiniTrainDIT] = None,
+    sampler: str = "euler",
+    scheduler: str = "linear",
 ) -> torch.Tensor:
-    """Generate a sample using Euler discrete sampling for rectified flow.
+    """Generate a sample using a configurable rectified-flow sampler.
 
     Args:
         height, width: Output image dimensions
@@ -413,6 +461,8 @@ def do_sample(
         guidance_scale: CFG scale (1.0 = no guidance)
         neg_crossattn_emb: Negative cross-attention embeddings for CFG
         dit_secondary: Optional second model on another GPU for parallel CFG
+        sampler: Sampling method (Euler or Heun)
+        scheduler: Sigma schedule (linear, Karras, exponential, or quadratic)
 
     Returns:
         Denoised latents
@@ -434,8 +484,11 @@ def do_sample(
         latent.size(), dtype=torch.float32, generator=generator, device="cpu"
     ).to(dtype).to(device)
 
-    # Timestep schedule: linear from 1.0 to 0.0
-    sigmas = torch.linspace(1.0, 0.0, steps + 1, device=device, dtype=dtype)
+    sampler = _normalize_sample_method(sampler, ANIMA_SAMPLE_SAMPLERS, "euler", "sampler")
+    scheduler = _normalize_sample_method(
+        scheduler, ANIMA_SAMPLE_SCHEDULERS, "linear", "scheduler"
+    )
+    sigmas = _build_sigma_schedule(steps, scheduler, device, dtype)
 
     # Start from pure noise
     x = noise.clone()
@@ -500,54 +553,58 @@ def do_sample(
         x_doubled = torch.empty(2, *x.shape[1:], device=device, dtype=dtype)
         t_doubled = torch.empty(2, device=device, dtype=dtype)
 
+    def predict_velocity(x_state: torch.Tensor, sigma_value: torch.Tensor) -> torch.Tensor:
+        if has_block_swap:
+            dit.prepare_block_swap_before_forward()
+
+        if use_parallel_cfg:
+            # Parallel CFG: dispatch to persistent workers, both GPUs run simultaneously
+            t = sigma_value.unsqueeze(0)
+            x_sec = x_state.to(sec_device)
+            t_sec = t.to(sec_device)
+
+            pos_work_q.put(((x_state, t, crossattn_emb), {"padding_mask": padding_mask}))
+            neg_work_q.put(((x_sec, t_sec, neg_crossattn_sec), {"padding_mask": padding_mask_sec}))
+
+            status_pos, res_pos = pos_result_q.get()
+            status_neg, res_neg = neg_result_q.get()
+
+            if status_pos == "err":
+                raise res_pos
+            if status_neg == "err":
+                raise res_neg
+
+            pos_out = res_pos
+            neg_out = res_neg.to(device)
+            return neg_out + guidance_scale * (pos_out - neg_out)
+
+        if use_cfg:
+            # Standard CFG: use pre-allocated doubled buffers
+            x_doubled[0] = x_state[0]
+            x_doubled[1] = x_state[0]
+            t_doubled[0] = sigma_value
+            t_doubled[1] = sigma_value
+
+            model_output = dit(x_doubled, t_doubled, crossattn_doubled, padding_mask=padding_doubled)
+            pos_out, neg_out = model_output.chunk(2)
+            return neg_out + guidance_scale * (pos_out - neg_out)
+
+        t = sigma_value.unsqueeze(0)
+        return dit(x_state, t, crossattn_emb, padding_mask=padding_mask)
+
     try:
         with torch.autocast(device_type=device.type, enabled=False):
             for i in tqdm(range(steps), desc="Sampling"):
                 sigma = sigmas[i]
-
-                if has_block_swap:
-                    dit.prepare_block_swap_before_forward()
-
-                if use_parallel_cfg:
-                    # Parallel CFG: dispatch to persistent workers, both GPUs run simultaneously
-                    t = sigma.unsqueeze(0)
-                    x_sec = x.to(sec_device)
-                    t_sec = t.to(sec_device)
-
-                    pos_work_q.put(((x, t, crossattn_emb), {"padding_mask": padding_mask}))
-                    neg_work_q.put(((x_sec, t_sec, neg_crossattn_sec), {"padding_mask": padding_mask_sec}))
-
-                    status_pos, res_pos = pos_result_q.get()
-                    status_neg, res_neg = neg_result_q.get()
-
-                    if status_pos == "err":
-                        raise res_pos
-                    if status_neg == "err":
-                        raise res_neg
-
-                    # pos is already on primary device; neg needs PCIe transfer
-                    pos_out = res_pos
-                    neg_out = res_neg.to(device)
-                    model_output = neg_out + guidance_scale * (pos_out - neg_out)
-
-                elif use_cfg:
-                    # Standard CFG: use pre-allocated doubled buffers
-                    x_doubled[0] = x[0]
-                    x_doubled[1] = x[0]
-                    t_doubled[0] = sigma
-                    t_doubled[1] = sigma
-
-                    model_output = dit(x_doubled, t_doubled, crossattn_doubled, padding_mask=padding_doubled)
-
-                    pos_out, neg_out = model_output.chunk(2)
-                    model_output = neg_out + guidance_scale * (pos_out - neg_out)
-                else:
-                    t = sigma.unsqueeze(0)
-                    model_output = dit(x, t, crossattn_emb, padding_mask=padding_mask)
-
-                # Euler step
+                model_output = predict_velocity(x, sigma)
                 dt = sigmas[i + 1] - sigma
-                x = x + model_output * dt
+                if sampler == "heun" and i < steps - 1:
+                    # Predictor-corrector update. Use Euler for the final step at sigma=0.
+                    x_euler = x + model_output * dt
+                    next_output = predict_velocity(x_euler, sigmas[i + 1])
+                    x = x + 0.5 * (model_output + next_output) * dt
+                else:
+                    x = x + model_output * dt
 
     finally:
         if use_parallel_cfg:
@@ -675,6 +732,12 @@ def _sample_image_inference(
     height = prompt_dict.get("height", 512)
     scale = prompt_dict.get("scale", 7.5)
     seed = prompt_dict.get("seed")
+    sampler = _normalize_sample_method(
+        prompt_dict.get("sample_sampler"), ANIMA_SAMPLE_SAMPLERS, "euler", "sampler"
+    )
+    scheduler = _normalize_sample_method(
+        prompt_dict.get("sample_scheduler"), ANIMA_SAMPLE_SCHEDULERS, "linear", "scheduler"
+    )
 
     if prompt_replacement is not None:
         prompt = prompt.replace(prompt_replacement[0], prompt_replacement[1])
@@ -698,6 +761,7 @@ def _sample_image_inference(
             scale=scale,
         )
     )
+    logger.info(f"Anima sampler: {sampler}, scheduler: {scheduler}")
 
     # Encode prompt
     def encode_prompt(prpt):
@@ -792,6 +856,8 @@ def _sample_image_inference(
             sample_steps, dit.t_embedding_norm.weight.dtype,
             accelerator.device, scale, neg_crossattn_emb,
             dit_secondary=dit_secondary,
+            sampler=sampler,
+            scheduler=scheduler,
         )
 
     except torch.cuda.OutOfMemoryError as e:
@@ -815,6 +881,8 @@ def _sample_image_inference(
                 sample_steps, dit.t_embedding_norm.weight.dtype,
                 accelerator.device, scale, neg_crossattn_emb,
                 dit_secondary=dit_secondary,
+                sampler=sampler,
+                scheduler=scheduler,
             )
         else:
             raise e
@@ -853,7 +921,11 @@ def _sample_image_inference(
         params_str = prompt
         if negative_prompt:
             params_str += f"\nNegative prompt: {negative_prompt}"
-        params_str += f"\nSteps: {sample_steps}, Sampler: Euler, CFG scale: {scale}, Seed: {seed if seed is not None else -1}, Size: {width}x{height}"
+        params_str += (
+            f"\nSteps: {sample_steps}, Sampler: {sampler.title()}, "
+            f"Scheduler: {scheduler.title()}, CFG scale: {scale}, "
+            f"Seed: {seed if seed is not None else -1}, Size: {width}x{height}"
+        )
         png_info.add_text("parameters", params_str)
 
         ts_str = time.strftime("%Y%m%d%H%M%S", time.localtime())

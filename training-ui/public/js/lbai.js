@@ -141,13 +141,15 @@
     return area / (points.length - 1);
   }
 
-  function calculate({ repeats, epochs, learningRate, rank, scheduler, minLrRatio, curve }) {
-    const values = [repeats, epochs, learningRate, rank].map(Number);
+  function calculate({ repeats, samplesPerEpoch, epochs, learningRate, rank, scheduler, minLrRatio, curve }) {
+    const exposureBase = samplesPerEpoch ?? repeats;
+    const values = [exposureBase, epochs, learningRate, rank].map(Number);
     if (values.some((value) => !Number.isFinite(value) || value < 0)) return null;
     const factor = averageCurve(curve) ?? schedulerAverageFactor(scheduler, minLrRatio);
     const effectiveLearningRate = values[2] * factor;
     return {
       exposure: values[0] * values[1],
+      samplesPerEpoch: values[0],
       effectiveLearningRate,
       rankFactor: values[3] / 32,
       value: values[0] * values[1] * effectiveLearningRate * (values[3] / 32),

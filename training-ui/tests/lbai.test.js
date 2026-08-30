@@ -16,6 +16,19 @@ test("accounts for cosine minimum learning rate", () => {
   assert.equal(LBAI.schedulerAverageFactor("cosine_with_min_lr", 0.2), 0.6);
 });
 
+test("calculates LBAI from summed effective images per epoch", () => {
+  const result = LBAI.calculate({
+    samplesPerEpoch: 250,
+    epochs: 20,
+    learningRate: 0.0001,
+    rank: 32,
+    scheduler: "cosine",
+  });
+  assert.equal(result.samplesPerEpoch, 250);
+  assert.equal(result.exposure, 5000);
+  assert.equal(result.value, 0.25);
+});
+
 test("provides the existing recommendation as the named default target", () => {
   assert.deepEqual(LBAI.defaultTargets(), [
     { name: "my conf 1", color: "#3fb950", type: "range", min: 0.012, max: 0.0144 },

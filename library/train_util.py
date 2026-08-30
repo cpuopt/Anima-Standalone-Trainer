@@ -6607,6 +6607,11 @@ def line_to_prompt_dict(line: str) -> dict:
                 prompt_dict["sample_sampler"] = m.group(1)
                 continue
 
+            m = re.match(r"sched (.+)", parg, re.IGNORECASE)
+            if m:
+                prompt_dict["sample_scheduler"] = m.group(1)
+                continue
+
             m = re.match(r"cn (.+)", parg, re.IGNORECASE)
             if m:
                 prompt_dict["controlnet_image"] = m.group(1)

@@ -3,6 +3,7 @@ const { spawn, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { snapshotSamplePrompts } = require('./lib/prompt-snapshot');
+const { countDatasetImages } = require('./lib/dataset-images');
 const LBAI = require('./public/js/lbai');
 const TOML = require('@iarna/toml');
 const net = require('net');
@@ -1931,6 +1932,17 @@ app.post('/api/system/open-folder', (req, res) => {
         } else {
             res.status(404).json({ error: 'Folder not found' });
         }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/system/dataset-image-count', (req, res) => {
+    try {
+        const folderPath = stripQuotes(req.body?.path || '');
+        const nativePath = toNativePath(folderPath);
+        res.set('Cache-Control', 'no-store');
+        res.json(countDatasetImages(nativePath));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

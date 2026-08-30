@@ -1221,6 +1221,26 @@ body {
     margin: 0;
 }
 
+.subset-image-count {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    padding: 1px 7px;
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--text-secondary);
+    font-size: .68rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.subset-image-count.is-error {
+    border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+    color: var(--danger);
+}
+
 .settings-section-heading {
     display: flex;
     align-items: flex-start;
@@ -1377,7 +1397,8 @@ body {
     text-transform: uppercase;
 }
 
-.compact-input input {
+.compact-input input,
+.compact-input select {
     padding: 6px 8px;
     /* Slightly more padding */
     font-size: 0.95rem;
@@ -1390,7 +1411,16 @@ body {
     /* Increased from 60px */
 }
 
-.compact-input input:focus {
+.compact-input select {
+    width: 120px;
+}
+
+.compact-input.compact-select:last-of-type select {
+    width: 132px;
+}
+
+.compact-input input:focus,
+.compact-input select:focus {
     outline: none;
     border-color: var(--accent);
 }
