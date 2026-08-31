@@ -387,8 +387,15 @@ def save_anima_model_on_epoch_end_or_stepwise(
 
 
 # Sampling for rectified flow
-ANIMA_SAMPLE_SAMPLERS = {"euler", "heun"}
-ANIMA_SAMPLE_SCHEDULERS = {"linear", "karras", "exponential", "quadratic"}
+ANIMA_SAMPLE_SAMPLERS = {"euler", "heun", "er_sde"}
+ANIMA_SAMPLE_SCHEDULERS = {
+    "linear",
+    "sgm_uniform",
+    "beta57",
+    "karras",
+    "exponential",
+    "quadratic",
+}
 
 
 def _normalize_sample_method(value: Optional[str], supported: set, default: str, kind: str) -> str:
@@ -399,11 +406,102 @@ def _normalize_sample_method(value: Optional[str], supported: set, default: str,
     return normalized
 
 
+def _flow_time_shift(timestep: torch.Tensor, shift: float) -> torch.Tensor:
+    """Apply the discrete-flow time/SNR shift used by FlowMatch schedulers."""
+    if not math.isfinite(shift) or shift <= 0:
+        raise ValueError("Flow shift must be a finite value greater than zero.")
+    if shift == 1.0:
+        return timestep
+    return shift * timestep / (1.0 + (shift - 1.0) * timestep)
+
+
+def _continued_fraction_beta(a: float, b: float, x: float) -> float:
+    """Evaluate the continued fraction used by the regularized beta function."""
+    max_iterations = 200
+    epsilon = 3.0e-14
+    fp_min = 1.0e-300
+    qab = a + b
+    qap = a + 1.0
+    qam = a - 1.0
+    c = 1.0
+    d = 1.0 - qab * x / qap
+    if abs(d) < fp_min:
+        d = fp_min
+    d = 1.0 / d
+    result = d
+
+    for iteration in range(1, max_iterations + 1):
+        m2 = 2 * iteration
+        aa = iteration * (b - iteration) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        if abs(d) < fp_min:
+            d = fp_min
+        c = 1.0 + aa / c
+        if abs(c) < fp_min:
+            c = fp_min
+        d = 1.0 / d
+        result *= d * c
+
+        aa = -(a + iteration) * (qab + iteration) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        if abs(d) < fp_min:
+            d = fp_min
+        c = 1.0 + aa / c
+        if abs(c) < fp_min:
+            c = fp_min
+        d = 1.0 / d
+        delta = d * c
+        result *= delta
+        if abs(delta - 1.0) <= epsilon:
+            break
+
+    return result
+
+
+def _regularized_beta(x: float, alpha: float, beta: float) -> float:
+    """Regularized incomplete beta function, implemented without SciPy."""
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+
+    log_term = (
+        math.lgamma(alpha + beta)
+        - math.lgamma(alpha)
+        - math.lgamma(beta)
+        + alpha * math.log(x)
+        + beta * math.log1p(-x)
+    )
+    term = math.exp(log_term)
+    if x < (alpha + 1.0) / (alpha + beta + 2.0):
+        return term * _continued_fraction_beta(alpha, beta, x) / alpha
+    return 1.0 - term * _continued_fraction_beta(beta, alpha, 1.0 - x) / beta
+
+
+def _inverse_regularized_beta(probability: float, alpha: float, beta: float) -> float:
+    """Invert the regularized beta CDF with stable bounded bisection."""
+    if probability <= 0.0:
+        return 0.0
+    if probability >= 1.0:
+        return 1.0
+
+    lower = 0.0
+    upper = 1.0
+    for _ in range(64):
+        midpoint = (lower + upper) * 0.5
+        if _regularized_beta(midpoint, alpha, beta) < probability:
+            lower = midpoint
+        else:
+            upper = midpoint
+    return (lower + upper) * 0.5
+
+
 def _build_sigma_schedule(
     steps: int,
     scheduler: str,
     device: torch.device,
     dtype: torch.dtype,
+    flow_shift: float = 1.0,
 ) -> torch.Tensor:
     """Build a descending rectified-flow sigma schedule from 1 to 0."""
     if steps < 1:
@@ -416,6 +514,21 @@ def _build_sigma_schedule(
     # small Karras/exponential timesteps, then cast for the model timestep input.
     if scheduler == "linear":
         sigmas = torch.linspace(1.0, 0.0, steps + 1, device=device, dtype=torch.float32)
+    elif scheduler == "sgm_uniform":
+        timesteps = torch.linspace(1.0, 0.0, steps + 1, device=device, dtype=torch.float32)[:-1]
+        sigmas = _flow_time_shift(timesteps, flow_shift)
+        sigmas = torch.cat([sigmas, sigmas.new_zeros(1)])
+    elif scheduler == "beta57":
+        # RES4LYF's beta57 preset is Beta(alpha=0.5, beta=0.7).  Compute the
+        # continuous quantiles here rather than copying its ComfyUI integration.
+        probabilities = [1.0 - index / steps for index in range(steps)]
+        beta_timesteps = [
+            _inverse_regularized_beta(probability, 0.5, 0.7)
+            for probability in probabilities
+        ]
+        timesteps = torch.tensor(beta_timesteps, device=device, dtype=torch.float32)
+        sigmas = _flow_time_shift(timesteps, flow_shift)
+        sigmas = torch.cat([sigmas, sigmas.new_zeros(1)])
     elif scheduler == "quadratic":
         ramp = torch.linspace(1.0, 0.0, steps + 1, device=device, dtype=torch.float32)
         sigmas = ramp.square()
@@ -433,6 +546,119 @@ def _build_sigma_schedule(
     return sigmas.to(dtype=dtype)
 
 
+def _sample_er_sde(
+    x: torch.Tensor,
+    sigmas: torch.Tensor,
+    predict_denoised,
+    seed: Optional[int],
+    flow_shift: float,
+    max_stage: int = 3,
+    eta: float = 1.0,
+    s_noise: float = 1.0,
+) -> torch.Tensor:
+    """Sample a rectified-flow model with a VP ER-SDE solver.
+
+    The implementation follows the ER-SDE equations using x0/data prediction.
+    Anima predicts rectified-flow velocity, so ``predict_denoised`` performs the
+    conversion ``x0 = x - sigma * velocity`` before this function sees it.
+    """
+    if max_stage not in (1, 2, 3):
+        raise ValueError("ER-SDE max_stage must be 1, 2, or 3.")
+    if eta < 0 or s_noise < 0:
+        raise ValueError("ER-SDE eta and s_noise must be non-negative.")
+
+    working_sigmas = sigmas.to(device=x.device, dtype=torch.float32).clone()
+    if working_sigmas.numel() > 1 and working_sigmas[0] >= 1.0:
+        start_timestep = working_sigmas.new_tensor(1.0 - 1.0e-4)
+        working_sigmas[0] = _flow_time_shift(start_timestep, flow_shift)
+
+    # For rectified flow, half-logSNR is log((1-sigma)/sigma), therefore
+    # er_lambda = sigma / (1-sigma) and alpha = 1-sigma.
+    bounded = working_sigmas[:-1].clamp(min=1.0e-12, max=1.0 - 1.0e-12)
+    er_lambdas = torch.cat(
+        [bounded / (1.0 - bounded), working_sigmas.new_zeros(1)]
+    )
+
+    noise_generator = torch.Generator(device="cpu")
+    if seed is None:
+        noise_generator.seed()
+    else:
+        noise_generator.manual_seed((int(seed) + 1) % (2**63 - 1))
+
+    def noise_scaler(value: torch.Tensor) -> torch.Tensor:
+        # eta=0 reduces the noise scaler to the deterministic ODE choice.
+        return value * ((value.pow(0.3).exp() + 10.0).pow(eta))
+
+    old_denoised = None
+    old_denoised_derivative = None
+    result = x.to(dtype=torch.float32)
+    integration_points = 200
+
+    for index in tqdm(range(len(working_sigmas) - 1), desc="Sampling"):
+        sigma = working_sigmas[index]
+        sigma_next = working_sigmas[index + 1]
+        denoised = predict_denoised(result, sigma).to(dtype=torch.float32)
+        stage_used = min(max_stage, index + 1)
+
+        if sigma_next <= 0:
+            result = denoised
+        else:
+            lambda_start = er_lambdas[index]
+            lambda_end = er_lambdas[index + 1]
+            alpha_start = 1.0 - sigma
+            alpha_end = 1.0 - sigma_next
+            alpha_ratio = alpha_end / alpha_start
+            scaler_end = noise_scaler(lambda_end)
+            scaler_ratio = scaler_end / noise_scaler(lambda_start)
+
+            result = alpha_ratio * scaler_ratio * result + alpha_end * (1.0 - scaler_ratio) * denoised
+
+            delta_lambda = lambda_end - lambda_start
+            lambda_step = -delta_lambda / integration_points
+            positions = lambda_end + torch.arange(
+                integration_points, device=result.device, dtype=torch.float32
+            ) * lambda_step
+            scaled_positions = noise_scaler(positions)
+
+            if stage_used >= 2:
+                denoised_derivative = (denoised - old_denoised) / (
+                    lambda_start - er_lambdas[index - 1]
+                )
+                integral = torch.sum(1.0 / scaled_positions) * lambda_step
+                result = result + alpha_end * (
+                    delta_lambda + integral * scaler_end
+                ) * denoised_derivative
+
+                if stage_used >= 3:
+                    integral_u = torch.sum(
+                        (positions - lambda_start) / scaled_positions
+                    ) * lambda_step
+                    denoised_second_derivative = (
+                        denoised_derivative - old_denoised_derivative
+                    ) / ((lambda_start - er_lambdas[index - 2]) / 2.0)
+                    result = result + alpha_end * (
+                        delta_lambda.square() / 2.0 + integral_u * scaler_end
+                    ) * denoised_second_derivative
+                old_denoised_derivative = denoised_derivative
+
+            if eta > 0 and s_noise > 0:
+                variance = (
+                    lambda_end.square()
+                    - lambda_start.square() * scaler_ratio.square()
+                ).clamp_min(0.0)
+                step_noise = torch.randn(
+                    result.shape,
+                    generator=noise_generator,
+                    device="cpu",
+                    dtype=torch.float32,
+                ).to(result.device)
+                result = result + alpha_end * step_noise * s_noise * variance.sqrt()
+
+        old_denoised = denoised
+
+    return result.to(dtype=x.dtype)
+
+
 def do_sample(
     height: int,
     width: int,
@@ -447,6 +673,7 @@ def do_sample(
     dit_secondary: Optional[anima_models.MiniTrainDIT] = None,
     sampler: str = "euler",
     scheduler: str = "linear",
+    flow_shift: float = 1.0,
 ) -> torch.Tensor:
     """Generate a sample using a configurable rectified-flow sampler.
 
@@ -461,8 +688,10 @@ def do_sample(
         guidance_scale: CFG scale (1.0 = no guidance)
         neg_crossattn_emb: Negative cross-attention embeddings for CFG
         dit_secondary: Optional second model on another GPU for parallel CFG
-        sampler: Sampling method (Euler or Heun)
-        scheduler: Sigma schedule (linear, Karras, exponential, or quadratic)
+        sampler: Sampling method (Euler, Heun, or ER-SDE)
+        scheduler: Sigma schedule (linear, SGM Uniform, Beta57, Karras,
+            exponential, or quadratic)
+        flow_shift: Discrete-flow time shift used by SGM Uniform and Beta57
 
     Returns:
         Denoised latents
@@ -488,7 +717,9 @@ def do_sample(
     scheduler = _normalize_sample_method(
         scheduler, ANIMA_SAMPLE_SCHEDULERS, "linear", "scheduler"
     )
-    sigmas = _build_sigma_schedule(steps, scheduler, device, dtype)
+    sigmas = _build_sigma_schedule(
+        steps, scheduler, device, torch.float32, flow_shift=flow_shift
+    )
 
     # Start from pure noise
     x = noise.clone()
@@ -557,9 +788,11 @@ def do_sample(
         if has_block_swap:
             dit.prepare_block_swap_before_forward()
 
+        model_sigma = sigma_value.to(device=x_state.device, dtype=x_state.dtype)
+
         if use_parallel_cfg:
             # Parallel CFG: dispatch to persistent workers, both GPUs run simultaneously
-            t = sigma_value.unsqueeze(0)
+            t = model_sigma.unsqueeze(0)
             x_sec = x_state.to(sec_device)
             t_sec = t.to(sec_device)
 
@@ -582,29 +815,43 @@ def do_sample(
             # Standard CFG: use pre-allocated doubled buffers
             x_doubled[0] = x_state[0]
             x_doubled[1] = x_state[0]
-            t_doubled[0] = sigma_value
-            t_doubled[1] = sigma_value
+            t_doubled[0] = model_sigma
+            t_doubled[1] = model_sigma
 
             model_output = dit(x_doubled, t_doubled, crossattn_doubled, padding_mask=padding_doubled)
             pos_out, neg_out = model_output.chunk(2)
             return neg_out + guidance_scale * (pos_out - neg_out)
 
-        t = sigma_value.unsqueeze(0)
+        t = model_sigma.unsqueeze(0)
         return dit(x_state, t, crossattn_emb, padding_mask=padding_mask)
 
     try:
         with torch.autocast(device_type=device.type, enabled=False):
-            for i in tqdm(range(steps), desc="Sampling"):
-                sigma = sigmas[i]
-                model_output = predict_velocity(x, sigma)
-                dt = sigmas[i + 1] - sigma
-                if sampler == "heun" and i < steps - 1:
-                    # Predictor-corrector update. Use Euler for the final step at sigma=0.
-                    x_euler = x + model_output * dt
-                    next_output = predict_velocity(x_euler, sigmas[i + 1])
-                    x = x + 0.5 * (model_output + next_output) * dt
-                else:
-                    x = x + model_output * dt
+            if sampler == "er_sde":
+                def predict_denoised(x_state: torch.Tensor, sigma_value: torch.Tensor) -> torch.Tensor:
+                    model_state = x_state.to(dtype=dtype)
+                    velocity = predict_velocity(model_state, sigma_value).to(dtype=torch.float32)
+                    return x_state.to(dtype=torch.float32) - sigma_value * velocity
+
+                x = _sample_er_sde(
+                    x,
+                    sigmas,
+                    predict_denoised,
+                    seed,
+                    flow_shift,
+                )
+            else:
+                for i in tqdm(range(steps), desc="Sampling"):
+                    sigma = sigmas[i]
+                    model_output = predict_velocity(x, sigma)
+                    dt = sigmas[i + 1] - sigma
+                    if sampler == "heun" and i < steps - 1:
+                        # Predictor-corrector update. Use Euler for the final step at sigma=0.
+                        x_euler = x + model_output * dt
+                        next_output = predict_velocity(x_euler, sigmas[i + 1])
+                        x = x + 0.5 * (model_output + next_output) * dt
+                    else:
+                        x = x + model_output * dt
 
     finally:
         if use_parallel_cfg:
@@ -738,6 +985,26 @@ def _sample_image_inference(
     scheduler = _normalize_sample_method(
         prompt_dict.get("sample_scheduler"), ANIMA_SAMPLE_SCHEDULERS, "linear", "scheduler"
     )
+    configured_flow_shift = getattr(args, "discrete_flow_shift", 1.0)
+    try:
+        configured_flow_shift = float(configured_flow_shift)
+        if not math.isfinite(configured_flow_shift) or configured_flow_shift <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        logger.warning(
+            f"Invalid configured Anima flow shift '{configured_flow_shift}'; falling back to 1.0."
+        )
+        configured_flow_shift = 1.0
+    try:
+        flow_shift = float(prompt_dict.get("flow_shift", configured_flow_shift))
+        if not math.isfinite(flow_shift) or flow_shift <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        logger.warning(
+            f"Invalid Anima sample flow shift '{prompt_dict.get('flow_shift')}'; "
+            f"falling back to {configured_flow_shift}."
+        )
+        flow_shift = configured_flow_shift
 
     if prompt_replacement is not None:
         prompt = prompt.replace(prompt_replacement[0], prompt_replacement[1])
@@ -761,7 +1028,9 @@ def _sample_image_inference(
             scale=scale,
         )
     )
-    logger.info(f"Anima sampler: {sampler}, scheduler: {scheduler}")
+    logger.info(
+        f"Anima sampler: {sampler}, scheduler: {scheduler}, flow shift: {flow_shift}"
+    )
 
     # Encode prompt
     def encode_prompt(prpt):
@@ -858,6 +1127,7 @@ def _sample_image_inference(
             dit_secondary=dit_secondary,
             sampler=sampler,
             scheduler=scheduler,
+            flow_shift=flow_shift,
         )
 
     except torch.cuda.OutOfMemoryError as e:

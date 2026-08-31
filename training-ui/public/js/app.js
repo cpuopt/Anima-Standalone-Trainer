@@ -4,6 +4,7 @@ const DEFAULT_NEGATIVE_PROMPT =
 let currentJob = null;
 let ws = null;
 let isDirty = false;
+let isTrainingRunning = false;
 let lastSavedConfig = null;
 let lastSavedDataset = null;
 let lastSavedPrompts = [];
@@ -323,6 +324,7 @@ async function selectJob(name) {
   }
 }
 function updateRunningState(running) {
+  isTrainingRunning = running;
   $("btn-run").classList.toggle("hidden", running);
   $("btn-stop").classList.toggle("hidden", !running);
   // Update sidebar dot
@@ -1287,6 +1289,9 @@ async function refreshSubsetImageCount(subset, badge, force = false) {
 // ==========================================
 async function saveJob() {
   if (!currentJob) return false;
+  const samplePromptsChanged =
+    JSON.stringify(currentPrompts) !== JSON.stringify(lastSavedPrompts)
+    || ($("global-negative-prompt").value || "") !== (lastSavedNegativePrompt || "");
   const config = gatherConfig();
   const dataset = gatherDataset();
   // Prevent duplicate directories
@@ -1318,7 +1323,11 @@ async function saveJob() {
   lastSavedPrompts = JSON.parse(JSON.stringify(currentPrompts));
   lastSavedNegativePrompt = $("global-negative-prompt").value;
   checkDirty();
-  showToast("Job saved");
+  showToast(
+    isTrainingRunning && samplePromptsChanged
+      ? "Sample prompt changes saved and will apply to the next training run. The current run continues using its startup snapshot."
+      : "Job saved",
+  );
   return true;
 }
 function checkDirty() {
@@ -1592,9 +1601,12 @@ document.addEventListener("input", (e) => {
 const SAMPLE_SAMPLERS = [
   { value: "euler", label: "Euler" },
   { value: "heun", label: "Heun" },
+  { value: "er_sde", label: "ER-SDE" },
 ];
 const SAMPLE_SCHEDULERS = [
   { value: "linear", label: "Linear" },
+  { value: "sgm_uniform", label: "SGM Uniform" },
+  { value: "beta57", label: "Beta 57" },
   { value: "karras", label: "Karras" },
   { value: "exponential", label: "Exponential" },
   { value: "quadratic", label: "Quadratic" },
