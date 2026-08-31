@@ -366,7 +366,7 @@ class NetworkTrainer:
                 offset += numel
                 vi += 1
 
-    def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizers, text_encoder, unet):
+    def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizers, text_encoder, unet, network=None):
         train_util.sample_images(accelerator, args, epoch, global_step, device, vae, tokenizers[0], text_encoder, unet)
 
     # region SD/SDXL
@@ -1572,7 +1572,10 @@ class NetworkTrainer:
 
         # For --sample_at_first
         optimizer_eval_fn()
-        self.sample_images(accelerator, args, 0, global_step, accelerator.device, vae, tokenizers, text_encoder, unet)
+        self.sample_images(
+            accelerator, args, 0, global_step, accelerator.device,
+            vae, tokenizers, text_encoder, unet, network,
+        )
         optimizer_train_fn()
         is_tracking = len(accelerator.trackers) > 0
         if is_tracking:
@@ -1847,7 +1850,8 @@ class NetworkTrainer:
 
                     optimizer_eval_fn()
                     self.sample_images(
-                        accelerator, args, None, global_step, accelerator.device, vae, tokenizers, text_encoder, unet
+                        accelerator, args, None, global_step, accelerator.device,
+                        vae, tokenizers, text_encoder, unet, network,
                     )
                     progress_bar.unpause()
 
@@ -2060,7 +2064,10 @@ class NetworkTrainer:
                     if args.save_state:
                         train_util.save_and_remove_state_on_epoch_end(args, accelerator, epoch + 1)
 
-            self.sample_images(accelerator, args, epoch + 1, global_step, accelerator.device, vae, tokenizers, text_encoder, unet)
+            self.sample_images(
+                accelerator, args, epoch + 1, global_step, accelerator.device,
+                vae, tokenizers, text_encoder, unet, network,
+            )
             progress_bar.unpause()
             optimizer_train_fn()
 

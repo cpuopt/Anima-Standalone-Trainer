@@ -879,6 +879,7 @@ def sample_images(
     sample_prompts_te_outputs=None,
     prompt_replacement=None,
     dit_secondary=None,
+    network=None,
 ):
     """Generate sample images during training.
 
@@ -913,6 +914,7 @@ def sample_images(
 
     # Unwrap models
     dit = accelerator.unwrap_model(dit)
+    sample_network = accelerator.unwrap_model(network) if network is not None else None
     if text_encoder is not None:
         text_encoder = accelerator.unwrap_model(text_encoder)
 
@@ -949,6 +951,7 @@ def sample_images(
                     save_dir, prompt_dict, epoch, steps,
                     sample_prompts_te_outputs, prompt_replacement,
                     dit_secondary=dit_secondary,
+                    network=sample_network,
                 )
 
         # Move VAE back and clean up
@@ -966,6 +969,7 @@ def _sample_image_inference(
     sample_prompts_te_outputs, prompt_replacement,
     dit_secondary=None,
     save_image=True,
+    network=None,
 ):
     """Generate a single sample image.
 
@@ -985,6 +989,18 @@ def _sample_image_inference(
     scheduler = _normalize_sample_method(
         prompt_dict.get("sample_scheduler"), ANIMA_SAMPLE_SCHEDULERS, "linear", "scheduler"
     )
+    try:
+        sample_strength = float(prompt_dict.get("sample_strength", 1.0))
+        if not math.isfinite(sample_strength) or not 0.0 <= sample_strength <= 2.0:
+            raise ValueError
+    except (TypeError, ValueError):
+        logger.warning(
+            f"Invalid Anima sample LoRA strength '{prompt_dict.get('sample_strength')}'; "
+            "falling back to 1.0."
+        )
+        sample_strength = 1.0
+    can_set_strength = network is not None and hasattr(network, "set_multiplier")
+    effective_sample_strength = sample_strength if can_set_strength else 1.0
     configured_flow_shift = getattr(args, "discrete_flow_shift", 1.0)
     try:
         configured_flow_shift = float(configured_flow_shift)
@@ -1029,7 +1045,8 @@ def _sample_image_inference(
         )
     )
     logger.info(
-        f"Anima sampler: {sampler}, scheduler: {scheduler}, flow shift: {flow_shift}"
+        f"Anima sampler: {sampler}, scheduler: {scheduler}, "
+        f"LoRA strength: {effective_sample_strength}, flow shift: {flow_shift}"
     )
 
     # Encode prompt
@@ -1102,8 +1119,16 @@ def _sample_image_inference(
                 neg_crossattn_emb = neg_pe
 
     original_blocks_to_swap = getattr(dit, "blocks_to_swap", 0)
+    original_network_multiplier = getattr(network, "multiplier", 1.0) if can_set_strength else None
 
     try:
+        if can_set_strength:
+            network.set_multiplier(sample_strength)
+        elif sample_strength != 1.0:
+            logger.warning(
+                "Sample LoRA strength was ignored because this training mode has no adjustable network multiplier."
+            )
+
         if original_blocks_to_swap and original_blocks_to_swap > 0:
             logger.info(tr("disable_block_swap_for_sampling"))
             from library.custom_offloading_utils import weighs_to_device
@@ -1153,11 +1178,14 @@ def _sample_image_inference(
                 dit_secondary=dit_secondary,
                 sampler=sampler,
                 scheduler=scheduler,
+                flow_shift=flow_shift,
             )
         else:
             raise e
 
     finally:
+        if can_set_strength:
+            network.set_multiplier(original_network_multiplier)
         if original_blocks_to_swap and original_blocks_to_swap > 0:
             if getattr(dit, "blocks_to_swap", 0) == 0:
                 logger.info(tr("restore_block_swap"))
@@ -1194,6 +1222,7 @@ def _sample_image_inference(
         params_str += (
             f"\nSteps: {sample_steps}, Sampler: {sampler.title()}, "
             f"Scheduler: {scheduler.title()}, CFG scale: {scale}, "
+            f"LoRA strength: {effective_sample_strength}, "
             f"Seed: {seed if seed is not None else -1}, Size: {width}x{height}"
         )
         png_info.add_text("parameters", params_str)

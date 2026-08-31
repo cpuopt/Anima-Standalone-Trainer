@@ -667,12 +667,20 @@
                                     <select id="global-sampler">
                                         <option value="euler" selected>Euler</option>
                                         <option value="heun">Heun</option>
+                                        <option value="er_sde">ER-SDE</option>
                                     </select>
+                                </div>
+                                <div class="compact-input">
+                                    <label>Strength</label>
+                                    <input type="number" id="global-strength" value="1" min="0" max="2" step="0.05"
+                                        title="LoRA strength used only while generating training samples">
                                 </div>
                                 <div class="compact-input compact-select">
                                     <label>Scheduler</label>
                                     <select id="global-scheduler">
                                         <option value="linear" selected>Linear</option>
+                                        <option value="sgm_uniform">SGM Uniform</option>
+                                        <option value="beta57">Beta 57</option>
                                         <option value="karras">Karras</option>
                                         <option value="exponential">Exponential</option>
                                         <option value="quadratic">Quadratic</option>

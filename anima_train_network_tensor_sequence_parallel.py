@@ -990,7 +990,7 @@ class AnimaNetworkTrainerTPSP(AnimaNetworkTrainer):
 
     # ----- override: sample images (TP requires all ranks in forward) -----
 
-    def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet):
+    def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet, network=None):
         """Sample generation with TP-sharded models.
 
         TP forward passes require ALL ranks to participate in collectives.
@@ -998,7 +998,10 @@ class AnimaNetworkTrainerTPSP(AnimaNetworkTrainer):
         (via save_image=False on non-zero ranks).
         """
         if not self.tp_active:
-            return super().sample_images(accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet)
+            return super().sample_images(
+                accelerator, args, epoch, global_step, device,
+                vae, tokenizer, text_encoder, unet, network,
+            )
 
         if args.sample_prompts is None:
             return
@@ -1065,6 +1068,7 @@ class AnimaNetworkTrainerTPSP(AnimaNetworkTrainer):
                         save_dir, prompt_dict, epoch, global_step,
                         self.sample_prompts_te_outputs, None,
                         save_image=(tp_rank == 0),
+                        network=accelerator.unwrap_model(network) if network is not None else None,
                     )
         finally:
             for param, dtype in original_lora_dtypes:

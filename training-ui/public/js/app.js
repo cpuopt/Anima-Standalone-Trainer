@@ -1619,7 +1619,7 @@ const sampleOptionsHtml = (options, selected) =>
     )
     .join("");
 
-let currentPrompts = []; // Array of objects { text, w, h, s, l, d, sampler, scheduler }
+let currentPrompts = []; // Array of objects { text, w, h, s, l, d, sampler, strength, scheduler }
 async function loadPrompts() {
   if (!currentJob) return;
   const data = await api(`/api/jobs/${currentJob}/prompts`);
@@ -1637,6 +1637,7 @@ function parsePromptLine(line) {
     l: 7.5,
     d: 1,
     sampler: "euler",
+    strength: 1.0,
     scheduler: "linear",
     skip: false,
   };
@@ -1657,6 +1658,7 @@ function parsePromptLine(line) {
     if (match[1] === "l") p.l = parseFloat(val);
   }
   const samplerMatch = line.match(/\s+--ss\s+(\S+)/i);
+  const strengthMatch = line.match(/\s+--ls\s+(\S+)/i);
   const schedulerMatch = line.match(/\s+--sched\s+(\S+)/i);
   if (samplerMatch && SAMPLE_SAMPLERS.some(({ value }) => value === samplerMatch[1].toLowerCase())) {
     p.sampler = samplerMatch[1].toLowerCase();
@@ -1664,10 +1666,13 @@ function parsePromptLine(line) {
   if (schedulerMatch && SAMPLE_SCHEDULERS.some(({ value }) => value === schedulerMatch[1].toLowerCase())) {
     p.scheduler = schedulerMatch[1].toLowerCase();
   }
+  if (strengthMatch) {
+    p.strength = clampFloat(strengthMatch[1], 0, 2, 1.0);
+  }
   // Extract text (strip out specific params and the negative prompt string)
   p.text = line
     .replace(/\s+--n\s+.*$/i, "") // Remove global negative prompt and everything after it
-    .replace(/\s+--(?:ss|sched)\s+\S+/gi, "") // Remove sampler and scheduler flags
+    .replace(/\s+--(?:ss|sched|ls)\s+\S+/gi, "") // Remove sampler, scheduler, and strength flags
     .replace(/\s+--[whdsl]\s+\S+/gi, "") // Remove regular parameter flags
     .trim();
   return p;
@@ -1675,7 +1680,7 @@ function parsePromptLine(line) {
 function serializePrompt(p) {
   // Reconstruct line, ensuring no newlines break the backend parsing parser
   const safeText = p.text.replace(/[\r\n]+/g, " ").trim();
-  let line = `${safeText} --w ${p.w} --h ${p.h} --s ${p.s} --d ${p.d} --l ${p.l} --ss ${p.sampler || "euler"} --sched ${p.scheduler || "linear"}`;
+  let line = `${safeText} --w ${p.w} --h ${p.h} --s ${p.s} --d ${p.d} --l ${p.l} --ss ${p.sampler || "euler"} --ls ${clampFloat(p.strength, 0, 2, 1.0)} --sched ${p.scheduler || "linear"}`;
   // Append global negative prompt without newlines
   const neg = $("global-negative-prompt")
     .value.replace(/[\r\n]+/g, " ")
@@ -1742,6 +1747,11 @@ function renderPrompts() {
                     <label>Sampler</label>
                     <select class="p-sampler">${sampleOptionsHtml(SAMPLE_SAMPLERS, p.sampler)}</select>
                 </div>
+                <div class="compact-input">
+                    <label>Strength</label>
+                    <input type="number" class="p-strength" value="${p.strength}" min="0" max="2" step="0.05"
+                        title="LoRA strength used only for this training sample">
+                </div>
                 <div class="compact-input compact-select">
                     <label>Scheduler</label>
                     <select class="p-scheduler">${sampleOptionsHtml(SAMPLE_SCHEDULERS, p.scheduler)}</select>
@@ -1759,6 +1769,7 @@ function renderPrompts() {
       p.l = parseFloat(card.querySelector(".p-l").value);
       p.d = parseInt(card.querySelector(".p-d").value);
       p.sampler = card.querySelector(".p-sampler").value;
+      p.strength = clampFloat(card.querySelector(".p-strength").value, 0, 2, 1.0);
       p.scheduler = card.querySelector(".p-scheduler").value;
       card.classList.toggle("skipped", p.skip);
       checkDirty();
@@ -1792,13 +1803,14 @@ function addPrompt() {
   const s = parseInt($("global-s").value) || 28;
   const l = parseFloat($("global-l").value) || 3.5;
   const sampler = $("global-sampler").value || "euler";
+  const strength = clampFloat($("global-strength").value, 0, 2, 1.0);
   const scheduler = $("global-scheduler").value || "linear";
   let d = parseInt($("global-d").value);
   // If global seed is 0 or empty, randomize for the new prompt
   if (!d || d === 0) {
     d = Math.floor(Math.random() * 99999) + 1;
   }
-  currentPrompts.push({ text: "", w, h, s, l, d, sampler, scheduler, skip: false });
+  currentPrompts.push({ text: "", w, h, s, l, d, sampler, strength, scheduler, skip: false });
   renderPrompts();
   checkDirty();
 }
@@ -1809,6 +1821,7 @@ function applyGlobalSettings() {
   const l = parseFloat($("global-l").value);
   const d = parseInt($("global-d").value);
   const sampler = $("global-sampler").value;
+  const strength = clampFloat($("global-strength").value, 0, 2, 1.0);
   const scheduler = $("global-scheduler").value;
   currentPrompts.forEach((p) => {
     if (w) p.w = w;
@@ -1816,6 +1829,7 @@ function applyGlobalSettings() {
     if (s) p.s = s;
     if (l) p.l = l;
     p.sampler = sampler;
+    p.strength = strength;
     p.scheduler = scheduler;
     // Seed handling: 0 = random for each prompt, non-zero = apply same seed to all
     if (d === 0) {
@@ -1846,6 +1860,7 @@ function savePromptTransientSettings() {
     global_l: $("global-l").value,
     global_d: $("global-d").value,
     global_sampler: $("global-sampler").value,
+    global_strength: $("global-strength").value,
     global_scheduler: $("global-scheduler").value,
     selected_lora: $("gen-lora-select").value,
     negative_prompt: $("global-negative-prompt").value,
@@ -1883,6 +1898,8 @@ function loadPromptTransientSettings() {
       $("global-d").value = settings.global_d;
     if (settings.global_sampler !== undefined)
       $("global-sampler").value = settings.global_sampler;
+    if (settings.global_strength !== undefined)
+      $("global-strength").value = settings.global_strength;
     if (settings.global_scheduler !== undefined)
       $("global-scheduler").value = settings.global_scheduler;
     if (settings.negative_prompt !== undefined)
@@ -3827,6 +3844,7 @@ $("btn-apply-global").addEventListener("click", applyGlobalSettings);
   "global-l",
   "global-d",
   "global-sampler",
+  "global-strength",
   "global-scheduler",
 ].forEach((id) => {
   $(id).addEventListener("change", savePromptTransientSettings);

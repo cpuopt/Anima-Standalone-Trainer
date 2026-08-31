@@ -276,7 +276,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
         else:
             text_encoders[0].to(accelerator.device, dtype=weight_dtype)
 
-    def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet):
+    def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet, network=None):
         text_encoders = text_encoder if isinstance(text_encoder, list) else [text_encoder]  # compatibility
         te = self.get_models_for_text_encoding(args, accelerator, text_encoders)
         qwen3_te = te[0] if te is not None else None
@@ -285,6 +285,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
             accelerator, args, epoch, global_step, unet, vae, self.vae_scale,
             qwen3_te, self.tokenize_strategy, self.text_encoding_strategy,
             self.sample_prompts_te_outputs,
+            network=network,
         )
 
     def get_noise_scheduler(self, args: argparse.Namespace, device: torch.device) -> Any:

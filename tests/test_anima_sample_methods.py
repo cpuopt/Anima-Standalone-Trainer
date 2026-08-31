@@ -101,10 +101,11 @@ def test_er_sde_is_finite_deterministic_and_uses_one_model_call_per_step():
 
 def test_prompt_line_parses_anima_sampler_and_scheduler():
     prompt = train_util.line_to_prompt_dict(
-        "a portrait --w 832 --h 1216 --ss er_sde --sched beta57 --fs 3.0 --n blurry"
+        "a portrait --w 832 --h 1216 --ss er_sde --ls 0.75 --sched beta57 --fs 3.0 --n blurry"
     )
     assert prompt["prompt"] == "a portrait"
     assert prompt["sample_sampler"] == "er_sde"
+    assert prompt["sample_strength"] == 0.75
     assert prompt["sample_scheduler"] == "beta57"
     assert prompt["flow_shift"] == "3.0"
     assert prompt["negative_prompt"] == "blurry"
