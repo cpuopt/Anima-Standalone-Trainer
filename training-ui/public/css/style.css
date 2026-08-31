@@ -1253,6 +1253,14 @@ body {
     margin: 0 0 4px;
 }
 
+.settings-section-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .lbai-target-settings {
     display: flex;
     flex-direction: column;

@@ -2948,6 +2948,29 @@ async function saveGlobalSettings() {
   closeModal("modal-global-settings");
   showToast("Global settings saved");
 }
+
+async function resetLbaiTargetsToDefaults() {
+  const button = $("btn-reset-lbai-targets");
+  button.disabled = true;
+  try {
+    const config = await api("/api/global-config");
+    const defaults = LBAI.defaultTargets();
+    config.ui = {
+      ...(config.ui || {}),
+      lbai_targets: defaults,
+    };
+    await api("/api/global-config", { method: "PUT", body: config });
+    lbaiTargets = defaults;
+    activeLbaiTargetIndex = 0;
+    renderLbaiTargetSettings(defaults);
+    updateLbai();
+    showToast("Training estimate targets reset to defaults");
+  } catch (err) {
+    showToast(`Failed to reset training estimate targets: ${err.message}`, "danger");
+  } finally {
+    button.disabled = false;
+  }
+}
 // === Background Image Functions ===
 function applyBackground(
   url,
@@ -3813,6 +3836,7 @@ $("btn-close-global").addEventListener("click", () =>
   closeModal("modal-global-settings"),
 );
 $("btn-save-global").addEventListener("click", saveGlobalSettings);
+$("btn-reset-lbai-targets").addEventListener("click", resetLbaiTargetsToDefaults);
 $("btn-add-lbai-target").addEventListener("click", () => {
   const current = collectLbaiTargetSettings();
   if (current.error) {

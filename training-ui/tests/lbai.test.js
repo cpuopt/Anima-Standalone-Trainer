@@ -45,9 +45,9 @@ test("divides LBAI by effective batch size", () => {
 
 test("provides the three recommended LBAI ranges as default targets", () => {
   assert.deepEqual(LBAI.defaultTargets(), [
-    { name: "角色 LoRA 推荐区", color: "#58a6ff", type: "range", min: 0.009, max: 0.015 },
-    { name: "一般风格 LoRA 评估区", color: "#bc8cff", type: "range", min: 0.03, max: 0.07 },
-    { name: "复杂风格 LoRA 评估区", color: "#f85149", type: "range", min: 0.07, max: 0.1 },
+    { name: "角色 LoRA 推荐区", color: "#58a6ff", type: "range", min: 0.009, max: 0.018 },
+    { name: "一般风格 LoRA 推荐区", color: "#bc8cff", type: "range", min: 0.02, max: 0.05 },
+    { name: "复杂风格 LoRA 实验区", color: "#f85149", type: "range", min: 0.05, max: 0.09 },
   ]);
 });
 

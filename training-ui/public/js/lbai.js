@@ -9,21 +9,21 @@
       color: "#58a6ff",
       type: "range",
       min: 0.009,
-      max: 0.015,
+      max: 0.018,
     }),
     Object.freeze({
-      name: "一般风格 LoRA 评估区",
+      name: "一般风格 LoRA 推荐区",
       color: "#bc8cff",
       type: "range",
-      min: 0.03,
-      max: 0.07,
+      min: 0.02,
+      max: 0.05,
     }),
     Object.freeze({
-      name: "复杂风格 LoRA 评估区",
+      name: "复杂风格 LoRA 实验区",
       color: "#f85149",
       type: "range",
-      min: 0.07,
-      max: 0.1,
+      min: 0.05,
+      max: 0.09,
     }),
   ]);
 
