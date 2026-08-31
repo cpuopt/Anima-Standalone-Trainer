@@ -64,7 +64,7 @@
             <div id="job-editor" class="job-editor hidden">
                 <header class="editor-header">
                     <h2 id="job-title">Job Name</h2>
-                    <div id="lbai-meter" class="lbai-meter" title="LBAI = repeats × epochs × average effective LR × (rank / 32)">
+                    <div id="lbai-meter" class="lbai-meter" title="LBAI = effective images per epoch × epochs × average effective LR × (rank / 32) ÷ (batch size × gradient accumulation steps)">
                         <div class="lbai-heading"><span>LoRA Bias Accumulation Index</span><strong id="lbai-value">—</strong><span id="lbai-percent">—</span></div>
                         <div class="lbai-track-wrap">
                             <div class="lbai-track"><div id="lbai-targets" class="lbai-targets"></div><div id="lbai-current" class="lbai-current"></div></div>

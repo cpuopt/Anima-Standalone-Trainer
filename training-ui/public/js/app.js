@@ -669,6 +669,8 @@ function updateLbai() {
     epochs: $("cfg-max-epochs").value,
     learningRate: $("cfg-learning-rate").value,
     rank: $("cfg-network-dim").value,
+    batchSize: String($("cfg-batch-size").value || "").split(",")[0].trim(),
+    gradientAccumulationSteps: $("cfg-grad-acc").value,
     scheduler: $("cfg-lr-scheduler").value,
     minLrRatio: $("cfg-lr-min-ratio").value,
   }) : null;
@@ -702,7 +704,7 @@ function updateLbai() {
     ? ` Configured targets: ${targets.map((target) => target.name).join(", ")}.`
     : " No configured targets.";
   const comparing = comparisonTarget ? ` Comparing against ${comparisonTarget.name}.` : "";
-  meter.title = `Effective images per epoch ${formatLbaiNumber(result.samplesPerEpoch)}; total exposure ${formatLbaiNumber(result.exposure)}; effective LR ${result.effectiveLearningRate.toPrecision(4)}; rank factor ${result.rankFactor.toFixed(3)}.${configured}${comparing} Uses the summed image count × repeats × epoch sample rate of all non-regularization datasets.`;
+  meter.title = `Effective images per epoch ${formatLbaiNumber(result.samplesPerEpoch)}; total exposure ${formatLbaiNumber(result.exposure)}; effective LR ${result.effectiveLearningRate.toPrecision(4)}; rank factor ${result.rankFactor.toFixed(3)}; effective batch size ${formatLbaiNumber(result.effectiveBatchSize)}.${configured}${comparing} Uses the summed image count × repeats × epoch sample rate of all non-regularization datasets, divided by batch size × gradient accumulation steps.`;
 }
 
 function formatLbaiNumber(value) {

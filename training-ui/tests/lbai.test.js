@@ -29,10 +29,25 @@ test("calculates LBAI from summed effective images per epoch", () => {
   assert.equal(result.value, 0.25);
 });
 
-test("provides the existing recommendation as the named default target", () => {
+test("divides LBAI by effective batch size", () => {
+  const result = LBAI.calculate({
+    samplesPerEpoch: 250,
+    epochs: 20,
+    learningRate: 0.0001,
+    rank: 32,
+    batchSize: 4,
+    gradientAccumulationSteps: 2,
+    scheduler: "cosine",
+  });
+  assert.equal(result.effectiveBatchSize, 8);
+  assert.equal(result.value, 0.03125);
+});
+
+test("provides the three recommended LBAI ranges as default targets", () => {
   assert.deepEqual(LBAI.defaultTargets(), [
-    { name: "my conf 1", color: "#3fb950", type: "range", min: 0.012, max: 0.0144 },
-    { name: "官方lora推荐值", color: "#d29922", type: "range", min: 0.00125, max: 0.0015 },
+    { name: "角色 LoRA 推荐区", color: "#58a6ff", type: "range", min: 0.009, max: 0.015 },
+    { name: "一般风格 LoRA 评估区", color: "#bc8cff", type: "range", min: 0.03, max: 0.07 },
+    { name: "复杂风格 LoRA 评估区", color: "#f85149", type: "range", min: 0.07, max: 0.1 },
   ]);
 });
 

@@ -5,18 +5,25 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const DEFAULT_TARGETS = Object.freeze([
     Object.freeze({
-      name: "my conf 1",
-      color: "#3fb950",
+      name: "角色 LoRA 推荐区",
+      color: "#58a6ff",
       type: "range",
-      min: 0.012,
-      max: 0.0144,
+      min: 0.009,
+      max: 0.015,
     }),
     Object.freeze({
-      name: "官方lora推荐值",
-      color: "#d29922",
+      name: "一般风格 LoRA 评估区",
+      color: "#bc8cff",
       type: "range",
-      min: 0.00125,
-      max: 0.0015,
+      min: 0.03,
+      max: 0.07,
+    }),
+    Object.freeze({
+      name: "复杂风格 LoRA 评估区",
+      color: "#f85149",
+      type: "range",
+      min: 0.07,
+      max: 0.1,
     }),
   ]);
 
@@ -141,18 +148,21 @@
     return area / (points.length - 1);
   }
 
-  function calculate({ repeats, samplesPerEpoch, epochs, learningRate, rank, scheduler, minLrRatio, curve }) {
+  function calculate({ repeats, samplesPerEpoch, epochs, learningRate, rank, batchSize = 1, gradientAccumulationSteps = 1, scheduler, minLrRatio, curve }) {
     const exposureBase = samplesPerEpoch ?? repeats;
-    const values = [exposureBase, epochs, learningRate, rank].map(Number);
+    const values = [exposureBase, epochs, learningRate, rank, batchSize, gradientAccumulationSteps].map(Number);
     if (values.some((value) => !Number.isFinite(value) || value < 0)) return null;
+    if (values[4] === 0 || values[5] === 0) return null;
     const factor = averageCurve(curve) ?? schedulerAverageFactor(scheduler, minLrRatio);
     const effectiveLearningRate = values[2] * factor;
+    const effectiveBatchSize = values[4] * values[5];
     return {
       exposure: values[0] * values[1],
       samplesPerEpoch: values[0],
       effectiveLearningRate,
       rankFactor: values[3] / 32,
-      value: values[0] * values[1] * effectiveLearningRate * (values[3] / 32),
+      effectiveBatchSize,
+      value: values[0] * values[1] * effectiveLearningRate * (values[3] / 32) / effectiveBatchSize,
     };
   }
 
