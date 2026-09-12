@@ -47,6 +47,48 @@ class TinyAnima(torch.nn.Module):
 
 
 class DoKrTests(unittest.TestCase):
+    def test_full_matrix_switch_forces_full_w2_independent_of_rank(self):
+        modules = [
+            lokr.LoKrModule(
+                f"test_{rank}",
+                torch.nn.Linear(8, 8),
+                lora_dim=rank,
+                alpha=rank,
+                factor=2,
+                full_matrix=True,
+            )
+            for rank in (1, 3)
+        ]
+
+        for module in modules:
+            self.assertTrue(module.full_matrix)
+            self.assertTrue(module.use_w2)
+            self.assertEqual((4, 4), tuple(module.lokr_w2.shape))
+            self.assertFalse(hasattr(module, "lokr_w2_a"))
+            self.assertFalse(hasattr(module, "lokr_w2_b"))
+            self.assertEqual(1.0, module.scale)
+
+    def test_create_network_accepts_full_matrix_with_dokr(self):
+        model = TinyAnima()
+        network = lokr.create_network(
+            1.0,
+            1,
+            1,
+            None,
+            [],
+            model,
+            factor="2",
+            full_matrix="true",
+            use_dora="true",
+        )
+
+        self.assertTrue(network.unet_loras)
+        for module in network.unet_loras:
+            self.assertTrue(module.full_matrix)
+            self.assertTrue(module.use_w2)
+            self.assertTrue(hasattr(module, "lokr_w2"))
+            self.assertTrue(hasattr(module, "dora_scale"))
+
     def test_plain_lokr_has_no_dora_scale(self):
         linear = torch.nn.Linear(4, 6)
         module = lokr.LoKrModule("test", linear, lora_dim=1, alpha=1, factor=-1)

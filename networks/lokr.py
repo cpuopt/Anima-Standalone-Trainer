@@ -225,6 +225,7 @@ class LoKrModule(torch.nn.Module):
         factor=-1,
         use_tucker=False,
         use_dora=False,
+        full_matrix=False,
         **kwargs,
     ):
         super().__init__()
@@ -262,6 +263,7 @@ class LoKrModule(torch.nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.use_dora = _to_bool(use_dora)
+        self.full_matrix = _to_bool(full_matrix)
         if self.use_dora and org_module.__class__.__name__ != "Linear":
             raise ValueError(
                 f"DoKr only supports ordinary Linear layers, got {org_module.__class__.__name__} for {lora_name}."
@@ -276,13 +278,14 @@ class LoKrModule(torch.nn.Module):
 
         if self.conv_mode in ("tucker", "flat"):
             k_size = kernel_size
-            if lora_dim >= max(out_k, in_n) / 2:
+            if self.full_matrix or lora_dim >= max(out_k, in_n) / 2:
                 self.use_w2 = True
                 self.lokr_w2 = nn.Parameter(torch.empty(out_k, in_n, *k_size))
-                logger.warning(
-                    f"LoKr: lora_dim {lora_dim} is large for dim={max(in_dim, out_dim)} "
-                    f"and factor={factor}, using full matrix mode for Conv2d."
-                )
+                if not self.full_matrix:
+                    logger.warning(
+                        f"LoKr: lora_dim {lora_dim} is large for dim={max(in_dim, out_dim)} "
+                        f"and factor={factor}, using full matrix mode for Conv2d."
+                    )
             elif self.tucker:
                 self.lokr_t2 = nn.Parameter(torch.empty(lora_dim, lora_dim, *k_size))
                 self.lokr_w2_a = nn.Parameter(torch.empty(lora_dim, out_k))
@@ -294,16 +297,17 @@ class LoKrModule(torch.nn.Module):
                 self.lokr_w2_a = nn.Parameter(torch.empty(out_k, lora_dim))
                 self.lokr_w2_b = nn.Parameter(torch.empty(lora_dim, in_n * k_prod))
         else:
-            if lora_dim < max(out_k, in_n) / 2:
+            if not self.full_matrix and lora_dim < max(out_k, in_n) / 2:
                 self.lokr_w2_a = nn.Parameter(torch.empty(out_k, lora_dim))
                 self.lokr_w2_b = nn.Parameter(torch.empty(lora_dim, in_n))
             else:
                 self.use_w2 = True
                 self.lokr_w2 = nn.Parameter(torch.empty(out_k, in_n))
-                logger.warning(
-                    f"LoKr: lora_dim {lora_dim} is large for dim={max(in_dim, out_dim)} "
-                    f"and factor={factor}, using full matrix mode."
-                )
+                if not self.full_matrix:
+                    logger.warning(
+                        f"LoKr: lora_dim {lora_dim} is large for dim={max(in_dim, out_dim)} "
+                        f"and factor={factor}, using full matrix mode."
+                    )
 
         if isinstance(alpha, torch.Tensor):
             alpha = alpha.detach().cpu().float().item()
@@ -460,6 +464,7 @@ class LoKrInfModule(LoKrModule):
         factor = kwargs.pop("factor", -1)
         use_tucker = kwargs.pop("use_tucker", False)
         use_dora = kwargs.pop("use_dora", False)
+        full_matrix = kwargs.pop("full_matrix", False)
         super().__init__(
             lora_name,
             org_module,
@@ -469,6 +474,7 @@ class LoKrInfModule(LoKrModule):
             factor=factor,
             use_tucker=use_tucker,
             use_dora=use_dora,
+            full_matrix=full_matrix,
         )
 
         self.org_module_ref = [org_module]
@@ -699,6 +705,9 @@ def create_network(
     factor = int(kwargs.get("factor", -1))
     use_dora = _to_bool(kwargs.get("use_dora", False))
     dora_scale_fp32 = _to_bool(kwargs.get("dora_scale_fp32", False))
+    full_matrix = _to_bool(kwargs.get("full_matrix", False))
+    if full_matrix:
+        logger.warning(tr("lokr_full_matrix_enabled"))
 
     network = LoKrNetwork(
         text_encoders,
@@ -713,7 +722,12 @@ def create_network(
         rank_dropout=common["rank_dropout"],
         module_dropout=common["module_dropout"],
         module_class=LoKrModule,
-        module_kwargs={"factor": factor, "use_tucker": common["use_tucker"], "use_dora": use_dora},
+        module_kwargs={
+            "factor": factor,
+            "use_tucker": common["use_tucker"],
+            "use_dora": use_dora,
+            "full_matrix": full_matrix,
+        },
         conv_lora_dim=common["conv_lora_dim"],
         conv_alpha=common["conv_alpha"],
         train_llm_adapter=common["train_llm_adapter"],

@@ -1393,7 +1393,7 @@ $("cfg-training-type").addEventListener("change", (e) => {
 // Keys handled by the LoHa/LoKr dedicated UI fields. Same set drives save, load,
 // and module-switch redistribution: dedicated values override matching keys in
 // the freeform Network Args text box.
-const LYCORIS_DEDICATED_KEYS = ["factor", "mod_dim", "rank_dropout", "module_dropout", "use_tucker"];
+const LYCORIS_DEDICATED_KEYS = ["factor", "full_matrix", "mod_dim", "rank_dropout", "module_dropout", "use_tucker"];
 const DORA_DEDICATED_KEYS = ["use_dora", "dora_scale_fp32"];
 
 // Read a dedicated number field. Returns the value string if valid, else null.
@@ -1420,6 +1420,17 @@ function updateLycorisExtrasUI(networkModule) {
   const isLokr = networkModule === "networks.lokr";
   $("lycoris-extras-section").classList.toggle("hidden", !(isLoha || isLokr));
   $("lokr-only-fields").classList.toggle("hidden", !isLokr);
+  $("lokr-full-matrix-group").classList.toggle("hidden", !isLokr);
+  updateFullMatrixUI();
+}
+function updateFullMatrixUI() {
+  const isLokr = $("cfg-network-module").value === "networks.lokr";
+  const enabled = isLokr && $("cfg-lokr-full-matrix").checked;
+  $("cfg-network-dim").disabled = enabled;
+  $("network-rank-group").classList.toggle("disabled-section", enabled);
+  $("network-rank-help").textContent = enabled
+    ? "Ignored because LoKr Full Matrix is enabled."
+    : "Higher = more capacity, more VRAM.";
 }
 function updateDoraOptionUI(networkModule) {
   const isAnimaLora = networkModule === "networks.lora_anima";
@@ -1446,6 +1457,7 @@ function updateDoraPrecisionUI() {
   if (!enabled) $("cfg-dora-scale-fp32").checked = false;
 }
 $("cfg-use-dora").addEventListener("change", updateDoraPrecisionUI);
+$("cfg-lokr-full-matrix").addEventListener("change", updateFullMatrixUI);
 $("cfg-network-module").addEventListener("change", (e) => {
   // Carry user-edited state across the active-set change: the dropdown handler
   // is the "user mid-edit" path, in contrast with populateForm which is the
@@ -1463,6 +1475,7 @@ function redistributeForModuleChange() {
   const tokens = [];
   const factor = _readNumberField("cfg-lokr-factor", true);
   if (factor !== null) tokens.push(`factor=${factor}`);
+  if ($("cfg-lokr-full-matrix").checked) tokens.push("full_matrix=true");
   const modDim = _readNumberField("cfg-mod-dim", true);
   if (modDim !== null) tokens.push(`mod_dim=${modDim}`);
   const rankDropout = _readNumberField("cfg-rank-dropout", false);
@@ -1486,11 +1499,13 @@ function redistributeForModuleChange() {
 }
 
 // Which dedicated keys are "active" for a given network_module. LoKr accepts the
-// full set including factor; LoHa accepts everything except factor; other modules
+// full set including factor/full_matrix; LoHa accepts neither LoKr-only key; other modules
 // treat dedicated fields as inactive (their values aren't emitted, freeform pass-through).
 function activeDedicatedKeys(networkModule) {
   if (networkModule === "networks.lokr") return [...LYCORIS_DEDICATED_KEYS, ...DORA_DEDICATED_KEYS];
-  if (networkModule === "networks.loha") return LYCORIS_DEDICATED_KEYS.filter((k) => k !== "factor");
+  if (networkModule === "networks.loha") {
+    return LYCORIS_DEDICATED_KEYS.filter((k) => !["factor", "full_matrix"].includes(k));
+  }
   if (networkModule === "networks.lora_anima") return DORA_DEDICATED_KEYS;
   return [];
 }
@@ -1504,6 +1519,9 @@ function gatherNetworkArgs() {
   if (active.includes("factor")) {
     const v = _readNumberField("cfg-lokr-factor", true);
     if (v !== null) dedicated.push(`factor=${v}`);
+  }
+  if (active.includes("full_matrix") && $("cfg-lokr-full-matrix").checked) {
+    dedicated.push("full_matrix=true");
   }
   if (active.includes("mod_dim")) {
     const v = _readNumberField("cfg-mod-dim", true);
@@ -1568,6 +1586,8 @@ function loadNetworkArgs(args) {
     else freeform.push(tok);
   }
   $("cfg-lokr-factor").value = dedicated.factor ?? "";
+  const fullMatrix = (dedicated.full_matrix || "").toLowerCase();
+  $("cfg-lokr-full-matrix").checked = ["true", "1", "yes", "y", "on"].includes(fullMatrix);
   $("cfg-mod-dim").value = dedicated.mod_dim ?? "";
   $("cfg-rank-dropout").value = dedicated.rank_dropout ?? "";
   $("cfg-module-dropout").value = dedicated.module_dropout ?? "";
@@ -1580,6 +1600,7 @@ function loadNetworkArgs(args) {
     $("cfg-use-dora").checked &&
     ["true", "1", "yes", "y", "on"].includes(doraScaleFp32);
   updateDoraPrecisionUI();
+  updateFullMatrixUI();
   $("cfg-network-args").value = freeform.join(" ");
 }
 

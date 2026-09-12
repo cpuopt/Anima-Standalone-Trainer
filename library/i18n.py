@@ -561,6 +561,11 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "en": "DoKr dora_scale and alpha tensors will be saved in FP32",
         "ja": "DoKr の dora_scale と alpha テンソルを FP32 で保存します",
     },
+    "lokr_full_matrix_enabled": {
+        "zh_CN": "已启用 LoKr Full Matrix，将直接训练完整矩阵；dim（rank）不生效",
+        "en": "LoKr Full Matrix enabled; full matrices will be trained directly and dim (rank) has no effect",
+        "ja": "LoKr Full Matrix を有効化しました。完全行列を直接学習するため dim（rank）は使用されません",
+    },
     "dora_scale_fp32_enabled": {
         "zh_CN": "DoRA 的 dora_scale 和 alpha 张量将以 FP32 保存",
         "en": "DoRA dora_scale and alpha tensors will be saved in FP32",

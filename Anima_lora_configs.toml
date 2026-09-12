@@ -54,11 +54,12 @@ network_train_unet_only = true
 #   DoRA:  network_args = [ "use_dora=true", "dora_scale_fp32=true" ]
 #   LoHa:  network_args = [ "mod_dim=4" ]
 #   LoKr:  network_args = [ "factor=-1", "mod_dim=4" ]
+#          Add "full_matrix=true" to train complete LoKr matrices directly; rank is ignored.
 #   DoKr:  select networks.lokr and use
 #           network_args = [ "factor=-1", "mod_dim=4", "use_dora=true", "dora_scale_fp32=true" ]
 #
 # Full kwarg reference: networks/{lora_anima,loha,lokr}.py:create_network
-# UI dedicated fields: Factor (LoKr/DoKr only), Mod Dim, Rank Dropout, Module Dropout, Use Tucker, Use DoRA/DoKr.
+# UI dedicated fields: Full Matrix and Factor (LoKr/DoKr only), Mod Dim, Rank Dropout, Module Dropout, Use Tucker, Use DoRA/DoKr.
 
 # network_weights = "/path/to/lora.safetensors"   # initialize from a saved network
 # resume = "/path/to/saved_state_folder"          # resume training state

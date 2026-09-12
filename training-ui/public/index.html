@@ -442,10 +442,14 @@
                                 </select>
                             </div>
                             <div class="form-row">
-                                <div class="form-group">
+                                <div class="form-group" id="network-rank-group">
                                     <label>Network Dim (Rank)</label>
                                     <input type="number" id="cfg-network-dim" value="16" min="1">
-                                    <small>Higher = more capacity, more VRAM.</small>
+                                    <small id="network-rank-help">Higher = more capacity, more VRAM.</small>
+                                </div>
+                                <div class="form-group hidden" id="lokr-full-matrix-group">
+                                    <label><input type="checkbox" id="cfg-lokr-full-matrix"> Full Matrix</label>
+                                    <small>Directly train full LoKr matrices. Rank does not take effect while enabled.</small>
                                 </div>
                                 <div class="form-group">
                                     <label>Network Alpha</label>
