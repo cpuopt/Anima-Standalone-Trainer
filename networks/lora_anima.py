@@ -772,6 +772,7 @@ def create_network(
         use_dora=use_dora,
         dora_scale_fp32=dora_scale_fp32,
         verbose=verbose,
+        layer_configs=kwargs.get("layer_configs"),
     )
 
     loraplus_lr_ratio = kwargs.get("loraplus_lr_ratio", None)
@@ -887,6 +888,7 @@ class LoRANetwork(torch.nn.Module):
         use_dora: bool = False,
         dora_scale_fp32: bool = False,
         verbose: Optional[bool] = False,
+        layer_configs=None,
     ) -> None:
         super().__init__()
         if use_dora and module_class is LoRAModule:
@@ -903,6 +905,8 @@ class LoRANetwork(torch.nn.Module):
         self.train_block_indices = train_block_indices
         self.use_dora = use_dora or module_class is DoRALoRAModule
         self.dora_scale_fp32 = bool(dora_scale_fp32)
+        from .layer_configs import LayerConfigs
+        layer_settings = LayerConfigs(layer_configs, unet) if layer_configs else None
 
         self.loraplus_lr_ratio = None
         self.loraplus_unet_lr_ratio = None
@@ -1011,6 +1015,12 @@ class LoRANetwork(torch.nn.Module):
                                 elif force_incl_conv2d:
                                     dim = default_dim if default_dim is not None else self.lora_dim
                                     alpha_val = self.alpha
+
+                            if is_unet and layer_settings and modules_dim is None:
+                                selected = layer_settings.resolve((name + "." if name else "") + child_name)
+                                if selected is not None:
+                                    dim = selected["rank"] if selected["enabled"] else 0
+                                    alpha_val = selected["alpha"]
 
                             if dim is None or dim == 0:
                                 if is_linear or is_conv2d_1x1:

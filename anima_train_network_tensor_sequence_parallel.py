@@ -495,7 +495,9 @@ class AnimaNetworkTrainerTPSP(AnimaNetworkTrainer):
             import wd_parallel as wdp
 
             tp_geometry = _infer_anima_tp_padding_geometry(dit, self.tp_groups.tp_size)
-            fuse_qkv = not getattr(args, "no_fuse_qkv", False)
+            # Individual q/k/v adapters may have different ranks or be disabled.
+            has_layer_configs = any(str(arg).strip().startswith("layer_configs=") for arg in (args.network_args or []))
+            fuse_qkv = not getattr(args, "no_fuse_qkv", False) and not has_layer_configs
             fused_count = 0
             if fuse_qkv:
                 fused_count = fuse_qkv_for_tp_lora(

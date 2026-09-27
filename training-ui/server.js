@@ -5,6 +5,7 @@ const path = require('path');
 const { snapshotSamplePrompts } = require('./lib/prompt-snapshot');
 const { countDatasetImages } = require('./lib/dataset-images');
 const LBAI = require('./public/js/lbai');
+const {readAnimaLayers, validateLayerArgs} = require('./lib/anima-layers');
 const TOML = require('@iarna/toml');
 const net = require('net');
 const http = require('http');
@@ -65,6 +66,11 @@ function buildModelArgs(arch, globalConfig) {
 // Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.get('/api/anima-layers', (req, res) => {
+    try {
+        res.json(readAnimaLayers(getGlobalConfig().model_paths?.dit_path));
+    } catch (error) { res.status(400).json({error: error.message}); }
+});
 
 // Ensure directories exist
 if (!fs.existsSync(JOBS_DIR)) {
@@ -359,6 +365,7 @@ function buildTrainingConfig(jobName, jobPath) {
     const globalConfig = getGlobalConfig();
     const configPath = path.join(jobPath, 'config.toml');
     const jobConfig = TOML.parse(fs.readFileSync(configPath, 'utf8'));
+    validateLayerArgs(jobConfig, globalConfig.model_paths?.dit_path);
 
     const outputDir = path.join(jobPath, 'output');
     const loggingDir = path.join(jobPath, 'logs');
@@ -693,6 +700,7 @@ app.put('/api/jobs/:name', (req, res) => {
 
         if (req.body.config) {
             const config = req.body.config;
+            validateLayerArgs(config, getGlobalConfig().model_paths?.dit_path);
             const na = config.network_arguments;
             if (na) {
                 if (na.resume)          na.resume          = stripQuotes(na.resume);

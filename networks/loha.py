@@ -455,6 +455,7 @@ def create_network(
         emb_dims=emb_dims,
         train_block_indices=train_block_indices,
         verbose=common["verbose"],
+        layer_configs=kwargs.get("layer_configs"),
     )
     _apply_loraplus_from_kwargs(network, kwargs)
     return network

@@ -1289,6 +1289,7 @@ async function refreshSubsetImageCount(subset, badge, force = false) {
 // ==========================================
 async function saveJob() {
   if (!currentJob) return false;
+  try { await LayerRankUI.validate(); } catch (error) { showToast(error.message); return false; }
   const samplePromptsChanged =
     JSON.stringify(currentPrompts) !== JSON.stringify(lastSavedPrompts)
     || ($("global-negative-prompt").value || "") !== (lastSavedNegativePrompt || "");
@@ -1431,6 +1432,7 @@ function updateFullMatrixUI() {
   $("network-rank-help").textContent = enabled
     ? "Ignored because LoKr Full Matrix is enabled."
     : "Higher = more capacity, more VRAM.";
+  LayerRankUI.update();
 }
 function updateDoraOptionUI(networkModule) {
   const isAnimaLora = networkModule === "networks.lora_anima";
@@ -1473,6 +1475,8 @@ $("cfg-network-module").addEventListener("change", (e) => {
 // (their first-position in the collected list shadows the freeform copy).
 function redistributeForModuleChange() {
   const tokens = [];
+  const layerToken = LayerRankUI.draftToken();
+  if (layerToken) tokens.push(layerToken);
   const factor = _readNumberField("cfg-lokr-factor", true);
   if (factor !== null) tokens.push(`factor=${factor}`);
   if ($("cfg-lokr-full-matrix").checked) tokens.push("full_matrix=true");
@@ -1486,7 +1490,7 @@ function redistributeForModuleChange() {
   if ($("cfg-use-dora").checked) tokens.push("use_dora=true");
   if ($("cfg-dora-scale-fp32").checked) tokens.push("dora_scale_fp32=true");
   const freeform = $("cfg-network-args").value.trim();
-  if (freeform) tokens.push(...freeform.split(/\s+/));
+  if (freeform) tokens.push(...LayerRank.tokenize(freeform));
   const seen = new Set();
   const merged = tokens.filter((tok) => {
     const eq = tok.indexOf("=");
@@ -1516,6 +1520,8 @@ function activeDedicatedKeys(networkModule) {
 function gatherNetworkArgs() {
   const active = activeDedicatedKeys($("cfg-network-module").value);
   const dedicated = [];
+  const layerToken = LayerRankUI.token();
+  if (layerToken) dedicated.push(layerToken);
   if (active.includes("factor")) {
     const v = _readNumberField("cfg-lokr-factor", true);
     if (v !== null) dedicated.push(`factor=${v}`);
@@ -1550,10 +1556,10 @@ function gatherNetworkArgs() {
   }
   const freeformRaw = $("cfg-network-args").value.trim();
   const freeform = freeformRaw
-    ? freeformRaw.split(/\s+/).filter((tok) => {
+    ? LayerRank.tokenize(freeformRaw).filter((tok) => {
         const eq = tok.indexOf("=");
         const key = (eq >= 0 ? tok.slice(0, eq) : tok).trim();
-        return !active.includes(key);
+        return key !== "layer_configs" && !active.includes(key);
       })
     : [];
   return [...dedicated, ...freeform];
@@ -1566,6 +1572,7 @@ function loadNetworkArgs(args) {
   const active = activeDedicatedKeys($("cfg-network-module").value);
   const dedicated = {};
   const freeform = [];
+  let layerConfig = null;
   for (const raw of args) {
     // Trim per-token: TOML arrays can legally contain "  factor=8  " entries; the
     // split-on-/\s+/ path doesn't, but the array-from-disk path needs hygiene here.
@@ -1582,7 +1589,8 @@ function loadNetworkArgs(args) {
     // don't receive leading/trailing whitespace.
     const key = tok.slice(0, eq).trim();
     const val = tok.slice(eq + 1).trim();
-    if (active.includes(key)) dedicated[key] = val;
+    if (key === "layer_configs") layerConfig = val;
+    else if (active.includes(key)) dedicated[key] = val;
     else freeform.push(tok);
   }
   $("cfg-lokr-factor").value = dedicated.factor ?? "";
@@ -1602,6 +1610,7 @@ function loadNetworkArgs(args) {
   updateDoraPrecisionUI();
   updateFullMatrixUI();
   $("cfg-network-args").value = freeform.join(" ");
+  LayerRankUI.load(layerConfig);
 }
 
 // Disable manual resume path when auto-resume is enabled

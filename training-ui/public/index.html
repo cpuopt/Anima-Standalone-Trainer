@@ -443,19 +443,31 @@
                             </div>
                             <div class="form-row">
                                 <div class="form-group" id="network-rank-group">
-                                    <label>Network Dim (Rank)</label>
+                                    <div class="layer-rank-heading"><label>Network Dim (Rank)</label><label id="layer-advanced-toggle"><input type="checkbox" id="cfg-layer-advanced"> 高级设置</label></div>
                                     <input type="number" id="cfg-network-dim" value="16" min="1">
                                     <small id="network-rank-help">Higher = more capacity, more VRAM.</small>
-                                </div>
-                                <div class="form-group hidden" id="lokr-full-matrix-group">
-                                    <label><input type="checkbox" id="cfg-lokr-full-matrix"> Full Matrix</label>
-                                    <small>Directly train full LoKr matrices. Rank does not take effect while enabled.</small>
+                                    <div class="hidden" id="lokr-full-matrix-group">
+                                        <label><input type="checkbox" id="cfg-lokr-full-matrix"> Full Matrix</label>
+                                        <small>Directly train full LoKr matrices. Rank does not take effect while enabled.</small>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>Network Alpha</label>
                                     <input type="number" id="cfg-network-alpha" value="16" min="1">
                                     <small>Scaling factor. Usually same as dim.</small>
                                 </div>
+                            </div>
+                            <div id="layer-rank-panel" class="hidden">
+                                <div class="layer-rank-heading">
+                                    <label><input type="radio" name="layer-rank-mode" value="type" checked> 按层类型设置</label>
+                                    <label><input type="radio" name="layer-rank-mode" value="layer"> 按单个层设置</label>
+                                    <button type="button" id="layer-rank-refresh" class="btn btn-secondary btn-sm">重新读取模型</button>
+                                    <button type="button" id="layer-rank-reset" class="btn btn-secondary btn-sm">重置为原 Rank</button>
+                                </div>
+                                <small>仅配置 DiT Block，优先于全局 Alpha、Factor 和旧的 Block 配置参数。Alpha 默认随 Rank 变化，修改后使用独立值。切换模式仅应用当前模式的设置。</small>
+                                <p id="layer-full-matrix-note" class="hidden">Full Matrix：Rank 和 Alpha 不生效；训练开关与 Factor 仍生效。</p>
+                                <p id="layer-rank-message" role="status"></p>
+                                <div id="layer-rank-rows"></div>
                             </div>
                             <div class="form-group">
                                 <label><input type="checkbox" id="cfg-unet-only" checked> Train UNet Only</label>
@@ -1217,6 +1229,8 @@
     </div>
 
     <script src="js/lbai.js"></script>
+    <script src="js/layer-rank.js"></script>
+    <script src="js/layer-rank-ui.js"></script>
     <script src="js/app.js"></script>
 </body>
 

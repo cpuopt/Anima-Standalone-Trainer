@@ -279,6 +279,8 @@ class AdditionalNetwork(torch.nn.Module):
         emb_dims: Optional[List[int]] = None,
         train_block_indices: Optional[List[bool]] = None,
         verbose: bool = False,
+        layer_configs=None,
+        modules_kwargs=None,
     ) -> None:
         super().__init__()
         assert module_class is not None, "module_class must be specified"
@@ -309,6 +311,10 @@ class AdditionalNetwork(torch.nn.Module):
 
         if module_kwargs is None:
             module_kwargs = {}
+        from .layer_configs import LayerConfigs
+        layer_settings = LayerConfigs(layer_configs, unet, allow_factor="factor" in module_kwargs) if layer_configs else None
+        self.layer_configs = layer_settings.data if layer_settings else None
+        modules_kwargs = modules_kwargs or {}
 
         if modules_dim is not None:
             logger.info(tr("create_network_from_weights", network=module_class.__name__))
@@ -426,6 +432,17 @@ class AdditionalNetwork(torch.nn.Module):
                                                 pass
                                             break
 
+                            selected_kwargs = dict(module_kwargs)
+                            selected_kwargs.update(modules_kwargs.get(lora_name, {}))
+                            if is_unet and layer_settings and modules_dim is None:
+                                selected = layer_settings.resolve(original_name)
+                                if selected is not None:
+                                    dim = selected["rank"] if selected["enabled"] else 0
+                                    alpha_val = selected["alpha"]
+                                    explicit_include = True
+                                    if "factor" in selected_kwargs:
+                                        selected_kwargs["factor"] = selected["factor"]
+
                             # Apply exclude/include AFTER dim — explicit knobs override default_excludes
                             if not explicit_include:
                                 excluded = any(p.fullmatch(original_name) for p in exclude_re_patterns)
@@ -449,7 +466,7 @@ class AdditionalNetwork(torch.nn.Module):
                                 dropout=dropout,
                                 rank_dropout=rank_dropout,
                                 module_dropout=module_dropout,
-                                **module_kwargs,
+                                **selected_kwargs,
                             )
                             lora.original_name = original_name
                             loras.append(lora)

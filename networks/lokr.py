@@ -226,6 +226,7 @@ class LoKrModule(torch.nn.Module):
         use_tucker=False,
         use_dora=False,
         full_matrix=False,
+        factorization_shape=None,
         **kwargs,
     ):
         super().__init__()
@@ -270,10 +271,16 @@ class LoKrModule(torch.nn.Module):
             )
 
         factor = int(factor)
+        self.factor = factor
         self.use_w2 = False
 
         in_m, in_n = factorization(in_dim, factor)
         out_l, out_k = factorization(out_dim, factor)
+        if factorization_shape is not None:
+            out_l, in_m = factorization_shape
+            if out_l <= 0 or in_m <= 0 or out_dim % out_l or in_dim % in_m:
+                raise ValueError(f"LoKr: incompatible checkpoint factorization for {lora_name}")
+            out_k, in_n = out_dim // out_l, in_dim // in_m
         self.lokr_w1 = nn.Parameter(torch.empty(out_l, in_m))
 
         if self.conv_mode in ("tucker", "flat"):
@@ -465,6 +472,7 @@ class LoKrInfModule(LoKrModule):
         use_tucker = kwargs.pop("use_tucker", False)
         use_dora = kwargs.pop("use_dora", False)
         full_matrix = kwargs.pop("full_matrix", False)
+        factorization_shape = kwargs.pop("factorization_shape", None)
         super().__init__(
             lora_name,
             org_module,
@@ -475,6 +483,7 @@ class LoKrInfModule(LoKrModule):
             use_tucker=use_tucker,
             use_dora=use_dora,
             full_matrix=full_matrix,
+            factorization_shape=factorization_shape,
         )
 
         self.org_module_ref = [org_module]
@@ -644,6 +653,10 @@ class LoKrNetwork(AdditionalNetwork):
         return super().merge_to(text_encoders, unet, weights_sd, dtype, device)
 
     def save_weights(self, file, dtype, metadata):
+        metadata = dict(metadata or {})
+        if self.layer_configs:
+            metadata["ss_layer_configs"] = json.dumps(self.layer_configs, separators=(",", ":"))
+            metadata["ss_lokr_factors"] = json.dumps({m.lora_name: m.factor for m in self.unet_loras + self.text_encoder_loras}, separators=(",", ":"))
         if metadata is not None and len(metadata) == 0:
             metadata = None
 
@@ -739,6 +752,7 @@ def create_network(
         emb_dims=emb_dims,
         train_block_indices=train_block_indices,
         verbose=common["verbose"],
+        layer_configs=kwargs.get("layer_configs"),
     )
     _apply_loraplus_from_kwargs(network, kwargs)
     return network
@@ -818,6 +832,19 @@ def create_network_from_weights(multiplier, file, vae, text_encoder, unet, weigh
 
     module_class = LoKrInfModule if for_inference else LoKrModule
     module_kwargs = {"factor": factor, "use_tucker": use_tucker, "use_dora": use_dora}
+    # Each layer can use a different Kronecker partition. The saved w1 shape
+    # specifies it exactly, including checkpoints without metadata (.pt).
+    saved_factors = json.loads(metadata.get("ss_lokr_factors", "{}"))
+    modules_kwargs = {}
+    for name in modules_dim:
+        w1 = weights_sd.get(name + ".lokr_w1")
+        if w1 is None or w1.ndim != 2:
+            raise ValueError(f"LoKr: cannot recover factorization for {name}: missing/invalid lokr_w1")
+        modules_kwargs[name] = {
+            "factorization_shape": tuple(w1.shape),
+            "full_matrix": name + ".lokr_w2" in weights_sd,
+            "factor": saved_factors.get(name, factor),
+        }
     dora_scale_fp32 = _to_bool(kwargs.get("dora_scale_fp32", False))
 
     network = LoKrNetwork(
@@ -831,9 +858,12 @@ def create_network_from_weights(multiplier, file, vae, text_encoder, unet, weigh
         modules_alpha=modules_alpha,
         module_class=module_class,
         module_kwargs=module_kwargs,
+        modules_kwargs=modules_kwargs,
         train_llm_adapter=train_llm_adapter,
     )
     network.dora_scale_format = metadata.get("ss_dora_scale_format")
+    if metadata.get("ss_layer_configs"):
+        network.layer_configs = json.loads(metadata["ss_layer_configs"])
     return network, weights_sd
 
 
