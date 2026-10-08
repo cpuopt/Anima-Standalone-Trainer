@@ -54,3 +54,6 @@ training-ui/server.*.log
 Thumbs.db
 
 zutto
+
+# Isolated Krea 2 environment
+venv-krea2/

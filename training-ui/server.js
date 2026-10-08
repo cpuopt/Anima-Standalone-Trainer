@@ -7,6 +7,8 @@ const { countDatasetImages } = require('./lib/dataset-images');
 const LBAI = require('./public/js/lbai');
 const {readAnimaLayers, validateLayerArgs} = require('./lib/anima-layers');
 const TOML = require('@iarna/toml');
+const Krea2 = require('./public/js/krea2');
+const kreaBackend = require('./lib/krea2-backend');
 const net = require('net');
 const http = require('http');
 const WebSocket = require('ws');
@@ -37,6 +39,11 @@ const ARCH_REGISTRY = JSON.parse(fs.readFileSync(ARCHITECTURES_PATH, 'utf8'));
 
 // Resolve architecture from a job config's network_module
 function getArchForJob(jobConfig) {
+    if (jobConfig?.architecture) {
+        const arch = ARCH_REGISTRY.architectures[jobConfig.architecture];
+        if (!arch) throw new Error('Unknown architecture: ' + jobConfig.architecture);
+        return { id: jobConfig.architecture, ...arch };
+    }
     const netModule = jobConfig?.network_arguments?.network_module || '';
     for (const [archId, arch] of Object.entries(ARCH_REGISTRY.architectures)) {
         if (arch.network_modules.includes(netModule)) {
@@ -156,6 +163,10 @@ function getGlobalConfig() {
 // Serve architecture registry to frontend
 app.get('/api/architectures', (req, res) => {
     res.json(ARCH_REGISTRY);
+});
+
+app.get('/api/backends/krea2/status', (req, res) => {
+    res.json(kreaBackend.status(getGlobalConfig(), toNativePath));
 });
 
 app.get('/api/gpu/activity', (req, res) => {
@@ -616,6 +627,7 @@ app.get('/api/jobs', (req, res) => {
                 }
                 return {
                     name: d.name,
+                    architecture: hasConfig ? getArchForJob(TOML.parse(fs.readFileSync(configPath, 'utf8'))).id : 'anima',
                     hasConfig,
                     running: runningJobs.has(d.name),
                     mtime
@@ -631,7 +643,8 @@ app.get('/api/jobs', (req, res) => {
 // Create new job
 app.post('/api/jobs', (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, architecture = 'anima' } = req.body;
+        if (!['anima', 'krea2'].includes(architecture)) return res.status(400).json({ error: 'Unsupported new-job architecture' });
         if (!name) return res.status(400).json({ error: 'Name required' });
 
         const safeName = sanitizeName(name);
@@ -648,15 +661,17 @@ app.post('/api/jobs', (req, res) => {
         fs.mkdirSync(path.join(jobPath, 'samples'), { recursive: true });
 
         // Copy template configs
-        const { config, useFallback } = getDefaultConfig();
+        const { config, useFallback } = architecture === 'krea2' ? { config: Krea2.defaults(), useFallback: false } : getDefaultConfig();
         fs.writeFileSync(path.join(jobPath, 'config.toml'), TOML.stringify(config), 'utf8');
 
-        const datasetConfig = getDefaultDataset();
+        const datasetConfig = architecture === 'krea2' ? Krea2.datasetDefaults() : getDefaultDataset();
         fs.writeFileSync(path.join(jobPath, 'dataset.toml'), TOML.stringify(datasetConfig), 'utf8');
 
         // Copy sample prompts template
         const promptsTemplate = path.join(TEMPLATES_DIR, 'sample_prompts.txt');
-        if (fs.existsSync(promptsTemplate)) {
+        if (architecture === 'krea2') {
+            fs.writeFileSync(path.join(jobPath, 'sample_prompts.txt'), 'A fox walking in the snow. --w 1024 --h 1024 --s 52 --l 3.5 --d 42\n', 'utf8');
+        } else if (fs.existsSync(promptsTemplate)) {
             fs.copyFileSync(promptsTemplate, path.join(jobPath, 'sample_prompts.txt'));
         } else {
             fs.writeFileSync(path.join(jobPath, 'sample_prompts.txt'), '', 'utf8');
@@ -684,7 +699,7 @@ app.get('/api/jobs/:name', (req, res) => {
             ? TOML.parse(fs.readFileSync(datasetPath, 'utf8'))
             : getDefaultDataset();
 
-        res.json({ name: req.params.name, config, dataset });
+        res.json({ name: req.params.name, config, dataset, architecture: getArchForJob(config).id });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -698,9 +713,17 @@ app.put('/api/jobs/:name', (req, res) => {
             return res.status(404).json({ error: 'Job not found' });
         }
 
+        const oldConfig = TOML.parse(fs.readFileSync(path.join(jobPath, 'config.toml'), 'utf8'));
+        const arch = getArchForJob(oldConfig).id;
+        if (arch === 'krea2' && runningJobs.has(sanitizeName(req.params.name))) return res.status(400).json({ error: 'Stop Krea 2 before editing configuration or dataset' });
+        if (req.body.config && getArchForJob(req.body.config).id !== arch) return res.status(400).json({ error: 'Create a new job to change architecture' });
+        if (arch === 'krea2') {
+            if (req.body.config) Krea2.validate(req.body.config);
+            if (req.body.dataset) Krea2.validateDataset(req.body.dataset);
+        }
         if (req.body.config) {
             const config = req.body.config;
-            validateLayerArgs(config, getGlobalConfig().model_paths?.dit_path);
+            if (arch !== 'krea2') validateLayerArgs(config, getGlobalConfig().model_paths?.dit_path);
             const na = config.network_arguments;
             if (na) {
                 if (na.resume)          na.resume          = stripQuotes(na.resume);
@@ -1194,6 +1217,10 @@ app.post('/api/jobs/:name/train/stop', async (req, res) => {
             return res.status(400).json({ error: 'Job not running' });
         }
 
+        if (job.krea2) {
+            await job.stop();
+            return res.json({ success: true });
+        }
         runningJobs.delete(jobName);
         broadcastStatus(jobName, 'stopping');
 
@@ -1263,6 +1290,14 @@ app.post('/api/jobs/:name/generate', async (req, res) => {
             return res.status(404).json({ error: 'Job not found' });
         }
 
+        const rawJob = TOML.parse(fs.readFileSync(configPath, 'utf8'));
+        if (getArchForJob(rawJob).id === 'krea2') {
+            if ([...runningJobs.values()].some(j => j.krea2)) return res.status(400).json({ error: 'Another Krea 2 operation is running' });
+            if (persistentGenProcess) killPersistentGen();
+            const prepared = kreaBackend.prepareGeneration(rawJob, jobPath, getGlobalConfig(), req.body, toNativePath);
+            startKreaPipeline(jobName, jobPath, prepared, 'generation');
+            return res.json({ success: true, phase: 'preparing' });
+        }
         // Merged config for paths/args
         const mergedConfig = buildTrainingConfig(jobName, jobPath);
 
@@ -1512,6 +1547,33 @@ app.post('/api/jobs/:name/generate', async (req, res) => {
     }
 });
 
+const kreaOutcomes = new Map();
+function startKreaPipeline(jobName, jobPath, prepared, type) {
+    const logsDir = path.join(jobPath, 'logs');
+    fs.mkdirSync(logsDir, { recursive: true });
+    fs.mkdirSync(path.join(jobPath, 'output'), { recursive: true });
+    fs.mkdirSync(path.join(jobPath, 'samples'), { recursive: true });
+    const logStream = fs.createWriteStream(path.join(logsDir, `krea2_${Date.now()}.log`));
+    logStream.on('error', err => console.error('Krea 2 log:', err.message));
+    const job = kreaBackend.pipeline(prepared, {
+        onLog: text => {
+            job.logBuffer.push(text); if (job.logBuffer.length > 5000) job.logBuffer.shift();
+            logStream.write(text); broadcastLog(jobName, text);
+        },
+        onPhase: phase => {
+            broadcastLog(jobName, `[Krea 2 phase] ${phase}\n`);
+            broadcastStatus(jobName, ['completed', 'failed', 'stopped'].includes(phase) ? 'idle' : 'running');
+        },
+        onDone: outcome => {
+            logStream.end(); runningJobs.delete(jobName); kreaOutcomes.set(jobName, outcome);
+        },
+        kill: proc => killProcess(proc.pid, 8000),
+    });
+    job.type = type;
+    kreaOutcomes.delete(jobName);
+    runningJobs.set(jobName, job);
+    job.start().catch(err => console.error('Krea 2 pipeline:', err));
+}
 // --- Training Control ---
 
 app.post('/api/jobs/:name/train/start', async (req, res) => {
@@ -1527,6 +1589,15 @@ app.post('/api/jobs/:name/train/start', async (req, res) => {
             return res.status(400).json({ error: 'Job already running' });
         }
 
+        const rawJob = TOML.parse(fs.readFileSync(configPath, 'utf8'));
+        if (getArchForJob(rawJob).id === 'krea2') {
+            if ([...runningJobs.values()].some(j => j.krea2)) return res.status(400).json({ error: 'Another Krea 2 operation is running' });
+            if (persistentGenProcess) killPersistentGen();
+            const data = TOML.parse(fs.readFileSync(path.join(jobPath, 'dataset.toml'), 'utf8'));
+            const prepared = kreaBackend.prepareTraining(rawJob, data, jobPath, getGlobalConfig(), toNativePath);
+            startKreaPipeline(jobName, jobPath, prepared, 'training');
+            return res.json({ success: true, phase: 'preparing' });
+        }
         // Auto-kill persistent gen server to free VRAM
         if (persistentGenProcess) {
             console.log("Stopping persistent generation server before training...");
@@ -1723,7 +1794,8 @@ app.get('/api/jobs/:name/train/status', (req, res) => {
     try {
         const jobName = sanitizeName(req.params.name);
         const isRunning = runningJobs.has(jobName);
-        res.json({ running: isRunning });
+        const job = runningJobs.get(jobName);
+        res.json({ running: isRunning, phase: job?.phase || kreaOutcomes.get(jobName) || null, operation: job?.type || null });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1754,11 +1826,13 @@ app.post('/api/jobs/:name/tensorboard', (req, res) => {
         const venvPath = toNativePath(globalConfig.venv_path || path.join(ROOT_DIR, 'venv'));
         const venv = getVenvPaths(venvPath);
 
+        const config = TOML.parse(fs.readFileSync(path.join(jobPath, 'config.toml'), 'utf8'));
+        const isKrea = getArchForJob(config).id === 'krea2';
         const port = nextTbPort++;
 
         const tbCmd = `python -m tensorboard.main --logdir="${logsDir}" --port=${port} --host=0.0.0.0`;
         const tbScript = buildShellScript(venv.activate, '', tbCmd);
-        const proc = spawnShell(tbScript, ROOT_DIR);
+        const proc = isKrea ? spawn(kreaBackend.runtime(globalConfig, toNativePath).python, ['-m', 'tensorboard.main', '--logdir', logsDir, '--port', String(port), '--host', '127.0.0.1'], { windowsHide: true }) : spawnShell(tbScript, ROOT_DIR);
 
         proc.stderr.on('data', (data) => {
             const text = data.toString();

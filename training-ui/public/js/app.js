@@ -13,6 +13,7 @@ let samplesPollTimer = null;
 let isDraggingBg = false;
 let bgPosPercent = { x: 50, y: 50 };
 let currentSubsets = [];
+let currentArchitecture = "anima";
 let archRegistry = null; // Loaded from /api/architectures
 let lbaiTargets = typeof LBAI !== "undefined" ? LBAI.defaultTargets() : [];
 let activeLbaiTargetIndex = 0;
@@ -259,7 +260,7 @@ async function loadJobs() {
     el.className = `job-item${job.name === currentJob ? " active" : ""}${job.running ? " running" : ""}`;
     el.innerHTML = `
             <div class="status-dot"></div>
-            <span class="job-name">${job.name}</span>
+            <span class="job-name">${job.name}</span><small>${job.architecture === "krea2" ? "Krea 2" : job.architecture === "lumina" ? "Lumina" : "Anima"}</small>
         `;
     el.addEventListener("click", () => selectJob(job.name));
     jobListEl.appendChild(el);
@@ -293,7 +294,7 @@ async function selectJob(name) {
     updateRunningState(status.running);
     // Set default negative prompt if no saved value exists for this job
     const savedTransient = localStorage.getItem(`prompt_transient_${name}`);
-    if (!savedTransient || !JSON.parse(savedTransient).negative_prompt) {
+    if (currentArchitecture !== "krea2" && (!savedTransient || !JSON.parse(savedTransient).negative_prompt)) {
       $("global-negative-prompt").value = DEFAULT_NEGATIVE_PROMPT;
     }
     // Save initial state for dirty checking
@@ -339,6 +340,9 @@ function updateRunningState(running) {
 //  Config UI Mapping
 // ==========================================
 function populateConfig(config) {
+  currentArchitecture = Krea2.architecture(config);
+  KreaUI.beforePopulate(config);
+  jobTitle.textContent = `${currentJob} · ${currentArchitecture === 'krea2' ? 'Krea 2' : currentArchitecture === 'lumina' ? 'Lumina' : 'Anima'}`;
   const t = config.training_arguments || {};
   const n = config.network_arguments || {};
   const a = config.anima_arguments || {};
@@ -537,6 +541,8 @@ function populateConfig(config) {
   loadNetworkArgs(n.network_args || []);
   updateLycorisExtrasUI($("cfg-network-module").value);
   updateDoraOptionUI($("cfg-network-module").value);
+  KreaUI.populate(config);
+  updateActivationOffloadUI();
 }
 function populateDataset(dataset) {
   const g = dataset.general || {};
@@ -594,6 +600,7 @@ function populateDataset(dataset) {
 }
 
 function updateLbai() {
+  if (currentArchitecture === "krea2") return;
   const meter = $("lbai-meter");
   if (!meter || typeof LBAI === "undefined") return;
   const targets = LBAI.normalizeTargets(lbaiTargets, false);
@@ -742,8 +749,8 @@ function updateActivationOffloadUI() {
   const offload = $("cfg-activation-offload").value;
   const blocksInput = $("cfg-blocks-to-swap");
   const isOffload = offload !== "none";
-  blocksInput.disabled = isOffload;
-  if (isOffload) {
+  blocksInput.disabled = isOffload && currentArchitecture !== "krea2";
+  if (isOffload && currentArchitecture !== "krea2") {
     blocksInput.value = 0;
   }
   // Auto-enable gradient checkpointing when offload is selected
@@ -972,9 +979,10 @@ function gatherConfig() {
       .map((cb) => cb.value)
       .join(","),
   };
-  return config;
+  return currentArchitecture === "krea2" ? KreaUI.config(config) : config;
 }
 function gatherDataset() {
+  if (currentArchitecture === "krea2") return KreaUI.dataset();
   const res = safeInt($("cfg-resolution").value);
   return {
     general: {
@@ -1226,6 +1234,7 @@ function renderSubsets() {
     container.appendChild(card);
     refreshSubsetImageCount(subset, card.querySelector(".subset-image-count"));
   });
+  KreaUI.dynamicControls();
 }
 
 async function refreshSubsetImageCount(subset, badge, force = false) {
@@ -1295,6 +1304,10 @@ async function saveJob() {
     || ($("global-negative-prompt").value || "") !== (lastSavedNegativePrompt || "");
   const config = gatherConfig();
   const dataset = gatherDataset();
+  if (currentArchitecture === "krea2") {
+    try { Krea2.validate(config); Krea2.validateDataset(dataset); }
+    catch (error) { showToast(error.message, "danger"); return false; }
+  }
   // Prevent duplicate directories
   const subPaths = dataset.datasets[0].subsets
     .map((s) => s.image_dir.trim().toLowerCase())
@@ -1518,6 +1531,7 @@ function activeDedicatedKeys(networkModule) {
 // take precedence over the freeform text box on key collision (the freeform copy
 // is dropped).
 function gatherNetworkArgs() {
+  if (currentArchitecture === "krea2") return KreaUI.networkArgs();
   const active = activeDedicatedKeys($("cfg-network-module").value);
   const dedicated = [];
   const layerToken = LayerRankUI.token();
@@ -1708,6 +1722,13 @@ function parsePromptLine(line) {
   return p;
 }
 function serializePrompt(p) {
+  if (currentArchitecture === 'krea2') {
+    const safeText = p.text.trim().replace(/[\r\n]+/g, ' ');
+    let line = `${safeText} --w ${p.w} --h ${p.h} --s ${p.s} --d ${p.d} --l ${p.l}`;
+    const negative = $('global-negative-prompt').value.trim().replace(/[\r\n]+/g, ' ');
+    if (negative) line += ` --n ${negative}`;
+    return line;
+  }
   // Reconstruct line, ensuring no newlines break the backend parsing parser
   const safeText = p.text.replace(/[\r\n]+/g, " ").trim();
   let line = `${safeText} --w ${p.w} --h ${p.h} --s ${p.s} --d ${p.d} --l ${p.l} --ss ${p.sampler || "euler"} --ls ${clampFloat(p.strength, 0, 2, 1.0)} --sched ${p.scheduler || "linear"}`;
@@ -1789,6 +1810,7 @@ function renderPrompts() {
                 <button class="btn btn-ghost btn-sm btn-delete-prompt" title="Delete">🗑️</button>
             </div>
         `;
+    [".p-sampler", ".p-scheduler", ".p-strength"].forEach(selector => card.querySelector(selector)?.closest(".compact-input").setAttribute("data-anima-only", ""));
     // Bind events
     const updateState = () => {
       p.skip = card.querySelector(".p-skip").checked;
@@ -2740,6 +2762,11 @@ function buildGlobalSettingsTabs(registry) {
             `;
       pane.appendChild(group);
     }
+    if (archId === 'krea2') {
+      const env = document.createElement('div'); env.className = 'form-group';
+      env.innerHTML = '<label>Krea 2 Python Environment</label><input id="cfg-global-krea2-venv" type="text" placeholder="Default: project/venv-krea2"><small id="krea2-environment-status"></small>';
+      pane.appendChild(env);
+    }
     // All-in-One sync button
     if (arch.all_in_one && arch.all_in_one_source_key) {
       const syncGroup = document.createElement("div");
@@ -2892,6 +2919,9 @@ async function loadGlobalSettings() {
     }
   }
   $("cfg-global-venv").value = config.venv_path || "";
+  $("cfg-global-krea2-venv").value = config.krea2_venv_path || "";
+  const backendStatus = await api("/api/backends/krea2/status");
+  $("krea2-environment-status").textContent = backendStatus.installed ? "Python environment found. Dependencies and CUDA are checked before training." : "Run setup_krea2.bat (Windows) or setup_krea2.sh (Linux) to install the isolated environment.";
   $("cfg-log-language").value = config.ui?.log_language || "zh_CN";
   // Theme
   const theme = config.ui?.theme || "github-dark";
@@ -2945,8 +2975,10 @@ async function saveGlobalSettings() {
     }
   }
   const config = {
+    ...existingConfig,
     model_paths,
     venv_path: $("cfg-global-venv").value,
+    krea2_venv_path: $("cfg-global-krea2-venv").value,
     ui: {
       ...(existingConfig.ui || {}),
       lbai_targets: lbaiSettings.targets,
@@ -3269,7 +3301,7 @@ $("btn-new-job").addEventListener("click", () => {
 $("btn-create-job").addEventListener("click", async () => {
   const name = $("new-job-name").value.trim();
   if (!name) return;
-  const result = await api("/api/jobs", { method: "POST", body: { name } });
+  const result = await api("/api/jobs", { method: "POST", body: { name, architecture: $("new-job-architecture").value } });
   if (result.error) {
     alert(result.error);
     return;
@@ -3785,7 +3817,7 @@ $("btn-gen-sample").addEventListener("click", async () => {
   const loraPath = $("gen-lora-select").value;
   if (loraPath) {
     payload.network_weights = loraPath;
-    payload.network_mul = parseFloat($("gen-lora-mul").value) || 1.0;
+    payload.network_mul = parseFloat($("gen-lora-mul").value);
   }
   // Add Anima generation params
   payload.flow_shift = parseFloat($("cfg-flow-shift").value) || 3.0;
@@ -3796,7 +3828,7 @@ $("btn-gen-sample").addEventListener("click", async () => {
   const result = await api(`/api/jobs/${currentJob}/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: Object.assign(payload, {
+    body: currentArchitecture === "krea2" ? KreaUI.generation(payload) : Object.assign(payload, {
       keep_loaded: $("chk-keep-loaded").checked,
     }),
   });
@@ -4076,19 +4108,21 @@ async function init() {
   } else {
     window.addEventListener("resize", updateLbai);
   }
+  archRegistry = await api("/api/architectures");
+  buildGlobalSettingsTabs(archRegistry);
   connectWS();
   await loadJobs();
   // Start status polling
   setInterval(updateGPUActivity, 3000);
   // Watch for config changes
   document.addEventListener("input", (e) => {
-    if (e.target.id && e.target.id.startsWith("cfg-")) {
+    if (e.target.id && (e.target.id.startsWith("cfg-") || e.target.id.startsWith("krea2-"))) {
       checkDirty();
     }
     updateLbai();
   });
   document.addEventListener("change", (e) => {
-    if (e.target.id && e.target.id.startsWith("cfg-")) {
+    if (e.target.id && (e.target.id.startsWith("cfg-") || e.target.id.startsWith("krea2-"))) {
       checkDirty();
     }
     updateLbai();
@@ -4159,3 +4193,29 @@ async function init() {
 }
 init();
 window.addEventListener("beforeunload", () => savePromptTransientSettings());
+
+// Krea 2 uses one device for all cache, train and generate processes.
+document.addEventListener('change', event => {
+  if (currentArchitecture !== 'krea2') return;
+  const target = event.target;
+  if (target.matches('input[name="gpu-select"], input[name="gen-gpu-select"]') && target.checked) {
+    document.querySelectorAll(`input[name="${target.name}"]`).forEach(el => { if (el !== target) el.checked = false; });
+    updateMultiGPUUI(); updateGenGPULabel(); checkDirty();
+  }
+  if (target.id === 'cfg-timestep-method') $('cfg-flow-shift').disabled = target.value === 'krea2_shift';
+  if (target.id === 'krea2-gen-base') {
+    $('krea2-gen-steps').value = target.value === 'turbo' ? 8 : 52;
+    $('krea2-gen-cfg').value = target.value === 'turbo' ? 1 : 3.5;
+  }
+});
+
+document.addEventListener('click', event => {
+  if (currentArchitecture !== 'krea2') return;
+  const input = event.target.closest('.gpu-card')?.querySelector('input[type="checkbox"]');
+  if (input?.checked) {
+    document.querySelectorAll(`input[name="${input.name}"]`).forEach(el => {
+      if (el !== input) { el.checked = false; el.closest('.gpu-card')?.classList.remove('selected'); }
+    });
+    updateMultiGPUUI(); updateGenGPULabel(); checkDirty();
+  }
+});

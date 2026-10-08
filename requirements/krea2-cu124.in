@@ -1,0 +1,23 @@
+# Pinned Musubi 0.3.6 upstream dependencies; Python 3.12.
+accelerate==1.15.0
+av==17.1.0
+bitsandbytes
+diffusers==0.40.0
+einops==0.7.0
+huggingface-hub==1.32.0
+opencv-python==4.10.0.84; platform_machine != 'ARM64'
+pillow>=11.3.0
+safetensors==0.8.0
+toml==0.10.2
+tqdm==4.67.1
+transformers==5.17.0
+voluptuous==0.15.2
+ftfy==6.3.1
+easydict==1.13
+sentencepiece==0.2.1
+tensorboard==2.20.0
+hatchling==1.27.0
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
+uv==0.10.0
+pip==25.3

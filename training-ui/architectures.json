@@ -2,7 +2,11 @@
   "architectures": {
     "anima": {
       "display_name": "Anima",
-      "network_modules": ["networks.lora_anima", "networks.loha", "networks.lokr"],
+      "network_modules": [
+        "networks.lora_anima",
+        "networks.loha",
+        "networks.lokr"
+      ],
       "scripts": {
         "train": "anima_train.py",
         "train_network": "anima_train_network.py",
@@ -42,7 +46,9 @@
     },
     "lumina": {
       "display_name": "Lumina",
-      "network_modules": ["networks.lora_lumina"],
+      "network_modules": [
+        "networks.lora_lumina"
+      ],
       "scripts": {
         "train": "lumina_train.py",
         "train_network": "lumina_train_network.py",
@@ -98,6 +104,67 @@
       "all_in_one": true,
       "fsdp_transformer_cls": "JointTransformerBlock",
       "all_in_one_source_key": "lumina_dit_path"
+    },
+    "krea2": {
+      "display_name": "Krea 2",
+      "backend": "musubi",
+      "network_modules": [
+        "musubi_tuner.networks.lora_krea2"
+      ],
+      "scripts": {
+        "train_network": "vendor/musubi-tuner/src/musubi_tuner/krea2_train_network.py",
+        "generate": "vendor/musubi-tuner/src/musubi_tuner/krea2_generate_image.py"
+      },
+      "global_paths": {
+        "krea2_raw_path": {
+          "label": "Krea 2 RAW DiT",
+          "placeholder": "C:/models/krea2/raw.safetensors",
+          "cli_flag": "dit"
+        },
+        "krea2_turbo_path": {
+          "label": "Krea 2 Turbo DiT (manual generation)",
+          "placeholder": "C:/models/krea2/turbo.safetensors",
+          "cli_flag": "turbo_dit"
+        },
+        "krea2_text_encoder_path": {
+          "label": "Qwen3-VL-4B Text Encoder",
+          "placeholder": "C:/models/qwen3vl_4b_bf16.safetensors",
+          "cli_flag": "text_encoder"
+        },
+        "krea2_vae_path": {
+          "label": "Qwen-Image VAE",
+          "placeholder": "C:/models/qwen_image_vae.safetensors",
+          "cli_flag": "vae"
+        }
+      },
+      "training_section": "krea2_arguments",
+      "all_in_one": false,
+      "capabilities": {
+        "single_gpu": true,
+        "adapter_types": [
+          "lora"
+        ],
+        "training_sample_base": "raw",
+        "hidden_fields": [
+          "cfg-text-encoder-lr",
+          "cfg-save-format",
+          "cfg-lowram",
+          "cfg-flash-attn",
+          "cfg-cache-latents",
+          "cfg-cache-te",
+          "cfg-progressive-reso",
+          "cfg-alpha-mask",
+          "cfg-balance-reg-images",
+          "cfg-min-bucket",
+          "cfg-max-bucket",
+          "cfg-bucket-steps",
+          "cfg-disable-bucket-shuffle",
+          "cfg-unet-only",
+          "cfg-use-dora",
+          "cfg-dora-scale-fp32",
+          "cfg-freeze-llm-adapter"
+        ]
+      }
     }
   },
   "default_architecture": "anima"

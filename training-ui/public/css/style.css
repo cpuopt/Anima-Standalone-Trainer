@@ -1858,3 +1858,6 @@ input:disabled, select:disabled {
     filter: grayscale(0.8);
     transition: opacity 0.2s ease;
 }
+
+/* Capability restrictions take precedence over inline visibility toggles. */
+.krea2-mode [data-anima-only] { display: none !important; }

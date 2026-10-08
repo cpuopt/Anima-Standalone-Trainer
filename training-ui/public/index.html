@@ -326,6 +326,21 @@
                             </div>
                         </div>
 
+                        <div id="krea2-settings" class="hidden">
+                            <h4>Krea 2</h4>
+                            <div id="krea2-notice" class="form-group">Train on RAW; training previews use RAW. Validate saved LoRAs on Turbo in the Prompts tab. Latents and text embeddings are cached automatically.</div>
+                            <div class="form-group"><label><input id="krea2-fp8" type="checkbox" checked> Dynamic Scaled FP8</label><small>Use original bf16 model files. Recommended for 16GB GPUs.</small></div>
+                            <div class="form-row">
+                                <div class="form-group"><label>Attention</label><select id="krea2-attention"><option value="sdpa">SDPA</option><option value="flash">FlashAttention (requires installation)</option><option value="xformers">xformers (requires installation)</option></select></div>
+                                <div class="form-group"><label><input type="checkbox" id="krea2-split-attn"> Split Attention</label></div>
+                                <div class="form-group"><label>Text Encoder Cache Batch</label><input id="krea2-te-batch" type="number" value="1" min="1"></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>Rank Dropout</label><input id="krea2-rank-dropout" type="number" value="0" min="0" max="0.999" step="0.05"></div>
+                                <div class="form-group"><label>Module Dropout</label><input id="krea2-module-dropout" type="number" value="0" min="0" max="0.999" step="0.05"></div>
+                                <div class="form-group"><label>LoRA+ LR Ratio</label><input id="krea2-loraplus" type="number" min="0.01" placeholder="disabled"></div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Dataset Tab -->
@@ -587,6 +602,12 @@
                                 </div>
                             </div>
 
+                            <div id="krea2-generation" class="form-row hidden">
+                                <div class="form-group"><label>Generation Base</label><select id="krea2-gen-base"><option value="turbo">Krea 2 Turbo</option><option value="raw">Krea 2 RAW</option></select></div>
+                                <div class="form-group"><label>Generation Steps</label><input id="krea2-gen-steps" type="number" min="1" max="1000" value="8"></div>
+                                <div class="form-group"><label>Generation CFG</label><input id="krea2-gen-cfg" type="number" min="1" step="0.5" value="1"></div>
+                                <small>These settings apply to manual generation. Prompt-card Steps/Scale apply to RAW training previews.</small>
+                            </div>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>LoRA Strength</label>
@@ -1080,6 +1101,8 @@
             <div class="form-group">
                 <label>Job Name</label>
                 <input type="text" id="new-job-name" placeholder="my_job">
+                <label for="new-job-architecture">Model</label>
+                <select id="new-job-architecture"><option value="anima">Anima</option><option value="krea2">Krea 2</option></select>
             </div>
             <div class="modal-actions">
                 <button id="btn-cancel-job" class="btn btn-ghost">Cancel</button>
@@ -1231,6 +1254,8 @@
     <script src="js/lbai.js"></script>
     <script src="js/layer-rank.js"></script>
     <script src="js/layer-rank-ui.js"></script>
+    <script src="js/krea2.js"></script>
+    <script src="js/krea2-ui.js"></script>
     <script src="js/app.js"></script>
 </body>
 
