@@ -95,6 +95,10 @@
     if (t.save_precision && !['float','fp32','fp16','bf16'].includes(t.save_precision)) throw Error('Unsupported save precision');
     if (t.log_with && t.log_with !== 'tensorboard') throw Error('Krea 2 UI uses TensorBoard logging');
     if (t.optimizer_args !== undefined && (!Array.isArray(t.optimizer_args) || t.optimizer_args.some(x => typeof x !== 'string' || !x.includes('=')))) throw Error('Invalid optimizer arguments');
+    if (t.optimizer_type !== 'Adafactor' && (t.optimizer_args || []).some(x =>
+      ['relative_step', 'scale_parameter', 'warmup_init', 'clip_threshold', 'decay_rate', 'beta1'].includes(x.split('=')[0].trim()))) {
+      throw Error('Adafactor arguments cannot be used with AdamW/AdamW8bit; remove incompatible optimizer arguments');
+    }
     if (t.lr_warmup_steps !== undefined) number(t.lr_warmup_steps, 'warmup', 0, Infinity, true);
     if (t.lr_scheduler_num_cycles !== undefined) number(t.lr_scheduler_num_cycles, 'cycles', 1, Infinity, true);
     if (t.lr_scheduler_min_lr_ratio !== undefined) number(t.lr_scheduler_min_lr_ratio, 'min_lr_ratio', 0, 1);

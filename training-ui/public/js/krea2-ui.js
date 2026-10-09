@@ -1,7 +1,7 @@
 const KreaUI = (() => {
   const $ = id => document.getElementById(id);
   const originalOptions = new Map();
-  let optimizerExtras = [];
+  let optimizerExtras = new Map();
   function options(id, entries) {
     const el = $(id);
     if (!originalOptions.has(id)) originalOptions.set(id, el.innerHTML);
@@ -13,7 +13,9 @@ const KreaUI = (() => {
   function beforePopulate(config) {
     const active = Krea2.architecture(config) === 'krea2';
     $('cfg-flow-shift').disabled = false;
-    optimizerExtras = active ? (config.training_arguments.optimizer_args || []).filter(x => !x.startsWith('weight_decay=')) : [];
+    optimizerExtras = new Map();
+    if (active) optimizerExtras.set(config.training_arguments.optimizer_type,
+      (config.training_arguments.optimizer_args || []).filter(x => !x.startsWith('weight_decay=')));
     document.body.classList.toggle('krea2-mode', active);
     const registry = typeof archRegistry !== 'undefined' ? archRegistry?.architectures?.krea2 : null;
     const hidden = registry?.capabilities?.hidden_fields || [];
@@ -79,7 +81,7 @@ const KreaUI = (() => {
   }
   function config(raw) {
     const t = Krea2.pick(raw.training_arguments, Krea2.TRAIN_KEYS);
-    t.optimizer_args = [...(t.optimizer_args || []), ...optimizerExtras];
+    t.optimizer_args = [...(t.optimizer_args || []), ...(optimizerExtras.get(t.optimizer_type) || [])];
     if (t.optimizer_type === 'Adafactor') {
       for (const arg of ['relative_step=False', 'scale_parameter=False']) if (!t.optimizer_args.some(x => x.split('=')[0] === arg.split('=')[0])) t.optimizer_args.push(arg);
     }

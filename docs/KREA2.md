@@ -71,17 +71,23 @@ bf16、AdamW8bit、LR 1e-4、constant、gradient checkpointing、scaled FP8、
 block swap 26、`krea2_shift` 和 `weighting_scheme=none`。这些是显存优化起点，
 并非已经在本机测得的显存或质量保证。
 
-Train 依次执行 latent 缓存、文本编码缓存、RAW LoRA 训练。
+Train 依次执行异步环境检查、latent 缓存、文本编码缓存、RAW LoRA 训练。
+环境检查最长 60 秒，期间状态查询和 Stop 仍可使用；检查失败或超时会在日志中报告，后续阶段不会启动。
 任一阶段失败或点击 Stop，后续阶段不会启动。配置和命令快照为任务目录中的
 `_krea2_config.toml`、`_krea2_dataset.toml`、`_krea2_launch.json`。
 缓存位于任务独立的 `cache/krea2`；目录、图片路径/大小/修改时间、caption 内容、
 分辨率/bucket、VAE/文本编码器路径/大小/修改时间或源码版本变化都会产生新缓存。
 原地修改权重或图片后请确保修改时间发生变化。旧缓存保留，需用户自行清理。
 同一图片目录内不允许不同扩展名的图片使用同一个文件名 stem，以免上游缓存覆盖。
+当前支持 PNG、JPG/JPEG、WEBP、BMP；目录中出现 AVIF/JXL 会在启动前报错，需先转换为支持的格式。
+每张图片必须有对应的 caption 文件；缺失时会列出文件并阻止启动，允许显式创建空 caption 文件。
 
 训练采样默认关闭，开启后使用 RAW，prompt 卡片建议 52 步、CFG 3.5。
+训练提示词保存为 `_krea2_sample_prompts.json` 快照，未填写负面提示词时使用空文本作为 CFG 的无条件分支。
 Prompts 页手动生成使用独立进程，可选 RAW 或 Turbo；Turbo 默认 8 步、CFG 1、
 mu 1.15，可加载已保存 LoRA。手动生成步数/CFG 与训练采样分开保存。
+多条手动提示词通过 `_krea2_generate_prompts.txt` 快照一次加载模型后依次生成，保留每条提示词的尺寸、seed 和负面提示词。
+切换优化器时仅使用该优化器对应的额外参数，避免将 Adafactor 参数传入 AdamW/AdamW8bit。
 不启用常驻生成模型，也不在训练进程内切换 RAW/Turbo。
 Anima sampler/scheduler/strength prompt 标记不适用于此后端。
 

@@ -44,6 +44,8 @@ for (const [label, mutate] of [
   ['too many swaps', c => c.training_arguments.blocks_to_swap = 27],
   ['offload without checkpointing', c => { c.training_arguments.gradient_checkpointing = false; c.training_arguments.gradient_checkpointing_cpu_offload = true; }],
   ['unsafe output name', c => c.training_arguments.output_name = '../outside'],
+  ['Adafactor arguments on AdamW', c => { c.training_arguments.optimizer_type = 'AdamW'; c.training_arguments.optimizer_args = ['relative_step=False']; }],
+  ['Adafactor arguments on AdamW8bit', c => c.training_arguments.optimizer_args = ['scale_parameter=False']],
 ]) test(`Krea 2 rejects ${label}`, () => { const c = K.defaults(); mutate(c); assert.throws(() => K.validate(c)); });
 
 test('native dropout and LoRA+ arguments survive config round-trip', () => {
@@ -71,6 +73,28 @@ test('same filename stems are rejected before creating ambiguous Musubi caches',
   const f = fixture(t); fs.writeFileSync(path.join(f.images,'one.jpg'),'image');
   assert.throws(() => B.prepareDataset(f.dataset,f.root,f.rt), /Duplicate image stems/);
 });
+test('missing captions are listed before producing a usable training dataset; empty captions are allowed', t => {
+  const f = fixture(t);
+  fs.writeFileSync(path.join(f.images, 'two.png'), 'image');
+  fs.writeFileSync(path.join(f.images, 'three.jpg'), 'image');
+  assert.throws(() => B.prepareDataset(f.dataset, f.root, f.rt), err => {
+    assert.match(err.message, /Missing caption files/);
+    assert.ok(err.message.includes(path.join(f.images, 'two.txt')));
+    assert.ok(err.message.includes(path.join(f.images, 'three.txt')));
+    return true;
+  });
+  assert.ok(!fs.existsSync(path.join(f.root, '_krea2_dataset.toml')));
+  fs.writeFileSync(path.join(f.images, 'two.txt'), '');
+  fs.writeFileSync(path.join(f.images, 'three.txt'), '');
+  assert.doesNotThrow(() => B.prepareDataset(f.dataset, f.root, f.rt));
+});
+for (const ext of ['avif', 'AVIF', 'jxl', 'JXL']) test(`mixed directory rejects ${ext} instead of silently caching untracked images`, t => {
+  const f = fixture(t), extra = path.join(f.images, `one.${ext}`);
+  fs.writeFileSync(extra, 'image');
+  assert.throws(() => B.prepareDataset(f.dataset, f.root, f.rt), err => {
+    assert.match(err.message, /Unsupported Krea 2 images/); assert.ok(err.message.includes(extra)); return true;
+  });
+});
 test('three-stage launch uses isolated module names, snapshots and correct CLI flags', t => {
   const f = fixture(t), config = K.defaults(); config.training_arguments.sample_every_n_steps = 5;
   config.network_arguments.auto_resume_last_state = true;
@@ -81,7 +105,8 @@ test('three-stage launch uses isolated module names, snapshots and correct CLI f
   assert.equal(merged.network_module,K.MODULE); assert.ok(merged.resume.endsWith('saved-state'));
   assert.ok(!('text_encoder_lr' in merged)); assert.ok(!('auto_resume_last_state' in merged));
   fs.writeFileSync(path.join(f.root,'sample_prompts.txt'),'changed');
-  assert.match(fs.readFileSync(merged.sample_prompts,'utf8'), /A fox/);
+  const prompts = JSON.parse(fs.readFileSync(merged.sample_prompts,'utf8'));
+  assert.deepEqual(prompts, [{ prompt: 'A fox', negative_prompt: '', width: 1024, height: 1024, sample_steps: 52, cfg_scale: 3.5, seed: 0 }]);
   assert.ok(prepared.stages[2].args.includes('--module'));
 });
 test('Turbo generation uses separate defaults, original Turbo, seed zero and strength zero', t => {
@@ -90,13 +115,44 @@ test('Turbo generation uses separate defaults, original Turbo, seed zero and str
   const p = B.prepareGeneration(config,f.root,f.global,{network_weights:lora,network_mul:0},x=>x,{skipPreflight:true});
   const args = p.stages[0].args, value = flag => args[args.indexOf(flag)+1];
   assert.equal(value('--dit'),f.models.turbo); assert.equal(value('--steps'),'8'); assert.equal(value('--guidance_scale'),'1');
-  assert.equal(value('--mu'),'1.15'); assert.equal(value('--seed'),'0'); assert.equal(value('--lora_multiplier'),'0');
+  assert.equal(value('--mu'),'1.15'); assert.equal(value('--lora_multiplier'),'0');
+  assert.match(fs.readFileSync(value('--from_file'), 'utf8'), /--d 0/);
   assert.ok(args.includes('--text_encoder_cpu'));
   assert.match(fs.readFileSync(path.join(f.root,'sample_prompts.txt'),'utf8'), /--s 52/);
   assert.throws(()=>B.prepareGeneration(config,f.root,f.global,{gen_gpu_ids:'0,1'},x=>x,{skipPreflight:true}),/one GPU/);
 });
+test('training snapshots preserve explicit and empty negatives for CFG', t => {
+  const f = fixture(t), config = K.defaults(); config.training_arguments.sample_every_n_steps = 5;
+  fs.writeFileSync(path.join(f.root, 'sample_prompts.txt'), 'fox --l 4 --n blurry\ncat --n \n');
+  B.prepareTraining(config, f.dataset, f.root, f.global, x => x, { skipPreflight: true });
+  const prompts = JSON.parse(fs.readFileSync(path.join(f.root, '_krea2_sample_prompts.json'), 'utf8'));
+  assert.equal(prompts[0].negative_prompt, 'blurry'); assert.equal(prompts[0].cfg_scale, 4);
+  assert.equal(prompts[1].negative_prompt, ''); assert.equal(prompts[1].cfg_scale, 3.5);
+});
+test('manual generation loads models once, snapshots per-prompt values and overrides training steps/CFG', t => {
+  const f = fixture(t);
+  fs.writeFileSync(path.join(f.root, 'sample_prompts.txt'), '# comment\nfox --w 512 --h 768 --s 52 --l 3.5 --d 0 --n blurry\ncat --s 80 --l 5 --d 42\n');
+  const prepared = B.prepareGeneration(K.defaults(), f.root, f.global, { krea2_steps: 12, krea2_cfg: 2 }, x => x, { skipPreflight: true });
+  assert.equal(prepared.stages.length, 1);
+  const args = prepared.stages[0].args, value = flag => args[args.indexOf(flag) + 1];
+  assert.equal(value('--steps'), '12'); assert.equal(value('--guidance_scale'), '2');
+  const snapshot = fs.readFileSync(value('--from_file'), 'utf8');
+  assert.equal(snapshot, 'fox --w 512 --h 768 --d 0 --n blurry\ncat --w 1024 --h 1024 --d 42\n');
+  fs.writeFileSync(path.join(f.root, 'sample_prompts.txt'), 'changed');
+  assert.equal(fs.readFileSync(value('--from_file'), 'utf8'), snapshot);
+});
+test('preflight is deferred until the owned pipeline runs', t => {
+  const f = fixture(t), config = K.defaults();
+  const train = B.prepareTraining(config, f.dataset, f.root, f.global);
+  const gen = B.prepareGeneration(config, f.root, f.global, {});
+  for (const prepared of [train, gen]) {
+    assert.equal(prepared.stages[0].phase, 'preflight');
+    assert.equal(prepared.stages[0].timeout, 60000);
+    assert.match(prepared.stages[0].args[1], /torch.cuda.is_available/);
+  }
+});
 test('unsupported or invalid prompt controls fail explicitly', () => {
-  for (const line of ['fox --ss heun','fox --ls 1','fox --w nope','fox --w 1000','fox --s 0','fox --d -1','fox --l 1']) assert.throws(()=>B.validatePrompts(line));
+  for (const line of ['fox --ss heun','fox --ls 1','fox --w nope','fox --w 1000','fox --s 0','fox --d -1','fox --l 1','fox --w',' --w 512']) assert.throws(()=>B.validatePrompts(line));
 });
 function fakeSpawn(codes, children) {
   return () => {
@@ -127,4 +183,25 @@ test('spawn failure becomes a failed outcome without a later launch', async () =
   let count=0;
   const p=B.pipeline(fakePrepared,{spawnProcess:()=>{count++;throw Error('runtime missing');}});
   assert.equal(await p.start(),'failed'); assert.equal(count,1);
+});
+test('preflight failure halts launch and preserves environment diagnostics', async () => {
+  const children = [], logs = [];
+  const prepared = { ...fakePrepared, stages: [{ phase: 'preflight', args: [], errorPrefix: 'Run setup_krea2 first.' }, ...fakePrepared.stages] };
+  const p = B.pipeline(prepared, { spawnProcess: fakeSpawn([1], children), onLog: text => logs.push(text) });
+  assert.equal(await p.start(), 'failed'); assert.equal(children.length, 1);
+  assert.match(logs.join(''), /Run setup_krea2 first/);
+});
+test('preflight remains responsive to stop and prevents training', async () => {
+  const children = [];
+  const prepared = { ...fakePrepared, stages: [{ phase: 'preflight', args: [] }, ...fakePrepared.stages] };
+  const p = B.pipeline(prepared, { spawnProcess: fakeSpawn([], children), kill: proc => proc.emit('close', null) });
+  const done = p.start(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(p.phase, 'preflight'); await p.stop();
+  assert.equal(await done, 'stopped'); assert.equal(children.length, 1);
+});
+test('preflight timeout kills its process and blocks all subsequent stages', async () => {
+  const children = [], killed = [];
+  const prepared = { ...fakePrepared, stages: [{ phase: 'preflight', args: [], timeout: 5 }, ...fakePrepared.stages] };
+  const p = B.pipeline(prepared, { spawnProcess: fakeSpawn([], children), kill: proc => { killed.push(proc.pid); proc.emit('close', null); } });
+  assert.equal(await p.start(), 'failed'); assert.equal(children.length, 1); assert.deepEqual(killed, [1]);
 });
