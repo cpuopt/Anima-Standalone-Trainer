@@ -217,7 +217,8 @@ function pipeline(prepared, { onLog = () => {}, onPhase = () => {}, onDone = () 
         job.phase = stage.phase; onPhase(stage.phase); onLog(`\n[Krea 2] ${stage.phase}\n`);
         await new Promise((resolve, reject) => {
           const proc = spawnProcess(prepared.rt.python, stage.args, { cwd: prepared.rt.cwd,
-            env: processEnv(prepared.gpuIds), windowsHide: true, shell: false });
+            env: processEnv(prepared.gpuIds), windowsHide: true, shell: false,
+            detached: process.platform !== 'win32' });
           job.process = proc; job.pid = proc.pid;
           let timer, timedOut = false;
           const failure = message => Error(`${stage.errorPrefix ? stage.errorPrefix + '\n' : ''}${message}`);

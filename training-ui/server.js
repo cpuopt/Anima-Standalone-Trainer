@@ -890,48 +890,7 @@ for (const sig of ['exit', 'SIGINT', 'SIGTERM']) {
 }
 
 // Cross-platform process killer.
-function killProcess(pid, gracefulMs = 8000) {
-    return new Promise((resolve) => {
-        if (process.platform === 'win32') {
-            // taskkill /T kills the entire process tree on Windows.
-            const k = spawn('taskkill', ['/PID', pid.toString(), '/F', '/T']);
-            k.on('close', () => resolve());
-            k.on('error', () => resolve());
-            return;
-        }
-
-        // Linux/Mac: kill the entire process group
-        const groupKill = (sig) => {
-            try { process.kill(-pid, sig); } catch (_) {
-                try { process.kill(pid, sig); } catch (__) {}
-            }
-        };
-
-        if (gracefulMs <= 0) {
-            groupKill('SIGKILL');
-            resolve();
-            return;
-        }
-
-        // SIGTERM -> give the training script a chance to flush the last checkpoint
-        groupKill('SIGTERM');
-
-        const timer = setTimeout(() => {
-            groupKill('SIGKILL');
-            resolve();
-        }, gracefulMs);
-
-        const poll = setInterval(() => {
-            try {
-                process.kill(pid, 0); // throws if pid is gone
-            } catch (_) {
-                clearInterval(poll);
-                clearTimeout(timer);
-                resolve();
-            }
-        }, 200);
-    });
-}
+const { killProcess } = require('./lib/process-killer');
 
 // --- Cross-platform venv/spawn helpers ---
 

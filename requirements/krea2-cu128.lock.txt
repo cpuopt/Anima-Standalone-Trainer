@@ -29,6 +29,8 @@ diffusers==0.40.0
     # via -r requirements/krea2-cu128.in
 easydict==1.13
     # via -r requirements/krea2-cu128.in
+editables==0.5
+    # via -r requirements/krea2-cu128.in
 einops==0.7.0
     # via -r requirements/krea2-cu128.in
 filelock==4.0.12

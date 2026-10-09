@@ -93,6 +93,18 @@ Anima sampler/scheduler/strength prompt 标记不适用于此后端。
 
 ## 验证范围
 
+旧版本安装器若在 Musubi editable 安装阶段报 `No module named 'editables'`，
+原因是构建依赖遗漏。更新后的四套锁文件已包含 `editables==0.5`，更新后重新运行
+安装器即可。尚未更新时，可在项目根目录执行以下命令完成已同步环境的安装：
+
+```bash
+./venv-krea2/bin/python -m pip install editables==0.5
+./venv-krea2/bin/python -m pip install --no-deps --no-build-isolation -e ./vendor/musubi-tuner
+./venv-krea2/bin/python -c 'from transformers import Qwen3VLModel; import musubi_tuner.krea2_train_network; import torch; print("CUDA available:", torch.cuda.is_available())'
+```
+
+旧版安装器的依赖同步会移除锁文件未列出的包，所以手动修复后不要重新运行旧版安装器。
+
 `cd training-ui && npm test` 运行 Anima 回归及 Krea 2 参数、缓存、启动快照、
 生成和各阶段停止/失败测试。依赖锁已通过 uv 解析；UI 验证覆盖创建任务、参数保存、
 模型切换和生成面板。未配置真实模型时，不代表缓存、训练和生成的 GPU 实测已经通过。
