@@ -93,6 +93,21 @@ Anima sampler/scheduler/strength prompt 标记不适用于此后端。
 
 ## 验证范围
 
+Krea 2 每次启动训练时自动启用 Musubi `log_config`，将过滤后的启动参数和
+TensorBoard 指标写入 `training-ui/jobs/<job>/output/tensorboard/` 下的运行目录。
+UI 的 TensorBoard 按钮读取同一目录；尚未重新训练的旧任务仍可读取原来的 `logs/`。
+TensorBoard iframe 和新窗口通过 WebUI 同域的 `/tensorboard/…/` 路径访问，
+由 WebUI 服务代理到本机 TensorBoard；云端仅需开放 WebUI 端口。
+Anima 和 Krea 2 均适用，TensorBoard 内部端口仅监听 `127.0.0.1`。
+控制台文本日志继续保存在 job 的 `logs/`。此功能在下一次训练启动后生效，
+不会补写已经运行中的训练参数，也不会展开 `dataset_config` 指向的完整数据集配置。
+
+TensorBoard 2.20 仍依赖 `pkg_resources`，而 setuptools 82 起已移除此模块。
+依赖文件固定 `setuptools==80.9.0`，安装器也检查 TensorBoard 启动模块。
+旧环境若报 `No module named 'pkg_resources'`，可执行
+`./venv-krea2/bin/python -m pip install setuptools==80.9.0` 后重新打开 UI 的 TensorBoard。
+此修复不需要重建环境或重新启动正在运行的训练。
+
 旧版本安装器若在 Musubi editable 安装阶段报 `No module named 'editables'`，
 原因是构建依赖遗漏。更新后的四套锁文件已包含 `editables==0.5`，更新后重新运行
 安装器即可。尚未更新时，可在项目根目录执行以下命令完成已同步环境的安装：

@@ -103,6 +103,10 @@ test('three-stage launch uses isolated module names, snapshots and correct CLI f
   assert.deepEqual(prepared.stages.map(x=>x.phase), ['cache_latents','cache_text','training']);
   const merged = TOML.parse(fs.readFileSync(path.join(f.root,'_krea2_config.toml'),'utf8'));
   assert.equal(merged.network_module,K.MODULE); assert.ok(merged.resume.endsWith('saved-state'));
+  assert.equal(merged.log_config, true);
+  assert.equal(merged.logging_dir, path.join(f.root, 'output', 'tensorboard'));
+  assert.equal(merged.logging_dir, B.tensorboardLogDir(f.root));
+  assert.ok(fs.statSync(merged.logging_dir).isDirectory());
   assert.ok(!('text_encoder_lr' in merged)); assert.ok(!('auto_resume_last_state' in merged));
   fs.writeFileSync(path.join(f.root,'sample_prompts.txt'),'changed');
   const prompts = JSON.parse(fs.readFileSync(merged.sample_prompts,'utf8'));

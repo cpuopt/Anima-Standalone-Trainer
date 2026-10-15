@@ -30,6 +30,7 @@ def main():
                     '-e', str(ROOT / 'vendor' / 'musubi-tuner')], check=True)
     subprocess.run([str(python), '-c',
                     'from transformers import Qwen3VLModel; import musubi_tuner.krea2_train_network; '
+                    'import tensorboard.default; '
                     'import torch; print("CUDA available:", torch.cuda.is_available())'], check=True)
     print(f'Installed. Set Krea 2 Python Environment in Global Settings to: {target}')
 

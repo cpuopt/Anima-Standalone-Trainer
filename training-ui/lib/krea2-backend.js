@@ -10,6 +10,10 @@ const ROOT = path.resolve(__dirname, '../..');
 const VENDOR = path.join(ROOT, 'vendor/musubi-tuner');
 const MODEL_PATHS = { dit: 'krea2_raw_path', turbo: 'krea2_turbo_path', text_encoder: 'krea2_text_encoder_path', vae: 'krea2_vae_path' };
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp']);
+
+function tensorboardLogDir(jobPath) {
+  return path.join(jobPath, 'output', 'tensorboard');
+}
 const UNSUPPORTED_IMAGE_EXTENSIONS = new Set(['.avif', '.jxl']);
 
 function runtime(global, nativePath = x => x) {
@@ -101,7 +105,7 @@ function prepareTraining(config, dataset, jobPath, global, nativePath = x => x, 
     timestep_sampling: k.timestep_sampling, weighting_scheme: k.weighting_scheme,
     discrete_flow_shift: k.discrete_flow_shift ?? 2.5,
     dit: rt.models.dit, vae: rt.models.vae, dataset_config: datasetPath,
-    output_dir: path.join(jobPath, 'output'), logging_dir: path.join(jobPath, 'logs'),
+    output_dir: path.join(jobPath, 'output'), logging_dir: tensorboardLogDir(jobPath), log_config: true,
     save_state: true, save_state_on_train_end: true, save_last_n_epochs_state: 1, save_last_n_steps_state: 1 };
   delete merged.auto_resume_last_state;
   if (n.network_weights) merged.network_weights = nativePath(n.network_weights);
@@ -125,6 +129,7 @@ function prepareTraining(config, dataset, jobPath, global, nativePath = x => x, 
     merged.sample_prompts = snapshot; merged.text_encoder = rt.models.text_encoder;
   }
   const configFile = path.join(jobPath, '_krea2_config.toml');
+  fs.mkdirSync(merged.logging_dir, { recursive: true });
   fs.writeFileSync(configFile, TOML.stringify(merged), 'utf8');
   const stages = [
     ...(options.skipPreflight ? [] : [preflightStage(config)]),
@@ -245,4 +250,4 @@ function pipeline(prepared, { onLog = () => {}, onPhase = () => {}, onDone = () 
   };
   return job;
 }
-module.exports = { REVISION, VENDOR, runtime, status, prepareDataset, prepareTraining, prepareGeneration, validatePrompts, pipeline };
+module.exports = { REVISION, VENDOR, runtime, status, tensorboardLogDir, prepareDataset, prepareTraining, prepareGeneration, validatePrompts, pipeline };

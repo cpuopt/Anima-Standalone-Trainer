@@ -95,6 +95,8 @@ To start the training server and open the web interface:
 ```
 Once launched, open your browser to: `http://localhost:3000`
 
+TensorBoard is embedded through the Web UI's same-origin `/tensorboard/…/` proxy. On cloud hosts, use the Web UI's domain and expose only its port; TensorBoard's internal port does not need to be published. This applies to both Anima and Krea 2 jobs.
+
 ## Training Log Language
 
 Training logs default to Simplified Chinese. In the Web UI, open **Global Settings → Application → Training Log Language** to select:

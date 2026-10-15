@@ -9,6 +9,7 @@ const {readAnimaLayers, validateLayerArgs} = require('./lib/anima-layers');
 const TOML = require('@iarna/toml');
 const Krea2 = require('./public/js/krea2');
 const kreaBackend = require('./lib/krea2-backend');
+const { tensorboardPath, tensorboardProxy, waitForTensorboard } = require('./lib/tensorboard-proxy');
 const net = require('net');
 const http = require('http');
 const WebSocket = require('ws');
@@ -71,6 +72,7 @@ function buildModelArgs(arch, globalConfig) {
 }
 
 // Middleware
+app.use('/tensorboard/:jobKey', tensorboardProxy(name => tbProcesses.get(name)));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/anima-layers', (req, res) => {
@@ -1765,15 +1767,24 @@ app.get('/api/jobs/:name/train/status', (req, res) => {
 const tbProcesses = new Map(); // jobName -> { process, port }
 let nextTbPort = 6006;
 
-app.post('/api/jobs/:name/tensorboard', (req, res) => {
+app.post('/api/jobs/:name/tensorboard', async (req, res) => {
     try {
         const jobName = sanitizeName(req.params.name);
         const jobPath = getJobPath(jobName);
-        const logsDir = path.join(jobPath, 'logs');
+        const config = TOML.parse(fs.readFileSync(path.join(jobPath, 'config.toml'), 'utf8'));
+        const isKrea = getArchForJob(config).id === 'krea2';
+        const kreaLogs = kreaBackend.tensorboardLogDir(jobPath);
+        // Older Krea jobs used logs/; keep them readable until the next launch.
+        const logsDir = isKrea && fs.existsSync(kreaLogs) ? kreaLogs : path.join(jobPath, 'logs');
 
         if (tbProcesses.has(jobName)) {
             const tb = tbProcesses.get(jobName);
-            return res.json({ success: true, port: tb.port, url: `http://localhost:${tb.port}` });
+            if (!isKrea || tb.logdir === logsDir) {
+                await tb.startup;
+                return res.json({ success: true, url: tensorboardPath(jobName) + '/' });
+            }
+            await killProcess(tb.pid, 0);
+            if (tbProcesses.get(jobName) === tb) tbProcesses.delete(jobName);
         }
 
         if (!fs.existsSync(logsDir)) {
@@ -1785,13 +1796,12 @@ app.post('/api/jobs/:name/tensorboard', (req, res) => {
         const venvPath = toNativePath(globalConfig.venv_path || path.join(ROOT_DIR, 'venv'));
         const venv = getVenvPaths(venvPath);
 
-        const config = TOML.parse(fs.readFileSync(path.join(jobPath, 'config.toml'), 'utf8'));
-        const isKrea = getArchForJob(config).id === 'krea2';
         const port = nextTbPort++;
+        const prefix = tensorboardPath(jobName);
 
-        const tbCmd = `python -m tensorboard.main --logdir="${logsDir}" --port=${port} --host=0.0.0.0`;
+        const tbCmd = `python -m tensorboard.main --logdir="${logsDir}" --port=${port} --host=127.0.0.1 --path_prefix=${prefix}`;
         const tbScript = buildShellScript(venv.activate, '', tbCmd);
-        const proc = isKrea ? spawn(kreaBackend.runtime(globalConfig, toNativePath).python, ['-m', 'tensorboard.main', '--logdir', logsDir, '--port', String(port), '--host', '127.0.0.1'], { windowsHide: true }) : spawnShell(tbScript, ROOT_DIR);
+        const proc = isKrea ? spawn(kreaBackend.runtime(globalConfig, toNativePath).python, ['-m', 'tensorboard.main', '--logdir', logsDir, '--port', String(port), '--host', '127.0.0.1', '--path_prefix', prefix], { windowsHide: true, detached: !isWindows }) : spawnShell(tbScript, ROOT_DIR);
 
         proc.stderr.on('data', (data) => {
             const text = data.toString();
@@ -1800,12 +1810,21 @@ app.post('/api/jobs/:name/tensorboard', (req, res) => {
 
         proc.on('close', (code) => {
             console.log(`[TensorBoard/${jobName}] Exited with code ${code}`);
-            tbProcesses.delete(jobName);
+            if (tbProcesses.get(jobName)?.process === proc) tbProcesses.delete(jobName);
         });
 
-        tbProcesses.set(jobName, { process: proc, port, pid: proc.pid });
-
-        res.json({ success: true, port, url: `http://localhost:${port}` });
+        const tb = { process: proc, port, pid: proc.pid, logdir: logsDir, ready: false };
+        tbProcesses.set(jobName, tb);
+        tb.startup = waitForTensorboard(port, prefix, proc);
+        try {
+            await tb.startup;
+            tb.ready = true;
+        } catch (error) {
+            await killProcess(proc.pid, 0);
+            if (tbProcesses.get(jobName) === tb) tbProcesses.delete(jobName);
+            throw error;
+        }
+        res.json({ success: true, url: prefix + '/' });
 
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1818,7 +1837,7 @@ app.get('/api/jobs/:name/tensorboard/status', (req, res) => {
         const jobName = sanitizeName(req.params.name);
         const tb = tbProcesses.get(jobName);
         if (tb) {
-            res.json({ running: true, port: tb.port, url: `http://localhost:${tb.port}` });
+            res.json({ running: tb.ready, starting: !tb.ready, url: tensorboardPath(jobName) + '/' });
         } else {
             res.json({ running: false });
         }

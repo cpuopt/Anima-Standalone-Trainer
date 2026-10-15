@@ -2675,20 +2675,20 @@ async function checkTensorBoard() {
   updateTbState(status.running, status.url);
 }
 function updateTbState(running, url) {
+  running = !!(running && url);
+  const resolvedUrl = running ? new URL(url, window.location.href).href : null;
   $("btn-tb-launch").classList.toggle("hidden", running);
   $("btn-tb-stop").classList.toggle("hidden", !running);
   $("btn-tb-open").classList.toggle("hidden", !running);
-  $("tb-status").textContent = running
-    ? `Running on port ${new URL(url).port}`
-    : "Not running";
+  $("tb-status").textContent = running ? "Running" : "Not running";
   $("tb-status").style.color = running ? "var(--success)" : "var(--text-muted)";
   if (running && url) {
-    tbUrl = url;
+    tbUrl = resolvedUrl;
     $("tb-placeholder").classList.add("hidden");
     $("tb-iframe").classList.remove("hidden");
     // Only set src if it changed
-    if ($("tb-iframe").src !== url) {
-      $("tb-iframe").src = url;
+    if ($("tb-iframe").src !== resolvedUrl) {
+      $("tb-iframe").src = resolvedUrl;
     }
   } else {
     tbUrl = null;
@@ -2710,13 +2710,11 @@ async function launchTensorBoard() {
     $("btn-tb-launch").textContent = "\uD83D\uDE80 Launch";
     return;
   }
-  // Give TensorBoard a moment to start
-  setTimeout(() => {
-    updateTbState(true, result.url);
-    $("btn-tb-launch").disabled = false;
-    $("btn-tb-launch").textContent = "\uD83D\uDE80 Launch";
-    showToast("TensorBoard launched");
-  }, 2000);
+  // The server waits for TensorBoard to become ready before returning its URL.
+  updateTbState(true, result.url);
+  $("btn-tb-launch").disabled = false;
+  $("btn-tb-launch").textContent = "\uD83D\uDE80 Launch";
+  showToast("TensorBoard launched");
 }
 async function stopTensorBoard() {
   if (!currentJob) return;

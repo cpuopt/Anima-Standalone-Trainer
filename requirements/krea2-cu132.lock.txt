@@ -193,7 +193,7 @@ safetensors==0.8.0
     #   transformers
 sentencepiece==0.2.1
     # via -r requirements/krea2-cu132.in
-setuptools==81.0.0
+setuptools==80.9.0
     # via
     #   tensorboard
     #   torch
