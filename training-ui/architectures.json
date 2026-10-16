@@ -109,7 +109,8 @@
       "display_name": "Krea 2",
       "backend": "musubi",
       "network_modules": [
-        "musubi_tuner.networks.lora_krea2"
+        "musubi_tuner.networks.lora_krea2",
+        "musubi_tuner.networks.lokr"
       ],
       "scripts": {
         "train_network": "vendor/musubi-tuner/src/musubi_tuner/krea2_train_network.py",
@@ -142,7 +143,8 @@
       "capabilities": {
         "single_gpu": true,
         "adapter_types": [
-          "lora"
+          "lora",
+          "lokr"
         ],
         "training_sample_base": "raw",
         "hidden_fields": [

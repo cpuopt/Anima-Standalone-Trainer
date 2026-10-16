@@ -328,7 +328,7 @@
 
                         <div id="krea2-settings" class="hidden">
                             <h4>Krea 2</h4>
-                            <div id="krea2-notice" class="form-group">Train on RAW; training previews use RAW. Validate saved LoRAs on Turbo in the Prompts tab. Latents and text embeddings are cached automatically.</div>
+                            <div id="krea2-notice" class="form-group">Train LoRA / LoKR on RAW; training previews use RAW. Validate saved adapters on RAW or Turbo in the Prompts tab. Latents and text embeddings are cached automatically.</div>
                             <div class="form-group"><label><input id="krea2-fp8" type="checkbox" checked> Dynamic Scaled FP8</label><small>Use original bf16 model files. Recommended for 16GB GPUs.</small></div>
                             <div class="form-row">
                                 <div class="form-group"><label>Attention</label><select id="krea2-attention"><option value="sdpa">SDPA</option><option value="flash">FlashAttention (requires installation)</option><option value="xformers">xformers (requires installation)</option></select></div>
@@ -338,7 +338,11 @@
                             <div class="form-row">
                                 <div class="form-group"><label>Rank Dropout</label><input id="krea2-rank-dropout" type="number" value="0" min="0" max="0.999" step="0.05"></div>
                                 <div class="form-group"><label>Module Dropout</label><input id="krea2-module-dropout" type="number" value="0" min="0" max="0.999" step="0.05"></div>
-                                <div class="form-group"><label>LoRA+ LR Ratio</label><input id="krea2-loraplus" type="number" min="0.01" placeholder="disabled"></div>
+                                <div class="form-group" id="krea2-loraplus-group"><label>LoRA+ LR Ratio</label><input id="krea2-loraplus" type="number" min="0.01" placeholder="disabled"></div>
+                            </div>
+                            <div id="krea2-lokr-options" class="hidden">
+                                <div class="form-group"><label>LoKR Factor</label><input id="krea2-lokr-factor" type="number" step="1" min="-1" placeholder="auto (-1)"><small>-1 = balanced automatic split; otherwise a positive integer.</small></div>
+                                <div class="form-group"><label><input id="krea2-lokr-full-matrix" type="checkbox"> LoKR Full Matrix</label><small>Use full Kronecker factors for every target layer. Rank and alpha scaling are ignored; saved shapes determine the restored network.</small></div>
                             </div>
                         </div>
                     </div>
@@ -445,7 +449,7 @@
                         </div>
 
                         <div id="lora-config-section">
-                            <h4>LoRA Configuration</h4>
+                            <h4>Adapter Configuration</h4>
                             <div class="form-group">
                                 <label>Network Module</label>
                                 <select id="cfg-network-module">
@@ -542,9 +546,9 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label>Network Weights (LoRA checkpoint)</label>
+                                <label>Network Weights (Adapter checkpoint)</label>
                                 <input type="text" id="cfg-network-weights" placeholder="C:\path\to\lora.safetensors">
-                                <small>Initialize from an existing LoRA. Often used for fine-tuning the lora. Usually not needed.</small>
+                                <small>Initialize from an existing checkpoint of the selected adapter type. Use Resume below to restore the full training state.</small>
                             </div>
                         </div>
 

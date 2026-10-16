@@ -2,7 +2,12 @@
   "repository": "https://github.com/kohya-ss/musubi-tuner",
   "revision": "f8a1b03794a49239a3539015075f5123d6c07d66",
   "version": "0.3.6",
-  "local_modifications": false,
+  "local_modifications": true,
+  "local_patches": [
+    "Krea2 all-Linear architecture detection for LoKR",
+    "LoKR full-matrix creation, mixed-dtype previews, dropout and checkpoint reconstruction",
+    "Pass neuron dropout when initializing a network from saved weights"
+  ],
   "license": "Apache-2.0 for general code; model components carry their upstream licenses (see musubi-tuner/README.md#license)",
-  "purpose": "Krea 2 native LoRA cache, training and generation backend"
+  "purpose": "Krea 2 LoRA and LoKR cache, training and generation backend"
 }

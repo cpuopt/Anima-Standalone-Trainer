@@ -32,7 +32,7 @@ test('new Krea 2 config and dataset round-trip, legacy architecture detection is
 });
 for (const [label, mutate] of [
   ['DoRA', c => c.network_arguments.network_args = ['use_dora=true']],
-  ['LoKr', c => c.network_arguments.network_module = 'networks.lokr'],
+  ['Anima LoKr module path', c => c.network_arguments.network_module = 'networks.lokr'],
   ['Anima block ranks', c => c.network_arguments.network_args = ['layer_configs={}']],
   ['dropout 1', c => c.network_arguments.network_args = ['rank_dropout=1']],
   ['duplicate argument', c => c.network_arguments.network_args = ['rank_dropout=0.1','rank_dropout=0.2']],
@@ -51,6 +51,41 @@ for (const [label, mutate] of [
 test('native dropout and LoRA+ arguments survive config round-trip', () => {
   const c = K.defaults(); c.network_arguments.network_args = ['rank_dropout=0.1','module_dropout=0.1','loraplus_lr_ratio=16', "include_patterns=['.*attn.*']"];
   assert.deepEqual(K.validate(TOML.parse(TOML.stringify(c))).network_arguments.network_args, c.network_arguments.network_args);
+});
+test('LoKR TOML round-trip accepts factor/full matrix and rejects unsupported or invalid options', () => {
+  const config = K.defaults(); config.network_arguments.network_module = K.LOKR_MODULE;
+  config.network_arguments.network_args = ['factor=8','full_matrix=true','rank_dropout=0.1','module_dropout=0.2'];
+  assert.deepEqual(K.validate(TOML.parse(TOML.stringify(config))), config);
+  for (const arg of ['factor=0','factor=-2','factor=2.5','factor=1e2','factor=9007199254740992','full_matrix=yes','loraplus_lr_ratio=16','use_dora=true','mod_dim=4','rank_dropout=1']) {
+    const invalid = structuredClone(config); invalid.network_arguments.network_args = [arg];
+    assert.throws(() => K.validate(invalid), undefined, arg);
+  }
+});
+test('LoKR training snapshots select LoKR, infer saved shapes and preserve state/sample paths', t => {
+  const f = fixture(t), config = K.defaults(); config.network_arguments.network_module = K.LOKR_MODULE;
+  config.network_arguments.network_args = ['factor=4','full_matrix=true'];
+  config.training_arguments.sample_every_n_steps = 2;
+  const weights = path.join(f.root, 'lokr.safetensors'); fs.writeFileSync(weights, 'weights');
+  config.network_arguments.network_weights = weights;
+  config.network_arguments.auto_resume_last_state = true;
+  fs.mkdirSync(path.join(f.root, 'output', 'last-state'), { recursive: true });
+  B.prepareTraining(config, f.dataset, f.root, f.global, x => x, { skipPreflight: true });
+  const merged = TOML.parse(fs.readFileSync(path.join(f.root, '_krea2_config.toml'), 'utf8'));
+  assert.equal(merged.network_module, K.LOKR_MODULE); assert.equal(merged.dim_from_weights, true);
+  assert.deepEqual(merged.network_args, config.network_arguments.network_args);
+  assert.equal(merged.save_state, true); assert.equal(merged.save_state_on_train_end, true);
+  assert.ok(merged.resume.endsWith('last-state')); assert.ok(fs.existsSync(merged.sample_prompts));
+});
+for (const base of ['raw', 'turbo']) test(`saved LoKR independent ${base} sampling uses the common adapter loader`, t => {
+  const f = fixture(t), config = K.defaults(); config.network_arguments.network_module = K.LOKR_MODULE;
+  const weights = path.join(f.root, 'lokr.safetensors'); fs.writeFileSync(weights, 'weights');
+  fs.writeFileSync(path.join(f.root, 'sample_prompts.txt'), 'fox --s 8 --l 1 --d 0');
+  const { stages } = B.prepareGeneration(config, f.root, f.global, { krea2_base: base, network_weights: weights, network_mul: 0.5 }, x => x, { skipPreflight: true });
+  const args = stages[0].args, value = flag => args[args.indexOf(flag) + 1];
+  assert.equal(value('--lora_weight'), weights); assert.equal(value('--lora_multiplier'), '0.5');
+  assert.equal(value('--dit'), base === 'raw' ? f.models.dit : f.models.turbo);
+  assert.equal(value('--guidance_scale'), base === 'raw' ? '3.5' : '1');
+  assert.equal(args.includes('--mu'), base === 'turbo');
 });
 test('datasets reject Anima-only features and invalid dimensions', () => {
   for (const change of [d => d.datasets[0].subsets[0].epoch_sample_rate = 0.5,

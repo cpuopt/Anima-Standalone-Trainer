@@ -81,6 +81,7 @@ class LoKrModule(torch.nn.Module):
         rank_dropout=None,
         module_dropout=None,
         factor=-1,
+        full_matrix=False,
         **kwargs,
     ):
         super().__init__()
@@ -108,7 +109,7 @@ class LoKrModule(torch.nn.Module):
             # Factorize dimensions
             in_m, in_n = factorization(in_dim, factor)
             out_l, out_k = factorization(out_dim, factor)
-            use_w2 = lora_dim >= max(out_k, in_n) / 2
+            use_w2 = full_matrix or lora_dim >= max(out_k, in_n) / 2
 
         self.use_w2 = use_w2
 
@@ -121,7 +122,7 @@ class LoKrModule(torch.nn.Module):
             self.lokr_w2_b = nn.Parameter(torch.empty(lora_dim, in_n))
         else:
             self.lokr_w2 = nn.Parameter(torch.empty(out_k, in_n))
-            if hint is None:
+            if hint is None and not full_matrix:
                 logger.warning(
                     f"LoKr: lora_dim {lora_dim} is large for dim={max(in_dim, out_dim)} "
                     f"and factor={factor}, using full matrix mode."
@@ -179,6 +180,11 @@ class LoKrModule(torch.nn.Module):
                 return org_forwarded
 
         diff_weight = self.get_diff_weight()
+        # Match the adapter dtype outside autocast (training previews use no_grad).
+        if x.dtype != diff_weight.dtype and not torch.is_autocast_enabled(x.device.type):
+            x = x.to(diff_weight.dtype)
+        if self.dropout and self.training:
+            x = F.dropout(x, p=self.dropout)
 
         # rank dropout
         if self.rank_dropout is not None and self.training:
@@ -189,7 +195,7 @@ class LoKrModule(torch.nn.Module):
         else:
             scale = 1.0
 
-        return org_forwarded + F.linear(x, diff_weight) * self.multiplier * scale
+        return (org_forwarded + F.linear(x, diff_weight) * self.multiplier * scale).to(org_forwarded.dtype)
 
 
 class LoKrInfModule(LoKrModule):
@@ -262,7 +268,10 @@ class LoKrInfModule(LoKrModule):
 
     def default_forward(self, x):
         diff_weight = self.get_diff_weight()
-        return self.org_forward(x) + F.linear(x, diff_weight) * self.multiplier
+        base = self.org_forward(x)
+        if x.dtype != diff_weight.dtype and not torch.is_autocast_enabled(x.device.type):
+            x = x.to(diff_weight.dtype)
+        return (base + F.linear(x, diff_weight) * self.multiplier).to(base.dtype)
 
     def forward(self, x):
         if not self.enabled:
@@ -295,6 +304,12 @@ def create_arch_network(
     # extract factor from kwargs
     factor = kwargs.pop("factor", -1)
     factor = int(factor)
+    full_matrix_arg = str(kwargs.pop("full_matrix", "false")).lower()
+    if full_matrix_arg not in ("true", "false"):
+        raise ValueError("LoKR full_matrix must be true or false")
+    full_matrix = full_matrix_arg == "true"
+    if factor != -1 and factor < 1:
+        raise ValueError("LoKR factor must be -1 or a positive integer")
 
     return lora_module.create_network(
         target_replace_modules,
@@ -307,7 +322,7 @@ def create_arch_network(
         unet,
         neuron_dropout=neuron_dropout,
         module_class=LoKrModule,
-        module_kwargs={"factor": factor},
+        module_kwargs={"factor": factor, "full_matrix": full_matrix},
         **kwargs,
     )
 
@@ -347,6 +362,8 @@ def create_network_from_weights(
             lokr_shapes.setdefault(lora_name, {})["use_w2"] = True
 
     # fallback only; every module above should already have a shape hint
+    if not modules_dim:
+        raise ValueError("No LoKR tensors found in checkpoint; select a LoKR checkpoint")
     factor = int(kwargs.pop("factor", -1))
 
     module_class = LoKrInfModule if for_inference else LoKrModule
@@ -362,6 +379,9 @@ def create_network_from_weights(
         modules_alpha=modules_alpha,
         module_class=module_class,
         module_kwargs=module_kwargs,
+        dropout=kwargs.get("neuron_dropout") if not for_inference else None,
+        rank_dropout=float(kwargs["rank_dropout"]) if not for_inference and "rank_dropout" in kwargs else None,
+        module_dropout=float(kwargs["module_dropout"]) if not for_inference and "module_dropout" in kwargs else None,
     )
     return network
 

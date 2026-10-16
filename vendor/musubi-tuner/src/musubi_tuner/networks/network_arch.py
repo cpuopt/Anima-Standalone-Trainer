@@ -15,6 +15,12 @@ def detect_arch_config(unet):
         module_class_names.add(type(module).__name__)
 
     # Order matters for disambiguation
+    if type(unet).__name__ == "SingleStreamDiT" and "SingleStreamBlock" in module_class_names:
+        # Krea 2 trains every Linear, including text fusion and input/output projections.
+        from .lora_krea2 import KREA2_TARGET_REPLACE_MODULES
+
+        return KREA2_TARGET_REPLACE_MODULES, []
+
     if "WanAttentionBlock" in module_class_names:
         from .lora_wan import WAN_TARGET_REPLACE_MODULES
 

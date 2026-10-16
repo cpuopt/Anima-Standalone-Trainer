@@ -4,6 +4,7 @@
   root.Krea2 = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const MODULE = 'musubi_tuner.networks.lora_krea2';
+  const LOKR_MODULE = 'musubi_tuner.networks.lokr';
   const TRAIN_KEYS = ['output_name', 'max_train_epochs', 'max_train_steps', 'save_every_n_epochs', 'save_every_n_steps',
     'sample_every_n_epochs', 'sample_every_n_steps', 'learning_rate', 'optimizer_type', 'optimizer_args',
     'lr_scheduler', 'lr_scheduler_num_cycles', 'lr_scheduler_min_lr_ratio', 'lr_warmup_steps', 'mixed_precision',
@@ -14,6 +15,7 @@
     'network_weights', 'resume', 'auto_resume_last_state'];
   const MODEL_KEYS = ['timestep_sampling', 'discrete_flow_shift', 'weighting_scheme', 'vae_batch_size', 'text_encoder_batch_size'];
   const ARG_KEYS = ['rank_dropout', 'module_dropout', 'loraplus_lr_ratio', 'include_patterns', 'exclude_patterns', 'verbose'];
+  const LOKR_ARG_KEYS = ['rank_dropout', 'module_dropout', 'factor', 'full_matrix', 'include_patterns', 'exclude_patterns', 'verbose'];
   const OPTIMIZERS = ['AdamW', 'AdamW8bit', 'Adafactor'];
   const SCHEDULERS = ['constant', 'linear', 'cosine', 'cosine_with_restarts', 'cosine_with_min_lr', 'polynomial'];
   const TIMESTEPS = ['krea2_shift', 'shift', 'sigmoid', 'uniform', 'sigma'];
@@ -58,7 +60,8 @@
       if (t[key] !== undefined && typeof t[key] !== 'boolean') throw Error(`${key}: expected boolean`);
     }
     if (typeof t.output_name !== 'string' || !t.output_name.trim() || /[\\/]/.test(t.output_name) || /^\.{1,2}$/.test(t.output_name)) throw Error('Invalid output name');
-    if (n.network_module !== MODULE) throw Error('Krea 2 supports native LoRA only');
+    if (![MODULE, LOKR_MODULE].includes(n.network_module)) throw Error('Krea 2 supports native LoRA or LoKR');
+    const lokr = n.network_module === LOKR_MODULE;
     number(n.network_dim, 'rank', 1, 4096, true); number(n.network_alpha, 'alpha', Number.EPSILON);
     if (n.network_dropout !== undefined) number(n.network_dropout, 'network_dropout', 0, 1 - Number.EPSILON);
     if (t.mixed_precision !== 'bf16') throw Error('Krea 2 v1 requires bf16 mixed precision');
@@ -84,11 +87,13 @@
     for (const token of n.network_args || []) {
       if (typeof token !== 'string') throw Error('network_args must contain strings');
       const eq = token.indexOf('='), key = token.slice(0, eq).trim(), value = token.slice(eq + 1).trim();
-      if (eq < 1 || !ARG_KEYS.includes(key)) throw Error(`Unsupported Krea 2 network argument: ${token}`);
+      if (eq < 1 || !(lokr ? LOKR_ARG_KEYS : ARG_KEYS).includes(key)) throw Error(`Unsupported Krea 2 network argument: ${token}`);
       if (seenArgs.has(key)) throw Error(`Duplicate network argument: ${key}`); seenArgs.add(key);
       if (key.endsWith('patterns') && (!value.startsWith('[') || !value.endsWith(']'))) throw Error(`${key} must be a Python/JSON list`);
       if (key.endsWith('dropout')) number(Number(value), key, 0, 1 - Number.EPSILON);
       if (key === 'loraplus_lr_ratio') number(Number(value), key, Number.EPSILON);
+      if (key === 'factor' && (!/^-?\d+$/.test(value) || (Number(value) !== -1 && Number(value) < 1) || !Number.isSafeInteger(Number(value)))) throw Error('factor: expected -1 or a positive integer');
+      if (['full_matrix', 'verbose'].includes(key) && !['true','false'].includes(value.toLowerCase())) throw Error(`${key}: expected true or false`);
     }
     for (const key of ['vae_batch_size', 'text_encoder_batch_size']) number(k[key] ?? 1, key, 1, Infinity, true);
     if (k.discrete_flow_shift !== undefined) number(k.discrete_flow_shift, 'discrete_flow_shift', Number.EPSILON);
@@ -125,6 +130,6 @@
     }
     return dataset;
   }
-  return { MODULE, TRAIN_KEYS, NETWORK_KEYS, MODEL_KEYS, ARG_KEYS, OPTIMIZERS, SCHEDULERS, TIMESTEPS,
+  return { MODULE, LOKR_MODULE, TRAIN_KEYS, NETWORK_KEYS, MODEL_KEYS, ARG_KEYS, LOKR_ARG_KEYS, OPTIMIZERS, SCHEDULERS, TIMESTEPS,
     pick, architecture, defaults, datasetDefaults, validate, validateDataset };
 });

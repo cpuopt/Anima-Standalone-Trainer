@@ -108,7 +108,11 @@ function prepareTraining(config, dataset, jobPath, global, nativePath = x => x, 
     output_dir: path.join(jobPath, 'output'), logging_dir: tensorboardLogDir(jobPath), log_config: true,
     save_state: true, save_state_on_train_end: true, save_last_n_epochs_state: 1, save_last_n_steps_state: 1 };
   delete merged.auto_resume_last_state;
-  if (n.network_weights) merged.network_weights = nativePath(n.network_weights);
+  if (n.network_weights) {
+    merged.network_weights = nativePath(n.network_weights);
+    // LoKR splits and full/low-rank mode are encoded in tensor shapes.
+    if (n.network_module === K.LOKR_MODULE) merged.dim_from_weights = true;
+  }
   if (n.resume) merged.resume = nativePath(n.resume);
   else if (n.auto_resume_last_state) merged.resume = lastState(jobPath);
   if (!merged.resume) delete merged.resume;
@@ -153,7 +157,7 @@ function parsePrompt(line) {
   }
   return { prompt, values };
 }
-function validatePrompts(text) {
+function validatePrompts(text, training = true) {
   const options = new Set(['w', 'h', 's', 'l', 'd', 'n']);
   const lines = text.split(/\r?\n/).filter(l => l.trim() && !l.trimStart().startsWith('#'));
   if (!lines.length) throw Error('At least one prompt is required');
@@ -168,7 +172,7 @@ function validatePrompts(text) {
       if (['w','h'].includes(key) && (!Number.isInteger(v) || v < 256 || v % 16)) throw Error('Prompt resolution must be >=256 and a multiple of 16');
       if (key === 's' && (!Number.isInteger(v) || v < 1 || v > 1000)) throw Error('Prompt steps must be in 1..1000');
       if (key === 'd' && (!Number.isInteger(v) || v < 0)) throw Error('Prompt seed must be a nonnegative integer');
-      if (key === 'l' && v <= 1) throw Error('RAW training previews require CFG > 1');
+      if (key === 'l' && (training ? v <= 1 : v < 1)) throw Error(training ? 'RAW training previews require CFG > 1' : 'CFG must be >= 1');
     }
   }
   return lines;
@@ -180,9 +184,10 @@ function prepareGeneration(config, jobPath, global, request, nativePath = x => x
   checkModels(rt, true, base);
   const ids = String(request.gen_gpu_ids || config.gpu_ids || '0');
   if (!/^\d+$/.test(ids)) throw Error('Krea 2 generation supports one GPU');
-  const prompts = validatePrompts(fs.readFileSync(path.join(jobPath, 'sample_prompts.txt'), 'utf8'));
+  const prompts = validatePrompts(fs.readFileSync(path.join(jobPath, 'sample_prompts.txt'), 'utf8'), false);
   const steps = request.krea2_steps ?? (base === 'turbo' ? 8 : 52), cfg = request.krea2_cfg ?? (base === 'turbo' ? 1 : 3.5);
   if (!Number.isInteger(steps) || steps < 1 || steps > 1000 || !Number.isFinite(cfg) || cfg < 1) throw Error('Invalid generation steps/CFG');
+  if (base === 'raw' && cfg <= 1) throw Error('RAW generation requires CFG > 1');
   // Snapshot only the per-prompt controls; manual steps/CFG override training values.
   const snapshot = path.join(jobPath, '_krea2_generate_prompts.txt');
   fs.writeFileSync(snapshot, prompts.map(line => {

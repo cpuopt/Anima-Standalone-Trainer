@@ -4201,6 +4201,7 @@ document.addEventListener('change', event => {
     updateMultiGPUUI(); updateGenGPULabel(); checkDirty();
   }
   if (target.id === 'cfg-timestep-method') $('cfg-flow-shift').disabled = target.value === 'krea2_shift';
+  if (['cfg-network-module', 'krea2-lokr-full-matrix'].includes(target.id)) KreaUI.updateNetworkControls();
   if (target.id === 'krea2-gen-base') {
     $('krea2-gen-steps').value = target.value === 'turbo' ? 8 : 52;
     $('krea2-gen-cfg').value = target.value === 'turbo' ? 1 : 3.5;

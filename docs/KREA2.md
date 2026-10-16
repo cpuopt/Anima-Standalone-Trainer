@@ -1,8 +1,9 @@
-# Krea 2 LoRA
+# Krea 2 LoRA / LoKR
 
 本项目通过独立的 Musubi Tuner 后端提供 Krea 2 训练。固定源码版本为
 `f8a1b03794a49239a3539015075f5123d6c07d66`（0.3.6），原始源码保存在
-`vendor/musubi-tuner`，版本和许可证说明见 `vendor/MUSUBI_VERSION.json`。
+`vendor/musubi-tuner`，本地增加了 Krea2 LoKR 架构识别、全矩阵及恢复/预览支持；
+版本、补丁清单和许可证说明见 `vendor/MUSUBI_VERSION.json`。
 Musubi 是社区训练工具，Krea 官方推理代码是 [krea-ai/krea-2](https://github.com/krea-ai/krea-2)。
 上游将 Krea 2 支持标为实验性，不能视作已经完成本机训练验证。
 
@@ -46,7 +47,8 @@ FlashAttention、xformers 和 Windows torch.compile 所需的 Triton 不在默�
 | LoRA+、rank dropout、module dropout | 支持；对应 LR ratio 和两个 dropout 控件 |
 | 模块 include/exclude 正则 | 支持；Network Args 中传 `include_patterns=[...]` / `exclude_patterns=[...]` |
 | DoRA / DoKr | 此 Krea 2 模块无对应实现，隐藏并拒绝相关参数 |
-| LoHa / LoKr | 上游虽有共享模块，其架构识别不包含 Krea 2；本项目不开放 |
+| LoKR | 支持；模块 `musubi_tuner.networks.lokr`，含 Factor、Full Matrix、neuron/rank/module dropout |
+| LoHa | UI 不开放 |
 | Anima layer config / 分层 rank / AdaLN 专用参数 | 未移植，隐藏并拒绝 |
 | LLM adapter / embedding / 文本编码器 LoRA | 不开放；仅训练 DiT LoRA |
 | 全量微调、ConvRot / Turbo LoRA | 此接入不开放 |
@@ -61,7 +63,9 @@ FlashAttention、xformers 和 Windows torch.compile 所需的 Triton 不在默�
 
 Network Args 使用空格分隔的 `key=value`；正则列表用 Python 列表语法，例如
 `exclude_patterns=['.*text.*']`。允许的额外参数只有 `loraplus_lr_ratio`、
-`rank_dropout`、`module_dropout`、`include_patterns`、`exclude_patterns`。
+`rank_dropout`、`module_dropout`、`include_patterns`、`exclude_patterns`、`verbose`。
+LoKR 允许 `factor`（-1 自动，或正整数）、`full_matrix=true/false`、两个 dropout、
+include/exclude 及 verbose，不接受 LoRA+、DoKr 或 Anima 专用参数。
 不支持的参数在保存或启动前报错，避免被默默忽略。
 
 ## 训练与生成
@@ -90,6 +94,36 @@ mu 1.15，可加载已保存 LoRA。手动生成步数/CFG 与训练采样分开
 切换优化器时仅使用该优化器对应的额外参数，避免将 Adafactor 参数传入 AdamW/AdamW8bit。
 不启用常驻生成模型，也不在训练进程内切换 RAW/Turbo。
 Anima sampler/scheduler/strength prompt 标记不适用于此后端。
+
+### LoKR 全流程
+
+1. 新建 Krea 2 任务，Network Module 选择 **LoKR (Krea 2)**。所有 DiT Linear 层均为默认目标，
+   包括主干、文本融合和输入/输出投影；RMSNorm 和裸 modulation 参数不训练。
+2. 在 Krea 2 设置中配置 **LoKR Factor**（留空或 -1 为自动分解）和 **LoKR Full Matrix**。
+   分解模式使用 rank/alpha；rank 足够大时，单层也可能自动变为全矩阵。
+   Full Matrix 强制所有层使用完整的两个 Kronecker 因子，rank 不生效，缩放固定为 1。
+3. Train 沿用 RAW 缓存和训练流程。开启 sample 时使用训练中的 LoKR 分支在 RAW 上预览，
+   默认 52 步、CFG 3.5；采样不会把 LoKR 合并进训练底模。
+4. 权重保存为包含 `lokr_w1`、`lokr_w2` 或 `lokr_w2_a/b`、`alpha` 的 safetensors。
+   Network Weights 可用于初始化已保存 LoKR；自动启用 `dim_from_weights`，按每层保存形状恢复
+   factor 分解和全矩阵/低秩模式。恢复优化器、步数等完整状态则使用 Resume 或 Auto Resume Last State；
+   完整状态恢复时保持原任务的模块和网络配置。
+5. 在 Prompts 页选择保存的 LoKR 文件，分别选择 RAW 或 Turbo 运行独立采样。
+   生成器按权重键自动识别 LoKR，在动态 FP8 量化前合并；支持强度 0 和其他有限数值。
+   RAW 使用 CFG>1，Turbo 默认 CFG=1、8 步、mu=1.15。
+
+可直接使用的网络配置片段（其余训练参数沿用新建 Krea2 任务默认值）：
+
+```toml
+[network_arguments]
+network_module = "musubi_tuner.networks.lokr"
+network_dim = 4
+network_alpha = 4
+network_args = ["factor=4", "full_matrix=false", "rank_dropout=0.1", "module_dropout=0.1"]
+```
+
+Krea2 使用独立 Musubi 模块，不能填写 Anima 的 `networks.lokr`。LoKR 控件与 LoRA+
+控件随模块切换，配置保存、重新打开任务和训练启动均保留所选模块及参数。
 
 ## 验证范围
 
@@ -123,3 +157,20 @@ TensorBoard 2.20 仍依赖 `pkg_resources`，而 setuptools 82 起已移除此�
 `cd training-ui && npm test` 运行 Anima 回归及 Krea 2 参数、缓存、启动快照、
 生成和各阶段停止/失败测试。依赖锁已通过 uv 解析；UI 验证覆盖创建任务、参数保存、
 模型切换和生成面板。未配置真实模型时，不代表缓存、训练和生成的 GPU 实测已经通过。
+
+LoKR Python 集成测试在已安装 Krea2 依赖的环境中执行：
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path ./vendor/musubi-tuner/src).Path
+./venv-krea2/Scripts/python.exe -m pytest vendor/musubi-tuner/tests/test_krea2_lokr.py -q
+```
+
+Linux 使用 `PYTHONPATH=vendor/musubi-tuner/src ./venv-krea2/bin/python -m pytest vendor/musubi-tuner/tests/test_krea2_lokr.py -q`。
+测试使用随机初始化的缩小版真实 Krea2 DiT，覆盖训练前零增量、梯度更新、safetensors 重载、
+Accelerate 模型/优化器状态恢复后下一步一致性、RAW/Turbo 调度下在线分支与加载合并采样的一致性，
+以及 bf16 底模/fp32 适配器预览。VAE 在解码边界使用替身；不下载真实模型，也不验证图像质量。
+
+2026-10-16 本机验证：UI/后端 Node 测试 81 项通过；LoKR 集成测试及已有 LoRA dtype 回归
+共 24 项通过，包含生产配置 264 个 Linear 目标层检查和动态 FP8 合并顺序检查。
+Python 测试使用隔离的 Python 3.13 / PyTorch 2.14.1 CPU 环境、Accelerate 1.15.0，
+不等同于安装器锁定的 Python 3.12 / CUDA 环境验证。真实权重缓存、训练和 GPU 出图尚未执行。

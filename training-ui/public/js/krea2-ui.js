@@ -28,8 +28,8 @@ const KreaUI = (() => {
     $('krea2-generation').classList.toggle('hidden', !active);
     $('krea2-notice').classList.toggle('hidden', !active);
     if (active) {
-      options('cfg-network-module', [[Krea2.MODULE, 'LoRA (Krea 2)']]);
-      options('cfg-training-type', [['lora', 'LoRA']]);
+      options('cfg-network-module', [[Krea2.MODULE, 'LoRA (Krea 2)'], [Krea2.LOKR_MODULE, 'LoKR (Krea 2)']]);
+      options('cfg-training-type', [['lora', 'Adapter (LoRA / LoKR)']]);
       options('cfg-optimizer', Krea2.OPTIMIZERS.map(x => [x, x]));
       options('cfg-timestep-method', Krea2.TIMESTEPS.map(x => [x, x]));
       options('cfg-mixed-precision', [['bf16','BFloat16']]);
@@ -65,7 +65,10 @@ const KreaUI = (() => {
     $('krea2-rank-dropout').value = values.rank_dropout || 0;
     $('krea2-module-dropout').value = values.module_dropout || 0;
     $('krea2-loraplus').value = values.loraplus_lr_ratio || '';
-    $('cfg-network-args').value = (config.network_arguments.network_args || []).filter(x => !/^(rank_dropout|module_dropout|loraplus_lr_ratio)=/.test(x)).join(' ');
+    $('krea2-lokr-factor').value = values.factor ?? '';
+    $('krea2-lokr-full-matrix').checked = values.full_matrix?.toLowerCase() === 'true';
+    $('cfg-network-args').value = (config.network_arguments.network_args || []).filter(x => !/^(rank_dropout|module_dropout|loraplus_lr_ratio|factor|full_matrix)=/.test(x)).join(' ');
+    updateNetworkControls();
     const setting = JSON.parse(localStorage.getItem(`krea2_generation_${currentJob}`) || 'null');
     $('krea2-gen-base').value = setting?.base || 'turbo';
     $('krea2-gen-steps').value = setting?.steps ?? 8;
@@ -73,11 +76,25 @@ const KreaUI = (() => {
   }
   function networkArgs() {
     const tokens = LayerRank.tokenize($('cfg-network-args').value.trim());
-    for (const [id, key] of [['krea2-rank-dropout','rank_dropout'],['krea2-module-dropout','module_dropout'],['krea2-loraplus','loraplus_lr_ratio']]) {
+    const lokr = $('cfg-network-module').value === Krea2.LOKR_MODULE;
+    for (const [id, key] of [['krea2-rank-dropout','rank_dropout'],['krea2-module-dropout','module_dropout'], ...(!lokr ? [['krea2-loraplus','loraplus_lr_ratio']] : [])]) {
       const raw = $(id).value.trim();
       if (raw && Number(raw) !== 0) tokens.push(`${key}=${raw}`);
     }
+    if (lokr) {
+      const factor = $('krea2-lokr-factor').value.trim();
+      if (factor) tokens.push(`factor=${factor}`);
+      if ($('krea2-lokr-full-matrix').checked) tokens.push('full_matrix=true');
+    }
     return tokens;
+  }
+  function updateNetworkControls() {
+    const lokr = $('cfg-network-module').value === Krea2.LOKR_MODULE;
+    $('krea2-lokr-options').classList.toggle('hidden', !lokr);
+    $('krea2-loraplus-group').classList.toggle('hidden', lokr);
+    $('cfg-network-dim').disabled = lokr && $('krea2-lokr-full-matrix').checked;
+    $('network-rank-help').textContent = lokr && $('krea2-lokr-full-matrix').checked
+      ? 'Ignored in full matrix mode; alpha scaling is 1.' : 'Higher = more capacity, more VRAM.';
   }
   function config(raw) {
     const t = Krea2.pick(raw.training_arguments, Krea2.TRAIN_KEYS);
@@ -92,7 +109,7 @@ const KreaUI = (() => {
     t.split_attn = $('krea2-split-attn').checked;
     t.fp8_base = t.fp8_scaled = $('krea2-fp8').checked;
     const n = Krea2.pick(raw.network_arguments, Krea2.NETWORK_KEYS);
-    n.network_module = Krea2.MODULE; n.network_args = networkArgs();
+    n.network_module = $('cfg-network-module').value; n.network_args = networkArgs();
     return { architecture: 'krea2', gpu_ids: raw.gpu_ids, training_arguments: t, network_arguments: n,
       krea2_arguments: { timestep_sampling: $('cfg-timestep-method').value,
         discrete_flow_shift: Number($('cfg-flow-shift').value), weighting_scheme: 'none',
@@ -117,5 +134,5 @@ const KreaUI = (() => {
     return { network_weights: payload.network_weights, network_mul: payload.network_mul,
       gen_gpu_ids: payload.gen_gpu_ids, krea2_base: setting.base, krea2_steps: setting.steps, krea2_cfg: setting.cfg };
   }
-  return { beforePopulate, populate, networkArgs, config, dataset, dynamicControls, generation };
+  return { beforePopulate, populate, networkArgs, updateNetworkControls, config, dataset, dynamicControls, generation };
 })();
