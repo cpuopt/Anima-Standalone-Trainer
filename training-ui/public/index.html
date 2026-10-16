@@ -340,10 +340,6 @@
                                 <div class="form-group"><label>Module Dropout</label><input id="krea2-module-dropout" type="number" value="0" min="0" max="0.999" step="0.05"></div>
                                 <div class="form-group" id="krea2-loraplus-group"><label>LoRA+ LR Ratio</label><input id="krea2-loraplus" type="number" min="0.01" placeholder="disabled"></div>
                             </div>
-                            <div id="krea2-lokr-options" class="hidden">
-                                <div class="form-group"><label>LoKR Factor</label><input id="krea2-lokr-factor" type="number" step="1" min="-1" placeholder="auto (-1)"><small>-1 = balanced automatic split; otherwise a positive integer.</small></div>
-                                <div class="form-group"><label><input id="krea2-lokr-full-matrix" type="checkbox"> LoKR Full Matrix</label><small>Use full Kronecker factors for every target layer. Rank and alpha scaling are ignored; saved shapes determine the restored network.</small></div>
-                            </div>
                         </div>
                     </div>
 
@@ -476,6 +472,10 @@
                                     <small>Scaling factor. Usually same as dim.</small>
                                 </div>
                             </div>
+                            <div id="krea2-lokr-options" class="hidden">
+                                <div class="form-group"><label>LoKR Factor</label><input id="krea2-lokr-factor" type="number" step="1" min="-1" placeholder="auto (-1)"><small>-1 = balanced automatic split; otherwise a positive integer.</small></div>
+                                <div class="form-group"><label><input id="krea2-lokr-full-matrix" type="checkbox"> LoKR Full Matrix</label><small>Use full Kronecker factors for every target layer. Rank and alpha scaling are ignored; saved shapes determine the restored network.</small></div>
+                            </div>
                             <div id="layer-rank-panel" class="hidden">
                                 <div class="layer-rank-heading">
                                     <label><input type="radio" name="layer-rank-mode" value="type" checked> 按层类型设置</label>
@@ -545,6 +545,18 @@
                                     </div>
                                 </div>
                             </div>
+                            <details id="adapter-matrix-preview" class="form-group" open>
+                                <summary>样例层矩阵与参数量</summary>
+                                <small id="adapter-matrix-description"></small>
+                                <p id="adapter-matrix-error" role="status"></p>
+                                <div class="adapter-matrix-scroll">
+                                    <table class="adapter-matrix-table">
+                                        <thead><tr><th>样例层</th><th>原始权重 [输出 × 输入]</th><th>实际模式</th><th>适配器矩阵形状</th><th>可训练参数量</th><th>占原始层</th></tr></thead>
+                                        <tbody id="adapter-matrix-rows"></tbody>
+                                    </table>
+                                </div>
+                                <small>仅为单层结构示例，不是整网统计；不计 alpha 缓冲区与底模 bias。Alpha、Dropout 不改变参数量。目标层筛选和已加载权重可能改变实际训练结构。</small>
+                            </details>
                             <div class="form-group">
                                 <label>Network Weights (Adapter checkpoint)</label>
                                 <input type="text" id="cfg-network-weights" placeholder="C:\path\to\lora.safetensors">
@@ -1260,6 +1272,7 @@
     <script src="js/layer-rank-ui.js"></script>
     <script src="js/krea2.js"></script>
     <script src="js/krea2-ui.js"></script>
+    <script src="js/adapter-matrix.js"></script>
     <script src="js/app.js"></script>
 </body>
 

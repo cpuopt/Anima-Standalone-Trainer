@@ -543,6 +543,7 @@ function populateConfig(config) {
   updateDoraOptionUI($("cfg-network-module").value);
   KreaUI.populate(config);
   updateActivationOffloadUI();
+  updateAdapterMatrixPreview();
 }
 function populateDataset(dataset) {
   const g = dataset.general || {};
@@ -1344,7 +1345,33 @@ async function saveJob() {
   );
   return true;
 }
+function updateAdapterMatrixPreview() {
+  const panel = $('adapter-matrix-preview');
+  const supported = currentArchitecture === 'krea2'
+    ? [Krea2.MODULE, Krea2.LOKR_MODULE].includes($('cfg-network-module').value)
+    : currentArchitecture === 'anima' && ['networks.lora_anima', 'networks.loha', 'networks.lokr'].includes($('cfg-network-module').value);
+  panel.classList.toggle('hidden', !supported || $('cfg-training-type').value === 'full_finetune');
+  if (!supported || $('cfg-training-type').value === 'full_finetune') return;
+  const rows = $('adapter-matrix-rows'), error = $('adapter-matrix-error');
+  $('adapter-matrix-description').textContent = currentArchitecture === 'krea2'
+    ? 'Krea2 标准配置样例：主干宽度 6144；按当前 Rank / Factor 计算。'
+    : 'Anima 2B 标准配置样例：主干宽度 2048；按当前设置及 Block 0 的分层覆盖计算，未读取模型实际尺寸。';
+  try {
+    if ($('cfg-network-module').value.endsWith('.lokr')) {
+      const factor = $(currentArchitecture === 'krea2' ? 'krea2-lokr-factor' : 'cfg-lokr-factor').value.trim();
+      if (factor && !/^-?\d+$/.test(factor)) throw Error('Factor 必须为 -1 或正整数');
+    }
+    const results = AdapterMatrix.preview({ architecture: currentArchitecture,
+      networkModule: $('cfg-network-module').value, rank: Number($('cfg-network-dim').value), args: gatherNetworkArgs() });
+    AdapterMatrix.render(document, rows, results);
+    error.textContent = '';
+  } catch (err) {
+    rows.replaceChildren(); error.textContent = `暂无法计算：${err.message}`;
+  }
+}
+
 function checkDirty() {
+  updateAdapterMatrixPreview();
   if (!currentJob) return;
   const currentConfig = gatherConfig();
   const currentDataset = gatherDataset();

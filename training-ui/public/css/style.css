@@ -1,3 +1,12 @@
+.adapter-matrix-scroll { max-width: 100%; overflow-x: auto; }
+.adapter-matrix-table { width: 100%; min-width: 630px; border-collapse: collapse; margin: 12px 0; }
+.adapter-matrix-table th, .adapter-matrix-table td { padding: 8px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+.adapter-matrix-table td { font-variant-numeric: tabular-nums; }
+.adapter-matrix-table td:first-child { overflow-wrap: anywhere; }
+.adapter-matrix-table td:nth-child(4) { white-space: pre-line; }
+#adapter-matrix-error:empty { display: none; }
+#adapter-matrix-error { color: var(--danger); }
+
 /* === Theme: GitHub Dark (Default) === */
 :root,
 [data-theme="github-dark"] {

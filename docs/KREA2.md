@@ -99,7 +99,7 @@ Anima sampler/scheduler/strength prompt 标记不适用于此后端。
 
 1. 新建 Krea 2 任务，Network Module 选择 **LoKR (Krea 2)**。所有 DiT Linear 层均为默认目标，
    包括主干、文本融合和输入/输出投影；RMSNorm 和裸 modulation 参数不训练。
-2. 在 Krea 2 设置中配置 **LoKR Factor**（留空或 -1 为自动分解）和 **LoKR Full Matrix**。
+2. 在 Network 页配置 **LoKR Factor**（留空或 -1 为自动分解）和 **LoKR Full Matrix**。
    分解模式使用 rank/alpha；rank 足够大时，单层也可能自动变为全矩阵。
    Full Matrix 强制所有层使用完整的两个 Kronecker 因子，rank 不生效，缩放固定为 1。
 3. Train 沿用 RAW 缓存和训练流程。开启 sample 时使用训练中的 LoKR 分支在 RAW 上预览，
@@ -124,6 +124,12 @@ network_args = ["factor=4", "full_matrix=false", "rank_dropout=0.1", "module_dro
 
 Krea2 使用独立 Musubi 模块，不能填写 Anima 的 `networks.lokr`。LoKR 控件与 LoRA+
 控件随模块切换，配置保存、重新打开任务和训练启动均保留所选模块及参数。
+
+Network 页的“样例层矩阵与参数量”会随 Rank / Factor / Full Matrix 实时更新，列出注意力方阵、
+K/V 和 MLP 三类样例的矩阵形状、可训练参数量及其占原始层权重的百分比，并区分手动与自动 Full。
+Anima 同样支持此面板，使用明确标注的 Anima 2B 标准样例并应用 Block 0 分层覆盖；
+支持 LoRA、LoHa、LoKR 及 DoRA/DoKr 的幅度参数计数。百分比不计底模 bias 和 alpha 缓冲区，
+也不是整网占比；目标筛选、其他 Anima 模型尺寸及已加载权重的实际结构需另行核对。
 
 ## 验证范围
 

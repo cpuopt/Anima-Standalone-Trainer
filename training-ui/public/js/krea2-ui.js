@@ -27,6 +27,7 @@ const KreaUI = (() => {
     $('krea2-settings').classList.toggle('hidden', !active);
     $('krea2-generation').classList.toggle('hidden', !active);
     $('krea2-notice').classList.toggle('hidden', !active);
+    if (!active) $('krea2-lokr-options').classList.toggle('hidden', true);
     if (active) {
       options('cfg-network-module', [[Krea2.MODULE, 'LoRA (Krea 2)'], [Krea2.LOKR_MODULE, 'LoKR (Krea 2)']]);
       options('cfg-training-type', [['lora', 'Adapter (LoRA / LoKR)']]);
