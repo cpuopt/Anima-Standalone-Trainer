@@ -74,6 +74,7 @@ function buildModelArgs(arch, globalConfig) {
 // Middleware
 app.use('/tensorboard/:jobKey', tensorboardProxy(name => tbProcesses.get(name)));
 app.use(express.json({ limit: '50mb' }));
+require('./lib/frontend').mountFrontend(app);
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/anima-layers', (req, res) => {
     try {

@@ -46,7 +46,7 @@ This fork contains the original repository through commit [`8cc2c08`](https://gi
 ## Prerequisites
 
 - **Python 3.10+** (Python 3.12 recommended)
-- **Node.js** (Required for the Web UI)
+- **Node.js 20.19+ or 22.12+** (Node 24 recommended for the Web UI)
 - **CUDA fitting your system** (CUDA 12.7+ recommended)
 
 ## Installation
@@ -94,6 +94,8 @@ To start the training server and open the web interface:
 ./training-ui/start_linux.sh
 ```
 Once launched, open your browser to: `http://localhost:3000`
+
+The default interface uses Vue 3.5.44, TypeScript, Pinia and shadcn-vue. `npm start` installs locked frontend build dependencies when needed and rebuilds changed sources; production runs on the existing Express port. The previous interface remains available at `/legacy/`. For development, build/test commands and rollback instructions, see [Vue frontend guide](docs/VUE_FRONTEND.md).
 
 TensorBoard is embedded through the Web UI's same-origin `/tensorboard/…/` proxy. On cloud hosts, use the Web UI's domain and expose only its port; TensorBoard's internal port does not need to be published. This applies to both Anima and Krea 2 jobs.
 

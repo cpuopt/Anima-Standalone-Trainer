@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # Navigate to the script's directory
 cd "$(dirname "$0")"
@@ -8,7 +9,7 @@ echo "Starting Anima Training UI..."
 # Check if node_modules exists, if not prompt to install
 if [ ! -d "node_modules" ]; then
     echo "node_modules not found. Installing dependencies..."
-    npm install
+    npm ci
 fi
 
 # Start the application
