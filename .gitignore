@@ -13,6 +13,7 @@ eggs/
 lib/
 lib64/
 !training-ui/lib/
+!training-ui/frontend/src/lib/
 parts/
 sdist/
 var/
