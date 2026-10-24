@@ -260,7 +260,7 @@ async function loadJobs() {
     el.className = `job-item${job.name === currentJob ? " active" : ""}${job.running ? " running" : ""}`;
     el.innerHTML = `
             <div class="status-dot"></div>
-            <span class="job-name">${job.name}</span><small>${job.architecture === "krea2" ? "Krea 2" : job.architecture === "lumina" ? "Lumina" : "Anima"}</small>
+            <span class="job-name">${job.name}</span><small>${job.architecture === "moss_image" ? "MOSS-Image" : job.architecture === "krea2" ? "Krea 2" : job.architecture === "lumina" ? "Lumina" : "Anima"}</small>
         `;
     el.addEventListener("click", () => selectJob(job.name));
     jobListEl.appendChild(el);
@@ -294,7 +294,7 @@ async function selectJob(name) {
     updateRunningState(status.running);
     // Set default negative prompt if no saved value exists for this job
     const savedTransient = localStorage.getItem(`prompt_transient_${name}`);
-    if (currentArchitecture !== "krea2" && (!savedTransient || !JSON.parse(savedTransient).negative_prompt)) {
+    if (!["krea2","moss_image"].includes(currentArchitecture) && (!savedTransient || !JSON.parse(savedTransient).negative_prompt)) {
       $("global-negative-prompt").value = DEFAULT_NEGATIVE_PROMPT;
     }
     // Save initial state for dirty checking
@@ -326,6 +326,8 @@ async function selectJob(name) {
 }
 function updateRunningState(running) {
   isTrainingRunning = running;
+  document.querySelectorAll(".moss-panel").forEach(el => { el.disabled = currentArchitecture === "moss_image" && running; });
+  for (const id of ["cfg-enable-sampling","cfg-sample-every","cfg-sample-every-steps"]) $(id).disabled = currentArchitecture === "moss_image" && running;
   $("btn-run").classList.toggle("hidden", running);
   $("btn-stop").classList.toggle("hidden", !running);
   // Update sidebar dot
@@ -342,7 +344,7 @@ function updateRunningState(running) {
 function populateConfig(config) {
   currentArchitecture = Krea2.architecture(config);
   KreaUI.beforePopulate(config);
-  jobTitle.textContent = `${currentJob} · ${currentArchitecture === 'krea2' ? 'Krea 2' : currentArchitecture === 'lumina' ? 'Lumina' : 'Anima'}`;
+  jobTitle.textContent = `${currentJob} · ${currentArchitecture === 'moss_image' ? 'MOSS-Image' : currentArchitecture === 'krea2' ? 'Krea 2' : currentArchitecture === 'lumina' ? 'Lumina' : 'Anima'}`;
   const t = config.training_arguments || {};
   const n = config.network_arguments || {};
   const a = config.anima_arguments || {};
@@ -542,10 +544,12 @@ function populateConfig(config) {
   updateLycorisExtrasUI($("cfg-network-module").value);
   updateDoraOptionUI($("cfg-network-module").value);
   KreaUI.populate(config);
+  MossUI.populate(config);
   updateActivationOffloadUI();
   updateAdapterMatrixPreview();
 }
 function populateDataset(dataset) {
+  if (currentArchitecture === "moss_image") MossUI.setDataset(dataset);
   const g = dataset.general || {};
   let dArray = [];
   if (Array.isArray(dataset.datasets)) {
@@ -601,7 +605,7 @@ function populateDataset(dataset) {
 }
 
 function updateLbai() {
-  if (currentArchitecture === "krea2") return;
+  if (["krea2","moss_image"].includes(currentArchitecture)) return;
   const meter = $("lbai-meter");
   if (!meter || typeof LBAI === "undefined") return;
   const targets = LBAI.normalizeTargets(lbaiTargets, false);
@@ -775,6 +779,7 @@ function clampFloat(val, min, max, fallback = min) {
   return Math.min(max, Math.max(min, p));
 }
 function gatherConfig() {
+  if (currentArchitecture === "moss_image") return MossUI.config();
   const unit = document.querySelector(
     'input[name="duration-unit"]:checked',
   ).value;
@@ -983,6 +988,7 @@ function gatherConfig() {
   return currentArchitecture === "krea2" ? KreaUI.config(config) : config;
 }
 function gatherDataset() {
+  if (currentArchitecture === "moss_image") return MossUI.datasetValue();
   if (currentArchitecture === "krea2") return KreaUI.dataset();
   const res = safeInt($("cfg-resolution").value);
   return {
@@ -1299,12 +1305,16 @@ async function refreshSubsetImageCount(subset, badge, force = false) {
 // ==========================================
 async function saveJob() {
   if (!currentJob) return false;
-  try { await LayerRankUI.validate(); } catch (error) { showToast(error.message); return false; }
+  try { if (currentArchitecture !== "moss_image") await LayerRankUI.validate(); } catch (error) { showToast(error.message); return false; }
   const samplePromptsChanged =
     JSON.stringify(currentPrompts) !== JSON.stringify(lastSavedPrompts)
     || ($("global-negative-prompt").value || "") !== (lastSavedNegativePrompt || "");
   const config = gatherConfig();
   const dataset = gatherDataset();
+  if (currentArchitecture === "moss_image") {
+    try { Moss.validate(config); Moss.validateDataset(dataset); }
+    catch (error) { showToast(error.message, "danger"); return false; }
+  }
   if (currentArchitecture === "krea2") {
     try { Krea2.validate(config); Krea2.validateDataset(dataset); }
     catch (error) { showToast(error.message, "danger"); return false; }
@@ -1322,7 +1332,7 @@ async function saveJob() {
   }
   try {
     // Save Config & Dataset
-    await api(`/api/jobs/${currentJob}`, {
+    if (!(currentArchitecture === "moss_image" && isTrainingRunning)) await api(`/api/jobs/${currentJob}`, {
       method: "PUT",
       body: { config, dataset },
     });
@@ -1558,6 +1568,7 @@ function activeDedicatedKeys(networkModule) {
 // take precedence over the freeform text box on key collision (the freeform copy
 // is dropped).
 function gatherNetworkArgs() {
+  if (currentArchitecture === "moss_image") return MossUI.networkArgs();
   if (currentArchitecture === "krea2") return KreaUI.networkArgs();
   const active = activeDedicatedKeys($("cfg-network-module").value);
   const dedicated = [];
@@ -1740,19 +1751,21 @@ function parsePromptLine(line) {
   if (strengthMatch) {
     p.strength = clampFloat(strengthMatch[1], 0, 2, 1.0);
   }
+  if (currentArchitecture === "moss_image") p.sourceNegative = line.match(/\s+--n(?:\s+(.*))?$/i)?.[1] ?? "";
   // Extract text (strip out specific params and the negative prompt string)
   p.text = line
-    .replace(/\s+--n\s+.*$/i, "") // Remove global negative prompt and everything after it
+    .replace(/\s+--n(?:\s+.*)?$/i, "") // Remove global negative prompt and everything after it
     .replace(/\s+--(?:ss|sched|ls)\s+\S+/gi, "") // Remove sampler, scheduler, and strength flags
     .replace(/\s+--[whdsl]\s+\S+/gi, "") // Remove regular parameter flags
     .trim();
   return p;
 }
 function serializePrompt(p) {
-  if (currentArchitecture === 'krea2') {
+  if (['krea2','moss_image'].includes(currentArchitecture)) {
     const safeText = p.text.trim().replace(/[\r\n]+/g, ' ');
     let line = `${safeText} --w ${p.w} --h ${p.h} --s ${p.s} --d ${p.d} --l ${p.l}`;
-    const negative = $('global-negative-prompt').value.trim().replace(/[\r\n]+/g, ' ');
+    const globalNegative = $('global-negative-prompt').value;
+    const negative = (currentArchitecture === 'moss_image' && globalNegative === lastSavedNegativePrompt ? p.sourceNegative ?? globalNegative : globalNegative).trim().replace(/[\r\n]+/g, ' ');
     if (negative) line += ` --n ${negative}`;
     return line;
   }
@@ -1886,7 +1899,7 @@ function addPrompt() {
   const scheduler = $("global-scheduler").value || "linear";
   let d = parseInt($("global-d").value);
   // If global seed is 0 or empty, randomize for the new prompt
-  if (!d || d === 0) {
+  if ((!d || d === 0) && currentArchitecture !== "moss_image") {
     d = Math.floor(Math.random() * 99999) + 1;
   }
   currentPrompts.push({ text: "", w, h, s, l, d, sampler, strength, scheduler, skip: false });
@@ -1906,12 +1919,12 @@ function applyGlobalSettings() {
     if (w) p.w = w;
     if (h) p.h = h;
     if (s) p.s = s;
-    if (l) p.l = l;
+    if (l || currentArchitecture === "moss_image" && l === 0) p.l = l;
     p.sampler = sampler;
     p.strength = strength;
     p.scheduler = scheduler;
     // Seed handling: 0 = random for each prompt, non-zero = apply same seed to all
-    if (d === 0) {
+    if (currentArchitecture === "moss_image" && Number.isFinite(d)) { p.d = d; } else if (d === 0) {
       p.d = Math.floor(Math.random() * 99999) + 1; // Random seed 1-99999
     } else if (d) {
       p.d = d;
@@ -2787,6 +2800,11 @@ function buildGlobalSettingsTabs(registry) {
             `;
       pane.appendChild(group);
     }
+    if (archId === 'moss_image') {
+      const env = document.createElement('div'); env.className = 'form-group';
+      env.innerHTML = '<label>MOSS Python Environment</label><input id="cfg-global-moss-venv" type="text" placeholder="Default: project/venv-moss"><small id="moss-environment-status"></small>';
+      pane.appendChild(env);
+    }
     if (archId === 'krea2') {
       const env = document.createElement('div'); env.className = 'form-group';
       env.innerHTML = '<label>Krea 2 Python Environment</label><input id="cfg-global-krea2-venv" type="text" placeholder="Default: project/venv-krea2"><small id="krea2-environment-status"></small>';
@@ -2945,6 +2963,8 @@ async function loadGlobalSettings() {
   }
   $("cfg-global-venv").value = config.venv_path || "";
   $("cfg-global-krea2-venv").value = config.krea2_venv_path || "";
+  $("cfg-global-moss-venv").value = config.moss_venv_path || "";
+  api("/api/backends/moss_image/status").then(s => { $("moss-environment-status").textContent = s.dependencies ? `Dependencies verified; CUDA: ${s.cuda}` : s.error || "Run setup_moss.bat / setup_moss.sh"; }).catch(e => { $("moss-environment-status").textContent = e.message; });
   const backendStatus = await api("/api/backends/krea2/status");
   $("krea2-environment-status").textContent = backendStatus.installed ? "Python environment found. Dependencies and CUDA are checked before training." : "Run setup_krea2.bat (Windows) or setup_krea2.sh (Linux) to install the isolated environment.";
   $("cfg-log-language").value = config.ui?.log_language || "zh_CN";
@@ -3004,6 +3024,7 @@ async function saveGlobalSettings() {
     model_paths,
     venv_path: $("cfg-global-venv").value,
     krea2_venv_path: $("cfg-global-krea2-venv").value,
+    moss_venv_path: $("cfg-global-moss-venv").value,
     ui: {
       ...(existingConfig.ui || {}),
       lbai_targets: lbaiSettings.targets,
@@ -3853,7 +3874,7 @@ $("btn-gen-sample").addEventListener("click", async () => {
   const result = await api(`/api/jobs/${currentJob}/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: currentArchitecture === "krea2" ? KreaUI.generation(payload) : Object.assign(payload, {
+    body: currentArchitecture === "moss_image" ? MossUI.generation(payload) : currentArchitecture === "krea2" ? KreaUI.generation(payload) : Object.assign(payload, {
       keep_loaded: $("chk-keep-loaded").checked,
     }),
   });
@@ -4141,13 +4162,13 @@ async function init() {
   setInterval(updateGPUActivity, 3000);
   // Watch for config changes
   document.addEventListener("input", (e) => {
-    if (e.target.id && (e.target.id.startsWith("cfg-") || e.target.id.startsWith("krea2-"))) {
+    if (e.target.id && (e.target.id.startsWith("cfg-") || e.target.id.startsWith("krea2-") || e.target.id.startsWith("moss-"))) {
       checkDirty();
     }
     updateLbai();
   });
   document.addEventListener("change", (e) => {
-    if (e.target.id && (e.target.id.startsWith("cfg-") || e.target.id.startsWith("krea2-"))) {
+    if (e.target.id && (e.target.id.startsWith("cfg-") || e.target.id.startsWith("krea2-") || e.target.id.startsWith("moss-"))) {
       checkDirty();
     }
     updateLbai();

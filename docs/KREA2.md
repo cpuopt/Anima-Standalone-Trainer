@@ -9,6 +9,8 @@ Musubi 是社区训练工具，Krea 官方推理代码是 [krea-ai/krea-2](https
 
 ## 安装和模型
 
+依赖安装、Hugging Face 授权、Windows/Linux 模型下载命令及 UI 路径配置，见 [Krea 2 依赖安装与模型下载指南](KREA2_MODEL_DOWNLOAD.md)。
+
 使用 Python 3.12，在项目根目录执行：
 
 ```powershell

@@ -224,7 +224,7 @@ function pipeline(prepared, { onLog = () => {}, onPhase = () => {}, onDone = () 
     try {
       for (const stage of prepared.stages) {
         if (job.cancelled) break;
-        job.phase = stage.phase; onPhase(stage.phase); onLog(`\n[Krea 2] ${stage.phase}\n`);
+        job.phase = stage.phase; onPhase(stage.phase); onLog(`\n[${prepared.label || 'Krea 2'}] ${stage.phase}\n`);
         await new Promise((resolve, reject) => {
           const proc = spawnProcess(prepared.rt.python, stage.args, { cwd: prepared.rt.cwd,
             env: processEnv(prepared.gpuIds), windowsHide: true, shell: false,
@@ -250,7 +250,7 @@ function pipeline(prepared, { onLog = () => {}, onPhase = () => {}, onDone = () 
       }
     } catch (err) { error = err; onLog(`\nERROR: ${err.message}\n`); }
     job.outcome = job.cancelled ? 'stopped' : error ? 'failed' : 'completed';
-    job.phase = job.outcome; onLog(`\n[Krea 2] ${job.outcome}\n`); onPhase(job.phase); onDone(job.outcome, error);
+    job.phase = job.outcome; onLog(`\n[${prepared.label || 'Krea 2'}] ${job.outcome}\n`); onPhase(job.phase); onDone(job.outcome, error);
     return job.outcome;
   };
   return job;

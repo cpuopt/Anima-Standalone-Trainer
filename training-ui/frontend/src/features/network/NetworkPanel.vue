@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import Field from '@/components/forms/ConfigField.vue'
 import { useEditorStore } from '@/stores/editor'
-import { AdapterMatrix, Krea2, LayerRank } from '@/domain/legacy'
+import { AdapterMatrix, Krea2, LayerRank, Moss } from '@/domain/legacy'
 import { argumentValue, replaceArgument, section } from '../training/rules'
 import Arg from './NetworkArgument.vue'
 import LayerRankEditor from './LayerRankEditor.vue'
@@ -10,14 +10,16 @@ import { adapterDrafts, resumeDrafts } from './drafts'
 const store = useEditorStore()
 const n = computed(() => section(store.config, 'network_arguments'))
 const t = computed(() => section(store.config, 'training_arguments'))
+const moss = computed(() => store.architecture === 'moss_image')
+const isolated = computed(() => moss.value || krea.value)
 const krea = computed(() => store.architecture === 'krea2')
 const moduleName = computed(() => n.value.network_module || '')
 const lokr = computed(() => moduleName.value.endsWith('.lokr'))
-const lycoris = computed(() => !krea.value && ['networks.loha','networks.lokr'].includes(moduleName.value))
-const dora = computed(() => !krea.value && ['networks.lora_anima','networks.lokr'].includes(moduleName.value))
+const lycoris = computed(() => !isolated.value && ['networks.loha','networks.lokr'].includes(moduleName.value))
+const dora = computed(() => !isolated.value && ['networks.lora_anima','networks.lokr'].includes(moduleName.value))
 const full = computed(() => lokr.value && enabledArg('full_matrix'))
 function enabledArg(key: string) { return /^(true|1|yes|y|on)$/i.test((argumentValue(n.value.network_args, key) || '').trim()) }
-const layered = computed(() => !krea.value && ['networks.lora_anima','networks.loha','networks.lokr'].includes(moduleName.value))
+const layered = computed(() => !isolated.value && ['networks.lora_anima','networks.loha','networks.lokr'].includes(moduleName.value))
 const rankDisabled = computed(() => full.value || (layered.value && argumentValue(n.value.network_args, 'layer_configs') !== undefined))
 const adapterKeys = ['network_module','network_dim','network_alpha','network_train_unet_only','network_dropout','network_args','network_weights']
 const trainingType = computed({ get: () => moduleName.value ? 'lora' : 'full_finetune', set: value => {
@@ -38,8 +40,8 @@ function autoResume(value: boolean) {
 }
 const selectedModule = computed({ get: () => moduleName.value, set: value => {
   n.value.network_module = value
-  if (krea.value) {
-    const incompatible = value === Krea2.LOKR_MODULE ? ['loraplus_lr_ratio'] : ['factor','full_matrix']
+  if (isolated.value) {
+    const incompatible = value.endsWith('.lokr') ? ['loraplus_lr_ratio'] : value === 'networks.loha' ? ['factor','full_matrix','loraplus_lr_ratio'] : ['factor','full_matrix']
     for (const key of incompatible) n.value.network_args = replaceArgument(n.value.network_args, key, undefined)
   }
   if (!['networks.lora_anima','networks.lokr'].includes(value) && !krea.value) {
@@ -48,10 +50,10 @@ const selectedModule = computed({ get: () => moduleName.value, set: value => {
 } })
 const dedicated = computed(() => [
   ...(lokr.value ? ['factor','full_matrix'] : []),
-  ...(lycoris.value || krea.value ? ['rank_dropout','module_dropout'] : []),
+  ...(lycoris.value || isolated.value ? ['rank_dropout','module_dropout'] : []),
   ...(lycoris.value ? ['mod_dim','use_tucker'] : []),
   ...(dora.value ? ['use_dora','dora_scale_fp32'] : []),
-  ...(krea.value && !lokr.value ? ['loraplus_lr_ratio'] : []),
+  ...(krea.value && !lokr.value || moss.value && moduleName.value === Moss.MODULES[0] ? ['loraplus_lr_ratio'] : []),
   ...(layered.value ? ['layer_configs'] : []),
 ])
 const freeArgs = computed({ get: () => (n.value.network_args || []).filter((token: string) => !dedicated.value.includes(token.split('=')[0].trim())).join(' '), set: value => {
@@ -60,7 +62,7 @@ const freeArgs = computed({ get: () => (n.value.network_args || []).filter((toke
   const preserved = (n.value.network_args || []).filter((token: string) => dedicated.value.includes(token.split('=')[0].trim()))
   n.value.network_args = [...preserved, ...tokens.filter((token: string) => !dedicated.value.includes(token.split('=')[0].trim()))]
 } })
-const modules = computed(() => krea.value ? [Krea2.MODULE,Krea2.LOKR_MODULE] : ['networks.lora_anima','networks.loha','networks.lokr','networks.lora_lumina','networks.lora'])
+const modules = computed(() => moss.value ? Moss.MODULES : krea.value ? [Krea2.MODULE,Krea2.LOKR_MODULE] : ['networks.lora_anima','networks.loha','networks.lokr','networks.lora_lumina','networks.lora'])
 const preview = computed(() => {
   try { return { rows: AdapterMatrix.preview({ architecture: store.architecture, networkModule: moduleName.value, rank: Number(n.value.network_dim ?? 16), args: n.value.network_args || [] }), error: '' } }
   catch (err) { return { rows: [], error: (err as Error).message } }
@@ -70,7 +72,7 @@ const previewSupported = computed(() => (krea.value ? modules.value.includes(mod
 <template>
   <fieldset class="panel" :disabled="store.locked">
     <h2>Training Type</h2>
-    <label class="field">Training Type<select v-model="trainingType" :disabled="krea"><option value="lora">Adapter (LoRA / LoHa / LoKR)</option><option v-if="!krea" value="full_finetune">Full Finetune</option></select></label>
+    <label class="field">Training Type<select v-model="trainingType" :disabled="isolated"><option value="lora">Adapter (LoRA / LoHa / LoKR)</option><option v-if="!isolated" value="full_finetune">Full Finetune</option></select></label>
     <template v-if="trainingType === 'lora'">
       <h2>Adapter Configuration</h2>
       <div class="fields">
@@ -79,15 +81,15 @@ const previewSupported = computed(() => (krea.value ? modules.value.includes(mod
         <Field :object="n" field="network_alpha" label="Network Alpha" type="number" :min="0.000001" step="any" :fallback="16" help="通常与 Rank 相同；Full Matrix 下缩放固定为 1。" />
         <Arg v-if="lokr" :network="n" name="factor" label="LoKR Factor" type="number" :min="-1" :step="1" help="空值 / -1 自动平衡分解；否则为正整数。" />
         <Arg v-if="lokr" :network="n" name="full_matrix" label="Full Matrix" type="boolean" :fallback="false" help="直接训练完整 Kronecker 因子，忽略 Rank 与 Alpha 缩放；恢复结构由保存矩阵决定。" />
-        <Field v-if="!krea" :object="n" field="network_train_unet_only" label="Train UNet Only" type="boolean" :fallback="true" />
-        <Field :object="n" field="network_dropout" label="Network Dropout" type="number" :min="0" :max="krea ? 0.999 : 1" :step="0.05" :fallback="0" />
+        <Field v-if="!isolated" :object="n" field="network_train_unet_only" label="Train UNet Only" type="boolean" :fallback="true" />
+        <Field :object="n" field="network_dropout" label="Network Dropout" type="number" :min="0" :max="isolated ? 0.999 : 1" :step="0.05" :fallback="0" />
         <Arg v-if="dora" :network="n" name="use_dora" :label="lokr ? 'Use DoKr' : 'Use DoRA'" type="boolean" :fallback="false" help="保存 ComfyUI 兼容的 dora_scale 权重。" @change="value => { if (!value) n.network_args = replaceArgument(n.network_args, 'dora_scale_fp32', undefined) }" />
         <Arg v-if="dora && enabledArg('use_dora')" :network="n" name="dora_scale_fp32" label="Save Magnitude Scale in FP32" type="boolean" :fallback="false" />
         <Arg v-if="lycoris" :network="n" name="mod_dim" label="Mod Dim" type="number" :min="0" :step="1" help="AdaLN modulation rank；空值排除。" />
-        <Arg v-if="lycoris || krea" :network="n" name="rank_dropout" label="Rank Dropout" type="number" :min="0" :max="krea ? 0.999 : 1" :step="0.05" help="LyCORIS 为输出通道 dropout，不是 Rank 维度。" />
-        <Arg v-if="lycoris || krea" :network="n" name="module_dropout" label="Module Dropout" type="number" :min="0" :max="krea ? 0.999 : 1" :step="0.05" />
+        <Arg v-if="lycoris || isolated" :network="n" name="rank_dropout" label="Rank Dropout" type="number" :min="0" :max="isolated ? 0.999 : 1" :step="0.05" help="LyCORIS 为输出通道 dropout，不是 Rank 维度。" />
+        <Arg v-if="lycoris || isolated" :network="n" name="module_dropout" label="Module Dropout" type="number" :min="0" :max="isolated ? 0.999 : 1" :step="0.05" />
         <Arg v-if="lycoris" :network="n" name="use_tucker" label="Use Tucker" type="boolean" :fallback="false" help="用于 Conv2d 3×3；Anima DiT 的 Linear 层不受影响。" />
-        <Arg v-if="krea && !lokr" :network="n" name="loraplus_lr_ratio" label="LoRA+ LR Ratio" type="number" :min="0.01" step="any" />
+        <Arg v-if="krea && !lokr || moss && moduleName === Moss.MODULES[0]" :network="n" name="loraplus_lr_ratio" label="LoRA+ LR Ratio" type="number" :min="0.01" step="any" />
       </div>
       <LayerRankEditor v-if="layered" :network="n" :full="full" :disabled="store.locked" />
       <label class="field">Network Args<textarea v-model="freeArgs" rows="3" spellcheck="false" /><small class="muted">空格分隔 key=value；JSON 列表与对象整体保留。专用字段优先。Krea 仅支持当前 adapter 的参数白名单。</small></label>

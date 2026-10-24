@@ -1,0 +1,2 @@
+# Preserve the exact upstream export bytes used by SD_SCRIPTS_SHA256.json.
+vendor/sd-scripts/** -text

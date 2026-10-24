@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/kohya-ss/sd-scripts",
+  "tag": "v0.12.2",
+  "revision": "11d8cedd0c67b93a10f8b2d75f43554f6f12c794",
+  "license": "See sd-scripts/LICENSE.md and upstream per-file licenses. Vendored source is unmodified."
+}

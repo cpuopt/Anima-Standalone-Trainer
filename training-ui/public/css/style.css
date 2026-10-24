@@ -1870,3 +1870,14 @@ input:disabled, select:disabled {
 
 /* Capability restrictions take precedence over inline visibility toggles. */
 .krea2-mode [data-anima-only] { display: none !important; }
+
+/* Isolated MOSS forms do not serialize Anima-only controls. */
+.moss-panel { border: 0; padding: 12px; }
+body:not(.moss-mode) .moss-panel, body:not(.moss-mode) #moss-generation { display:none!important; }
+body.moss-mode #tab-training > :not(.moss-panel),
+body.moss-mode #tab-network > :not(.moss-panel),
+body.moss-mode #tab-dataset > :not(.moss-panel),
+body.moss-mode #tab-multigpu > :not(.moss-panel),
+body.moss-mode [data-moss-hide], body.moss-mode #lbai-meter { display:none!important; }
+
+body.moss-mode #tab-prompts [data-anima-only], body.moss-mode #tab-prompts .skip-label { display:none!important; }

@@ -9,3 +9,6 @@ export const Krea2 = kreaModule.default || legacy.Krea2
 export const LayerRank = layerModule.default || legacy.LayerRank
 export const AdapterMatrix = matrixModule.default || legacy.AdapterMatrix
 export const LBAI = lbaiModule.default || legacy.LBAI
+
+import * as mossModule from '../../../public/js/moss.js'
+export const Moss = mossModule.default || legacy.Moss

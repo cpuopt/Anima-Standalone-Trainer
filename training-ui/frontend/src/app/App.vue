@@ -79,7 +79,7 @@ onBeforeUnmount(() => { store.dispose(); window.removeEventListener('beforeunloa
   <div class="app-background" :style="background" />
   <div class="studio-shell" :style="{ textShadow: ui.text_shadow_size ? `0 1px ${ui.text_shadow_size}px #000` : undefined }">
     <aside class="sidebar">
-      <a class="brand" href="/ui/"><span class="brand-mark">A</span><span>Training Studio<small>Anima · Krea 2</small></span></a>
+      <a class="brand" href="/ui/"><span class="brand-mark">A</span><span>Training Studio<small>Anima · Krea 2 · MOSS</small></span></a>
       <div class="sidebar-heading"><h2>任务</h2><button class="subtle" title="刷新任务" :disabled="busy" @click="run(store.loadJobs)">↻</button></div>
       <Input v-model="search" aria-label="搜索任务" placeholder="搜索任务…" />
       <nav class="job-list" aria-label="任务列表">
@@ -88,7 +88,7 @@ onBeforeUnmount(() => { store.dispose(); window.removeEventListener('beforeunloa
       </nav>
       <form class="new-job" @submit.prevent="create">
         <label for="job-name">新建任务</label><Input id="job-name" v-model="newName" placeholder="任务名称" :disabled="busy" />
-        <select v-model="newArch" aria-label="模型架构"><option value="anima">Anima</option><option value="krea2">Krea 2</option></select>
+        <select v-model="newArch" aria-label="模型架构"><option value="anima">Anima</option><option value="krea2">Krea 2</option><option value="moss_image">MOSS-Image</option></select>
         <Button type="submit" :disabled="busy || !newName.trim()">创建任务</Button>
       </form>
       <footer><button class="subtle" @click="tab = 'settings'">全局设置<span v-if="store.globalDirty"> ·</span></button><a href="/legacy/" target="_blank" rel="noopener">打开旧界面 ↗</a><span :class="store.connected ? 'connection-on' : 'muted'">{{ store.connected ? '实时连接正常' : '实时连接恢复中…' }}</span></footer>
@@ -111,7 +111,7 @@ onBeforeUnmount(() => { store.dispose(); window.removeEventListener('beforeunloa
       <div class="workspace">
         <p v-if="store.loading" role="status" class="muted">正在读取任务…</p>
         <component :is="active.component" v-else-if="store.name || tab === 'settings'" :key="`${store.name}:${tab}`" />
-        <section v-else class="welcome"><div class="welcome-mark">A</div><h2>开始一次新的训练</h2><p>选择已有任务，或在左侧创建 Anima / Krea 2 任务。</p><button class="button" @click="tab='settings'">配置模型与运行环境</button></section>
+        <section v-else class="welcome"><div class="welcome-mark">A</div><h2>开始一次新的训练</h2><p>选择已有任务，或在左侧创建 Anima / Krea 2 / MOSS 任务。</p><button class="button" @click="tab='settings'">配置模型与运行环境</button></section>
       </div>
     </main>
   </div>

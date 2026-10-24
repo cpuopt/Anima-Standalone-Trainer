@@ -1,4 +1,4 @@
-import { Krea2, LayerRank } from '@/domain/legacy'
+import { Krea2, LayerRank, Moss } from '@/domain/legacy'
 import { api } from '@/services/api'
 
 export type Config = Record<string, any>
@@ -120,6 +120,7 @@ export function setCudaDirect(t: Config, enabled: boolean) {
 
 /** Validate migrated fields without normalizing or dropping any unedited values. */
 export async function validateConfig(config: Config): Promise<void> {
+  if (config.architecture === 'moss_image') { Moss.validate(config); return }
   if (Krea2.architecture(config) === 'krea2') { Krea2.validate(config); return }
   const t = config.training_arguments || {}, n = config.network_arguments || {}
   const finite = (value: any, label: string, min: number, integer = false) => {

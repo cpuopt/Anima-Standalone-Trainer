@@ -1,5 +1,6 @@
 venv_path = ""
 krea2_venv_path = ""
+moss_venv_path = ""
 
 [model_paths]
 # Anima Paths
@@ -17,6 +18,13 @@ krea2_raw_path = ""
 krea2_turbo_path = ""
 krea2_text_encoder_path = ""
 krea2_vae_path = ""
+
+# MOSS-Image paths
+moss_dit_path = ""
+moss_sft_path = ""
+moss_text_encoder_path = ""
+moss_vae_path = ""
+moss_tokenizer_path = ""
 
 [ui]
 log_language = "zh_CN"

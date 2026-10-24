@@ -57,3 +57,6 @@ zutto
 
 # Isolated Krea 2 environment
 venv-krea2/
+
+# Isolated MOSS backend
+venv-moss/

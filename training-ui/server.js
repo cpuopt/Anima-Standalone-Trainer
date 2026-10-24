@@ -9,8 +9,10 @@ const {readAnimaLayers, validateLayerArgs} = require('./lib/anima-layers');
 const TOML = require('@iarna/toml');
 const Krea2 = require('./public/js/krea2');
 const kreaBackend = require('./lib/krea2-backend');
+const Moss = require('./public/js/moss');
+const mossBackend = require('./lib/moss-backend');
 const { tensorboardPath, tensorboardProxy, waitForTensorboard } = require('./lib/tensorboard-proxy');
-const net = require('net');
+const { findAvailablePort } = require('./lib/ports');
 const http = require('http');
 const WebSocket = require('ws');
 
@@ -45,6 +47,7 @@ function getArchForJob(jobConfig) {
         if (!arch) throw new Error('Unknown architecture: ' + jobConfig.architecture);
         return { id: jobConfig.architecture, ...arch };
     }
+    if (jobConfig?.moss_arguments) return { id: 'moss_image', ...ARCH_REGISTRY.architectures.moss_image };
     const netModule = jobConfig?.network_arguments?.network_module || '';
     for (const [archId, arch] of Object.entries(ARCH_REGISTRY.architectures)) {
         if (arch.network_modules.includes(netModule)) {
@@ -166,6 +169,11 @@ function getGlobalConfig() {
 // Serve architecture registry to frontend
 app.get('/api/architectures', (req, res) => {
     res.json(ARCH_REGISTRY);
+});
+
+app.get('/api/backends/moss_image/status', async (req, res) => {
+    try { res.json(await mossBackend.status(getGlobalConfig(), toNativePath)); }
+    catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/backends/krea2/status', (req, res) => {
@@ -647,7 +655,7 @@ app.get('/api/jobs', (req, res) => {
 app.post('/api/jobs', (req, res) => {
     try {
         const { name, architecture = 'anima' } = req.body;
-        if (!['anima', 'krea2'].includes(architecture)) return res.status(400).json({ error: 'Unsupported new-job architecture' });
+        if (!['anima', 'krea2', 'moss_image'].includes(architecture)) return res.status(400).json({ error: 'Unsupported new-job architecture' });
         if (!name) return res.status(400).json({ error: 'Name required' });
 
         const safeName = sanitizeName(name);
@@ -664,15 +672,17 @@ app.post('/api/jobs', (req, res) => {
         fs.mkdirSync(path.join(jobPath, 'samples'), { recursive: true });
 
         // Copy template configs
-        const { config, useFallback } = architecture === 'krea2' ? { config: Krea2.defaults(), useFallback: false } : getDefaultConfig();
+        const { config, useFallback } = architecture === 'moss_image' ? { config: Moss.defaults(), useFallback: false } : architecture === 'krea2' ? { config: Krea2.defaults(), useFallback: false } : getDefaultConfig();
         fs.writeFileSync(path.join(jobPath, 'config.toml'), TOML.stringify(config), 'utf8');
 
-        const datasetConfig = architecture === 'krea2' ? Krea2.datasetDefaults() : getDefaultDataset();
+        const datasetConfig = architecture === 'moss_image' ? Moss.datasetDefaults() : architecture === 'krea2' ? Krea2.datasetDefaults() : getDefaultDataset();
         fs.writeFileSync(path.join(jobPath, 'dataset.toml'), TOML.stringify(datasetConfig), 'utf8');
 
         // Copy sample prompts template
         const promptsTemplate = path.join(TEMPLATES_DIR, 'sample_prompts.txt');
-        if (architecture === 'krea2') {
+        if (architecture === 'moss_image') {
+            fs.writeFileSync(path.join(jobPath, 'sample_prompts.txt'), 'A fox walking in the snow. --w 512 --h 512 --s 30 --l 3 --d 0\n', 'utf8');
+        } else if (architecture === 'krea2') {
             fs.writeFileSync(path.join(jobPath, 'sample_prompts.txt'), 'A fox walking in the snow. --w 1024 --h 1024 --s 52 --l 3.5 --d 42\n', 'utf8');
         } else if (fs.existsSync(promptsTemplate)) {
             fs.copyFileSync(promptsTemplate, path.join(jobPath, 'sample_prompts.txt'));
@@ -718,15 +728,19 @@ app.put('/api/jobs/:name', (req, res) => {
 
         const oldConfig = TOML.parse(fs.readFileSync(path.join(jobPath, 'config.toml'), 'utf8'));
         const arch = getArchForJob(oldConfig).id;
-        if (arch === 'krea2' && runningJobs.has(sanitizeName(req.params.name))) return res.status(400).json({ error: 'Stop Krea 2 before editing configuration or dataset' });
+        if (['krea2','moss_image'].includes(arch) && runningJobs.has(sanitizeName(req.params.name))) return res.status(400).json({ error: 'Stop Krea 2 before editing configuration or dataset' });
         if (req.body.config && getArchForJob(req.body.config).id !== arch) return res.status(400).json({ error: 'Create a new job to change architecture' });
+        if (arch === 'moss_image') {
+            Moss.validate(req.body.config || oldConfig);
+            Moss.validateDataset(req.body.dataset || TOML.parse(fs.readFileSync(path.join(jobPath, 'dataset.toml'), 'utf8')));
+        }
         if (arch === 'krea2') {
             if (req.body.config) Krea2.validate(req.body.config);
             if (req.body.dataset) Krea2.validateDataset(req.body.dataset);
         }
         if (req.body.config) {
             const config = req.body.config;
-            if (arch !== 'krea2') validateLayerArgs(config, getGlobalConfig().model_paths?.dit_path);
+            if (!['krea2','moss_image'].includes(arch)) validateLayerArgs(config, getGlobalConfig().model_paths?.dit_path);
             const na = config.network_arguments;
             if (na) {
                 if (na.resume)          na.resume          = stripQuotes(na.resume);
@@ -1179,7 +1193,7 @@ app.post('/api/jobs/:name/train/stop', async (req, res) => {
             return res.status(400).json({ error: 'Job not running' });
         }
 
-        if (job.krea2) {
+        if (job.krea2 || job.moss) {
             await job.stop();
             return res.json({ success: true });
         }
@@ -1253,6 +1267,13 @@ app.post('/api/jobs/:name/generate', async (req, res) => {
         }
 
         const rawJob = TOML.parse(fs.readFileSync(configPath, 'utf8'));
+        if (getArchForJob(rawJob).id === 'moss_image') {
+            if (runningJobs.size || persistentGenProcess) return res.status(400).json({ error: 'GPU busy; stop other training/generation and unload the persistent model before starting MOSS' });
+            const prepared = mossBackend.prepareGeneration(rawJob, jobPath, getGlobalConfig(), req.body, toNativePath);
+            startMossPipeline(jobName, jobPath, prepared, 'generation');
+            return res.json({ success: true, phase: 'preparing' });
+        }
+        if ([...runningJobs.values()].some(j => j.moss)) return res.status(400).json({ error: 'A MOSS operation owns the GPU; stop it first' });
         if (getArchForJob(rawJob).id === 'krea2') {
             if ([...runningJobs.values()].some(j => j.krea2)) return res.status(400).json({ error: 'Another Krea 2 operation is running' });
             if (persistentGenProcess) killPersistentGen();
@@ -1536,6 +1557,20 @@ function startKreaPipeline(jobName, jobPath, prepared, type) {
     runningJobs.set(jobName, job);
     job.start().catch(err => console.error('Krea 2 pipeline:', err));
 }
+function startMossPipeline(jobName, jobPath, prepared, type) {
+    const logsDir = path.join(jobPath, 'logs');
+    fs.mkdirSync(logsDir, { recursive: true });
+    const stream = fs.createWriteStream(path.join(logsDir, `moss_${Date.now()}.log`));
+    stream.on('error', err => console.error('MOSS log:', err.message));
+    const job = mossBackend.pipeline(prepared, {
+        onLog: text => { job.logBuffer.push(text); if (job.logBuffer.length > 5000) job.logBuffer.shift(); stream.write(text); broadcastLog(jobName, text); },
+        onPhase: phase => broadcastStatus(jobName, ['completed','failed','stopped'].includes(phase) ? 'idle' : 'running'),
+        onDone: outcome => { stream.end(); runningJobs.delete(jobName); kreaOutcomes.set(jobName, outcome); broadcastStatus(jobName, 'idle'); },
+        kill: proc => killProcess(proc.pid, 8000),
+    });
+    job.type = type; kreaOutcomes.delete(jobName); runningJobs.set(jobName, job);
+    job.start().catch(err => console.error('MOSS pipeline:', err));
+}
 // --- Training Control ---
 
 app.post('/api/jobs/:name/train/start', async (req, res) => {
@@ -1552,6 +1587,13 @@ app.post('/api/jobs/:name/train/start', async (req, res) => {
         }
 
         const rawJob = TOML.parse(fs.readFileSync(configPath, 'utf8'));
+        if (getArchForJob(rawJob).id === 'moss_image') {
+            if (runningJobs.size || persistentGenProcess) return res.status(400).json({ error: 'GPU busy; stop other training/generation and unload the persistent model before starting MOSS' });
+            const prepared = mossBackend.prepareTraining(rawJob, TOML.parse(fs.readFileSync(path.join(jobPath, 'dataset.toml'), 'utf8')), jobPath, getGlobalConfig(), toNativePath);
+            startMossPipeline(jobName, jobPath, prepared, 'training');
+            return res.json({ success: true, phase: 'preparing' });
+        }
+        if ([...runningJobs.values()].some(j => j.moss)) return res.status(400).json({ error: 'A MOSS operation owns the GPU; stop it first' });
         if (getArchForJob(rawJob).id === 'krea2') {
             if ([...runningJobs.values()].some(j => j.krea2)) return res.status(400).json({ error: 'Another Krea 2 operation is running' });
             if (persistentGenProcess) killPersistentGen();
@@ -1773,14 +1815,15 @@ app.post('/api/jobs/:name/tensorboard', async (req, res) => {
         const jobName = sanitizeName(req.params.name);
         const jobPath = getJobPath(jobName);
         const config = TOML.parse(fs.readFileSync(path.join(jobPath, 'config.toml'), 'utf8'));
+        const isMoss = getArchForJob(config).id === 'moss_image';
         const isKrea = getArchForJob(config).id === 'krea2';
         const kreaLogs = kreaBackend.tensorboardLogDir(jobPath);
         // Older Krea jobs used logs/; keep them readable until the next launch.
-        const logsDir = isKrea && fs.existsSync(kreaLogs) ? kreaLogs : path.join(jobPath, 'logs');
+        const logsDir = isMoss ? mossBackend.tensorboardLogDir(jobPath) : isKrea && fs.existsSync(kreaLogs) ? kreaLogs : path.join(jobPath, 'logs');
 
         if (tbProcesses.has(jobName)) {
             const tb = tbProcesses.get(jobName);
-            if (!isKrea || tb.logdir === logsDir) {
+            if ((!isKrea && !isMoss) || tb.logdir === logsDir) {
                 await tb.startup;
                 return res.json({ success: true, url: tensorboardPath(jobName) + '/' });
             }
@@ -1802,7 +1845,7 @@ app.post('/api/jobs/:name/tensorboard', async (req, res) => {
 
         const tbCmd = `python -m tensorboard.main --logdir="${logsDir}" --port=${port} --host=127.0.0.1 --path_prefix=${prefix}`;
         const tbScript = buildShellScript(venv.activate, '', tbCmd);
-        const proc = isKrea ? spawn(kreaBackend.runtime(globalConfig, toNativePath).python, ['-m', 'tensorboard.main', '--logdir', logsDir, '--port', String(port), '--host', '127.0.0.1', '--path_prefix', prefix], { windowsHide: true, detached: !isWindows }) : spawnShell(tbScript, ROOT_DIR);
+        const proc = isMoss ? spawn(mossBackend.runtime(globalConfig, toNativePath).python, ['-m', 'tensorboard.main', '--logdir', logsDir, '--port', String(port), '--host', '127.0.0.1', '--path_prefix', prefix], { cwd: mossBackend.VENDOR, env: mossBackend.processEnv(), windowsHide: true, detached: !isWindows }) : isKrea ? spawn(kreaBackend.runtime(globalConfig, toNativePath).python, ['-m', 'tensorboard.main', '--logdir', logsDir, '--port', String(port), '--host', '127.0.0.1', '--path_prefix', prefix], { windowsHide: true, detached: !isWindows }) : spawnShell(tbScript, ROOT_DIR);
 
         proc.stderr.on('data', (data) => {
             const text = data.toString();
@@ -2032,9 +2075,12 @@ app.post('/api/jobs/:name/clear-logs', (req, res) => {
 app.post('/api/jobs/:name/reset-config', (req, res) => {
     try {
         const jobPath = getJobPath(req.params.name);
-        const { config } = getDefaultConfig();
+        if (runningJobs.has(sanitizeName(req.params.name))) return res.status(400).json({ error: 'Stop the job before resetting' });
+        const existing = TOML.parse(fs.readFileSync(path.join(jobPath, 'config.toml'), 'utf8'));
+        const arch = getArchForJob(existing).id;
+        const config = arch === 'moss_image' ? Moss.defaults() : arch === 'krea2' ? Krea2.defaults() : getDefaultConfig().config;
         fs.writeFileSync(path.join(jobPath, 'config.toml'), TOML.stringify(config), 'utf8');
-        const dataset = getDefaultDataset();
+        const dataset = arch === 'moss_image' ? Moss.datasetDefaults() : arch === 'krea2' ? Krea2.datasetDefaults() : getDefaultDataset();
         fs.writeFileSync(path.join(jobPath, 'dataset.toml'), TOML.stringify(dataset), 'utf8');
         res.json({ success: true });
     } catch (err) {
@@ -2075,25 +2121,6 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // --- Start Server ---
-
-function checkPort(port) {
-    return new Promise((resolve) => {
-        const tester = net.createServer();
-        tester.once('error', () => resolve(false));
-        tester.once('listening', () => {
-            tester.close();
-            resolve(true);
-        });
-        tester.listen(port);
-    });
-}
-
-async function findAvailablePort(startPort, maxAttempts = 10) {
-    for (let port = startPort; port < startPort + maxAttempts; port++) {
-        if (await checkPort(port)) return port;
-    }
-    return null;
-}
 
 (async () => {
     const port = await findAvailablePort(DEFAULT_PORT);

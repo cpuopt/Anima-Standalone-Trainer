@@ -3,6 +3,8 @@
 
 # Anima Standalone Trainer
 
+MOSS-Image Base/SFT LoRA, LoHa and LoKr training, resume, training previews and independent generation are available through an isolated, pinned sd-scripts backend. Select **MOSS-Image** when creating a job. See [MOSS setup and usage](docs/MOSS_IMAGE.md).
+
 Krea 2 LoRA and LoKR training are available through a separately pinned Musubi Tuner backend and environment. Select **Krea 2** when creating a UI job, then choose LoRA or LoKR. See [Krea 2 setup, supported features, and limitations](docs/KREA2.md).
 
 A lightweight, decoupled training environment for circlestone-labs' Anima model, with LoRA, LoHa, LoKr, DoRA, and DoKr adapter training support. Windows and Linux support. Built upon the [original Anima Standalone Trainer](https://github.com/gazingstars123/Anima-Standalone-Trainer) and [sd-scripts](https://github.com/kohya-ss/sd-scripts).

@@ -1,0 +1,315 @@
+# sd-scripts
+
+[English](./README.md) / [日本語](./README-ja.md)
+
+## Table of Contents
+<details>
+<summary>Click to expand</summary>
+
+- [Introduction](#introduction)
+    - [Supported Models](#supported-models)
+    - [Features](#features)
+    - [Sponsors](#sponsors)
+    - [Support the Project](#support-the-project)
+- [Documentation](#documentation)
+    - [Training Documentation (English and Japanese)](#training-documentation-english-and-japanese)
+    - [Other Documentation (English and Japanese)](#other-documentation-english-and-japanese)
+- [For Developers Using AI Coding Agents](#for-developers-using-ai-coding-agents)
+- [Windows Installation](#windows-installation)
+    - [Windows Required Dependencies](#windows-required-dependencies)
+    - [Installation Steps](#installation-steps)
+    - [About requirements.txt and PyTorch](#about-requirementstxt-and-pytorch)
+    - [xformers installation (optional)](#xformers-installation-optional)
+- [Linux/WSL2 Installation](#linuxwsl2-installation)
+    - [DeepSpeed installation (experimental, Linux or WSL2 only)](#deepspeed-installation-experimental-linux-or-wsl2-only)
+- [Upgrade](#upgrade)
+    - [Upgrade PyTorch](#upgrade-pytorch)
+- [Credits](#credits)
+- [License](#license)
+
+</details>
+
+## Introduction
+
+This repository contains training, generation and utility scripts for Stable Diffusion and other image generation models.
+
+### Sponsors
+
+We are grateful to the following companies for their generous sponsorship:
+
+<a href="https://aihub.co.jp/top-en">
+  <img src="./images/logo_aihub.png" alt="AiHUB Inc." title="AiHUB Inc." height="100px">
+</a>
+
+### Support the Project
+
+If you find this project helpful, please consider supporting its development via [GitHub Sponsors](https://github.com/sponsors/kohya-ss/). Your support is greatly appreciated!
+
+### Change History
+
+- **Version 0.12.2 (2026-10-20):**
+    - Added H2D-only block swap (`--block_swap_h2d_only`) for LoRA training, ported from Musubi Tuner. The frozen base weights are kept on the CPU and only copied Host→Device, which removes the Device→Host transfer of the classic block swap and improves the training speed. Supported for FLUX.1 / Chroma, Lumina Image 2.0, HunyuanImage-2.1, Anima and MOSS-Image (not for SD3). `--gradient_checkpointing` is required. For details, please refer to [the documentation](./docs/block_swap.md). [PR #2467](https://github.com/kohya-ss/sd-scripts/pull/2467)
+        - `--block_swap_ring_size` (default 2) sets the number of GPU buffers for the streamed blocks, and `--use_pinned_memory_for_block_swap` keeps the CPU copies in pinned memory for faster transfers.
+        - For developers: `enable_block_swap` of the models now takes a `BlockSwapConfig` instead of a device, and `submit_move_blocks` of the offloader is renamed to `submit_move_blocks_forward`, the same as Musubi Tuner.
+    - The Text Encoder outputs of multiple caption candidates (`enable_multiline_caption` with separator lines) can now be cached for MOSS-Image. All candidates are encoded and stored in one cache file, and one of them is chosen randomly at each step. [PR #2466](https://github.com/kohya-ss/sd-scripts/pull/2466)
+        - The processed caption texts are stored in the cache files, so the cache is rebuilt automatically when captions (or `caption_prefix` / `caption_suffix`) are changed. The cache files created with version 0.12.1 are still valid for images with a single caption.
+        - The cache size and the caching time are multiplied by the number of candidates. Other models still cannot cache the Text Encoder outputs when some captions have multiple candidates.
+        - `tools/cache_text_encoder_outputs.py` now stops with an error for multiple caption candidates with models that do not support them (previously only the first candidate was cached silently).
+
+- **Version 0.12.1 (2026-10-18):**
+    - Added support for LoRA training of [MOSS-Image](https://github.com/OpenMOSS/MOSS-Image) (OpenMOSS), a 5B DiT with the Qwen3.5-9B text encoder and the FLUX.2 VAE. [PR #2458](https://github.com/kohya-ss/sd-scripts/pull/2458), [PR #2459](https://github.com/kohya-ss/sd-scripts/pull/2459), [PR #2460](https://github.com/kohya-ss/sd-scripts/pull/2460), [PR #2461](https://github.com/kohya-ss/sd-scripts/pull/2461)
+        - `moss_image_train_network.py` trains LoRA (and LoHa / LoKr) for the DiT and optionally for the text encoder. The official diffusers-format shards and the ComfyUI single-file checkpoints can be loaded. For details, please refer to [the documentation](./docs/moss_image_train_network.md).
+        - ConvRot INT8 quantization of the base weights (`--convrot_int8` for the DiT, `--convrot_int8_text_encoder` for the text encoder, ported from Musubi Tuner) is available as an alternative to fp8. The ComfyUI pre-quantized `*_int8_convrot.safetensors` files are detected automatically. The fused int8 kernels require `triton` (`triton-windows` on Windows).
+        - The DiT LoRA can be used in ComfyUI without conversion. `moss_image_minimal_inference.py` is also available for inference with LoRA.
+        - `tools/cache_latents.py` and `tools/cache_text_encoder_outputs.py` support MOSS-Image with `--moss_image`.
+        - The LoRA module is the new generic `networks.lora_generic` (regex-based module selection, `network_reg_dims` / `network_reg_lrs`, the same as `networks.lora_anima`). It is expected to be the base for other architectures in the future.
+    - Added `enable_multiline_caption` subset option (`--enable_multiline_caption`) to use captions containing line breaks as they are, for models with LLM-based text encoders (Anima, Lumina, HunyuanImage, etc.).
+        - Lines starting with `multiline_caption_separator` (default `---===---`) separate multiple caption candidates for one image, and one candidate is chosen randomly at each step. In metadata files for fine tuning, `caption` can also be a list of strings. For details, please refer to [the dataset config documentation](./docs/config_README-en.md#captions-with-line-breaks-and-multiple-caption-candidates-enable_multiline_caption--true).
+        - In `.txt` sample prompt files, `\n` (backslash + n) is now converted to a line break.
+        - Fixed `caption_prefix` / `caption_suffix` being added only to the first / last line of multi-line captions (with `enable_wildcard`, the prefix was attached only to the first line and the suffix only to the last line; without it, the suffix was lost).
+    - Fixed `caption_prefix` / `caption_suffix`, `secondary_separator` and the first-line truncation of multi-line captions not being applied when caching Text Encoder outputs (`--cache_text_encoder_outputs`); the raw caption was encoded. [Issue #2453](https://github.com/kohya-ss/sd-scripts/issues/2453)
+        - If you use these options with `--cache_text_encoder_outputs_to_disk`, delete the existing cache files (`*_te.npz` etc.) so that they are re-created with the processed captions.
+        - `enable_wildcard` cannot be applied to cached outputs (the caption is encoded as is); a warning is now shown in that case.
+        - For custom caching strategies: `TextEncoderOutputsCachingStrategy.cache_batch_outputs` now receives the processed captions as an additional `captions` argument.
+    - When a custom LR scheduler is specified with `--lr_scheduler_type`, the total number of training steps and the number of warmup steps computed by sd-scripts are now passed to the scheduler as `num_training_steps` and `num_warmup_steps`. [Issue #2444](https://github.com/kohya-ss/sd-scripts/issues/2444)
+        - They are passed only when the scheduler's constructor has arguments with these exact names, and values given explicitly with `--lr_scheduler_args` take priority. Schedulers with differently named arguments (e.g. `total_steps`) are not affected; specify them with `--lr_scheduler_args` as before.
+        - Note that a custom scheduler that has `num_training_steps` but was used without specifying it in `--lr_scheduler_args` previously ran with its default value, and now uses the actual number of training steps. Similarly, `--lr_warmup_steps` is now passed to a scheduler that has `num_warmup_steps` (previously it caused an error).
+
+- **Version 0.12.0 (2026-09-24):**
+    - Added support for Windows on ARM64 (e.g. NVIDIA RTX Spark PCs). [PR #2430](https://github.com/kohya-ss/sd-scripts/pull/2430), [PR #2431](https://github.com/kohya-ss/sd-scripts/pull/2431), [PR #2433](https://github.com/kohya-ss/sd-scripts/pull/2433)
+        - `opencv-python` is now optional (a Pillow/NumPy fallback is used when it is missing), and `requirements.txt` selects the packages that have Windows ARM64 wheels automatically. For details, please refer to [Installing without OpenCV / Windows on ARM64](#installing-without-opencv--windows-on-arm64).
+        - `transformers`, `schedulefree` and `safetensors` in `requirements.txt` have been updated to versions that provide Windows ARM64 wheels.
+    - Updated the dependencies in `requirements.txt`: `transformers` 4.57.6 -> 5.5.4, `diffusers` 0.32.1 -> 0.40.0, `accelerate` 1.6.0 -> 1.15.0, `huggingface-hub` 0.34.3 -> 1.32.0. [PR #2436](https://github.com/kohya-ss/sd-scripts/pull/2436)
+        - This is mainly a security maintenance update (the 4.x line of `transformers` and `diffusers` < 0.38 no longer receive fixes). The previous versions of the libraries still work with this release, so you do not have to update them immediately, but it is recommended to run `pip install --upgrade -r requirements.txt` at your earliest convenience.
+        - `diffusers` 0.40 requires PyTorch 2.6 or later (PyTorch 2.6.0 or later has been the requirement of sd-scripts already). CI now tests with PyTorch 2.6.0 and 2.8.0.
+        - In `transformers` 5.x, `CLIPTokenizer` no longer applies the `ftfy` text normalization of the original CLIP tokenizer (straightening curly quotes, converting full-width characters, etc.). sd-scripts now applies it itself, so tokenization is unchanged from previous versions.
+        - Text encoder outputs, VAE outputs and the noise schedulers were verified to be identical to the previous versions with the local regression tests in `tests/local`.
+        - `diffusers` 0.40 prints a spurious warning "There are modules in AutoencoderKL that should be kept in float32: [] ..." on every `.to(dtype)` call (a bug in diffusers: the check fires even when the list is empty). sd-scripts suppresses this warning when the list is empty.
+    - Added support for `transformers` 5.6 and later, and updated `transformers` in `requirements.txt` to 5.17.0. [PR #2437](https://github.com/kohya-ss/sd-scripts/pull/2437)
+        - `transformers` 5.6 changed the internal structure of `CLIPTextModel` (the `text_model` submodule was removed). sd-scripts now wraps the model so that the checkpoint keys, the LoRA weight names of the text encoders (`lora_te_text_model_...`) and `text_encoder.text_model.*` access stay the same as before. Nothing changes for `transformers` < 5.6, where the wrapper is not applied.
+        - `transformers` 5.6 also switched the attention implementation of T5 (T5-XXL of FLUX.1 / SD3, byT5 of HunyuanImage) to SDPA, which should be faster and use less memory. The bf16/fp16 outputs of T5 differ very slightly from previous versions (cosine similarity ≈ 0.998 for T5-XXL, the accuracy against fp32 is the same). This may change generated images or trained weights in minor details, and cached text encoder outputs from previous versions are still usable. The outputs of the other text encoders are identical.
+        - As above, the previous versions of `transformers` still work, but updating with `pip install --upgrade -r requirements.txt` is recommended.
+    - Added OFTv2 and BOFT network modules (`networks.oft_v2`, `networks.boft`) for SD1.x / SD2.x / SDXL training. [PR #2357](https://github.com/kohya-ss/sd-scripts/pull/2357)
+        - Orthogonal fine-tuning adapters following the PEFT implementation. Weights in PEFT format can also be loaded. Thanks to umisetokikaze.
+        - Note that `--network_dim` means the block size for these modules. For details, please refer to the [documentation](./docs/train_network_oft_boft.md).
+    - Added per-subset timestep sampling offset (`custom_attributes.timestep_sampling.offset`) for FLUX.1 and Anima LoRA training. [PR #2401](https://github.com/kohya-ss/sd-scripts/pull/2401) Thanks to okdsf.
+        - Shifts the timestep sampling distribution of each dataset subset toward lower- or higher-noise timesteps. For details, please refer to the [documentation](./docs/timestep_sampling_offset.md).
+    - Added `--show_timesteps_offset` to preview the timestep distribution with the offset applied when using `--show_timesteps`. [PR #2410](https://github.com/kohya-ss/sd-scripts/pull/2410)
+        - The documentation also describes how the offset behaves with `shift` / `flux_shift` timestep sampling.
+    - Removed `gen_img_diffusers.py`, the old image generation script for SD1.x / SD2.x. It had not worked for a while (it depended on a function removed by the refactoring) and `gen_img.py` supports everything it did except the experimental CLIP / VGG16 guidance. Please use `gen_img.py` instead (see [gen_img_README.md](./docs/gen_img_README.md)). The file is still available in the previous releases. [PR #2439](https://github.com/kohya-ss/sd-scripts/pull/2439)
+    - Fixed the `dpmsolver` and `dpmsingle` samplers of `--sample_sampler` (sample image generation during training) and `--sampler` of `gen_img.py` / `sdxl_gen_img.py`, which failed with an error on recent versions of `diffusers`. [PR #2438](https://github.com/kohya-ss/sd-scripts/pull/2438)
+        - The `lms` / `k_lms` samplers require the `scipy` package, which is not included in `requirements.txt`. A clear error message is now shown at startup (instead of at the first sample generation) when `scipy` is missing. Please run `pip install scipy` to use them.
+
+### Supported Models
+
+* **Stable Diffusion 1.x/2.x**
+* **SDXL**
+* **SD3/SD3.5**
+* **FLUX.1**
+* **LUMINA**
+* **HunyuanImage-2.1**
+* **Anima**
+* **MOSS-Image**
+
+### Features
+
+* LoRA training
+* Fine-tuning (native training, DreamBooth): except for HunyuanImage-2.1
+* Textual Inversion training: SD/SDXL
+* Inpainting model training: SD1.5 and SDXL
+* Image generation
+* Other utilities such as model conversion, image tagging, LoRA merging, etc.
+
+## Documentation
+
+### Training Documentation (English and Japanese)
+
+* [LoRA Training Overview](./docs/train_network.md)
+* [Dataset config](./docs/config_README-en.md) / [Japanese version](./docs/config_README-ja.md)
+* [Advanced Training](./docs/train_network_advanced.md)
+* [OFTv2 / BOFT Training](./docs/train_network_oft_boft.md)
+* [SDXL Training](./docs/sdxl_train_network.md)
+* [SD3 Training](./docs/sd3_train_network.md)
+* [FLUX.1 Training](./docs/flux_train_network.md)
+* [LUMINA Training](./docs/lumina_train_network.md)
+* [HunyuanImage-2.1 Training](./docs/hunyuan_image_train_network.md)
+* [Anima Training](./docs/anima_train_network.md)
+* [MOSS-Image Training](./docs/moss_image_train_network.md)
+* [Fine-tuning](./docs/fine_tune.md)
+* [Textual Inversion Training](./docs/train_textual_inversion.md)
+* [ControlNet-LLLite Training](./docs/train_lllite_README.md) / [Japanese version](./docs/train_lllite_README-ja.md)
+* [Anima ControlNet-LLLite Training Guide](./docs/anima_train_control_net_lllite.md)
+* [Validation](./docs/validation.md)
+* [Masked Loss Training](./docs/masked_loss_README.md) / [Japanese version](./docs/masked_loss_README-ja.md)
+* [Inpainting Training](./docs/inpainting_training.md)
+* [Block Swap (CPU Offloading)](./docs/block_swap.md)
+
+### Other Documentation (English and Japanese)
+
+* [Image generation](./docs/gen_img_README.md) / [Japanese version](./docs/gen_img_README-ja.md)
+* [Tagging images with WD14 Tagger](./docs/wd14_tagger_README-en.md) / [Japanese version](./docs/wd14_tagger_README-ja.md)
+
+## For Developers Using AI Coding Agents
+
+This repository provides recommended instructions to help AI agents like Claude and Gemini understand our project context and coding standards.
+
+To use them, you need to opt-in by creating your own configuration file in the project root.
+
+**Quick Setup:**
+
+1.  Create a `CLAUDE.md` and/or `GEMINI.md` file in the project root.
+2.  Add the following line to your `CLAUDE.md` to import the repository's recommended prompt:
+
+    ```markdown
+    @./.ai/claude.prompt.md
+    ```
+
+    or for Gemini:
+
+    ```markdown
+    @./.ai/gemini.prompt.md
+    ```
+
+3.  You can now add your own personal instructions below the import line (e.g., `Always respond in Japanese.`).
+
+This approach ensures that you have full control over the instructions given to your agent while benefiting from the shared project context. Your `CLAUDE.md` and `GEMINI.md` are already listed in `.gitignore`, so they won't be committed to the repository.
+
+## Windows Installation
+
+### Windows Required Dependencies
+
+Python 3.10.x and Git:
+
+- Python 3.10.x: Download Windows installer (64-bit) from https://www.python.org/downloads/windows/
+- git: Download latest installer from https://git-scm.com/download/win
+
+Python 3.11.x, and 3.12.x will work but not tested.
+
+Give unrestricted script access to powershell so venv can work:
+
+- Open an administrator powershell window
+- Type `Set-ExecutionPolicy Unrestricted` and answer A
+- Close admin powershell window
+
+### Installation Steps
+
+Open a regular Powershell terminal and type the following inside:
+
+```powershell
+git clone https://github.com/kohya-ss/sd-scripts.git
+cd sd-scripts
+
+python -m venv venv
+.\venv\Scripts\activate
+
+pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
+pip install --upgrade -r requirements.txt
+
+accelerate config
+```
+
+If `python -m venv` shows only `python`, change `python` to `py`.
+
+Note: `bitsandbytes`, `prodigyopt` and `lion-pytorch` are included in the requirements.txt. If you'd like to use another version, please install it manually.
+
+This installation is for CUDA 12.4. If you use a different version of CUDA, please install the appropriate version of PyTorch. For example, if you use CUDA 12.1, please install `pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu121`.
+
+Answers to accelerate config:
+
+```txt
+- This machine
+- No distributed training
+- NO
+- NO
+- NO
+- all
+- fp16
+```
+
+If you'd like to use bf16, please answer `bf16` to the last question.
+
+Note: Some user reports ``ValueError: fp16 mixed precision requires a GPU`` is occurred in training. In this case, answer `0` for the 6th question: 
+``What GPU(s) (by id) should be used for training on this machine as a comma-separated list? [all]:`` 
+
+(Single GPU with id `0` will be used.)
+
+## About requirements.txt and PyTorch
+
+The file does not contain requirements for PyTorch. Because the version of PyTorch depends on the environment, it is not included in the file. Please install PyTorch first according to the environment. See installation instructions below.
+
+The scripts are tested with PyTorch 2.6.0. PyTorch 2.6.0 or later is required.
+
+For RTX 50 series GPUs, PyTorch 2.8.0 with CUDA 12.8/12.9 should be used. `requirements.txt` will work with this version.
+
+### Installing without OpenCV / Windows on ARM64
+
+`opencv-python` is listed in `requirements.txt`, but the core training / dataset pipeline only uses a small subset of OpenCV (mainly `cv2.resize`, `cv2.cvtColor`, and a debug-only `cv2.imshow`). When `opencv-python` is not available, a lightweight Pillow/NumPy fallback under `library/_cv2_stub` is automatically registered as `cv2`, so existing scripts continue to work. If you would rather avoid the large OpenCV install, simply uninstall it after installing the requirements:
+
+```bash
+pip uninstall opencv-python
+```
+
+On Windows on ARM64 (e.g. NVIDIA RTX Spark PCs), `opencv-python` has no prebuilt wheel, so `requirements.txt` skips it automatically through an environment marker and the usual `pip install --upgrade -r requirements.txt` works as is. For the same reason `tensorboardX` is installed instead of `tensorboard` on that platform (TensorBoard 2.x depends on `grpcio`, which has no Windows ARM64 wheel). Logging with `--log_with tensorboard` works unchanged through `tensorboardX`; view the logs with TensorBoard on another machine.
+
+Note that:
+
+- The default install with OpenCV remains the recommended path. The fallback reproduces OpenCV's `INTER_AREA` and `INTER_LINEAR` resizing (the modes the dataset pipeline uses by default) in NumPy, so training results match up to rounding, but it is slower than OpenCV (roughly 0.1 s per 24-megapixel image). `INTER_CUBIC` / `INTER_LANCZOS4` go through Pillow and differ slightly.
+- The following tools still require real `opencv-python` and will exit with a clear message when it is missing: `tools/canny.py`, `tools/detect_face_rotate.py`, and the ControlNet `canny` preprocessor used by `gen_img.py` / `sdxl_gen_img.py`.
+- Debug-only features such as `cv2.imshow` during dataset inspection fall back to Pillow's default image viewer (`PIL.Image.show`), and `cv2.waitKey` blocks on `input()` in the terminal so you can page through images one at a time.
+
+### xformers installation (optional)
+
+To install xformers, run the following command in your activated virtual environment:
+
+```bash
+pip install xformers --index-url https://download.pytorch.org/whl/cu124
+```
+
+Please change the CUDA version in the URL according to your environment if necessary. xformers may not be available for some GPU architectures.
+
+## Linux/WSL2 Installation
+
+Linux or WSL2 installation steps are almost the same as Windows. Just change `venv\Scripts\activate` to `source venv/bin/activate`.
+
+Note: Please make sure that NVIDIA driver and CUDA toolkit are installed in advance.
+
+### DeepSpeed installation (experimental, Linux or WSL2 only)
+  
+To install DeepSpeed, run the following command in your activated virtual environment:
+
+```bash
+pip install deepspeed==0.16.7 
+```
+
+## Upgrade
+
+When a new release comes out you can upgrade your repo with the following command:
+
+```powershell
+cd sd-scripts
+git pull
+.\venv\Scripts\activate
+pip install --use-pep517 --upgrade -r requirements.txt
+```
+
+Once the commands have completed successfully you should be ready to use the new version.
+
+### Upgrade PyTorch
+
+If you want to upgrade PyTorch, you can upgrade it with `pip install` command in [Windows Installation](#windows-installation) section.
+
+## Credits
+
+The implementation for LoRA is based on [cloneofsimo's repo](https://github.com/cloneofsimo/lora). Thank you for great work!
+
+The LoRA expansion to Conv2d 3x3 was initially released by cloneofsimo and its effectiveness was demonstrated at [LoCon](https://github.com/KohakuBlueleaf/LoCon) by KohakuBlueleaf. Thank you so much KohakuBlueleaf!
+
+## License
+
+The majority of scripts is licensed under ASL 2.0 (including codes from Diffusers, cloneofsimo's and LoCon), however portions of the project are available under separate license terms:
+
+[Memory Efficient Attention Pytorch](https://github.com/lucidrains/memory-efficient-attention-pytorch): MIT
+
+[bitsandbytes](https://github.com/TimDettmers/bitsandbytes): MIT
+
+[BLIP](https://github.com/salesforce/BLIP): BSD-3-Clause

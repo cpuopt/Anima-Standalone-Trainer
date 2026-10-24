@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { api, jobUrl } from '@/services/api'
 import { canonical, clone, type Config, type JobDocument, type JobSummary } from '@/domain/types'
-import { Krea2 } from '@/domain/legacy'
+import { Krea2, Moss } from '@/domain/legacy'
 import { parsePromptLine, serializePrompt, defaultNegativePrompt, applyGlobalNegative } from '@/features/prompts/model'
 import { validateConfig } from '@/features/training/rules'
 
@@ -36,7 +36,7 @@ export const useEditorStore = defineStore('editor', () => {
     canonical(config.value) !== configSnapshot.value || canonical(dataset.value) !== datasetSnapshot.value ||
     canonical(prompts.value) !== promptSnapshot.value || negativePrompt.value !== savedNegative.value))
   const globalDirty = computed(() => canonical(globalConfig.value) !== globalSnapshot.value)
-  const locked = computed(() => loading.value || saving.value || (architecture.value === 'krea2' && running.value))
+  const locked = computed(() => loading.value || saving.value || (['krea2','moss_image'].includes(architecture.value) && running.value))
   let requestVersion = 0, controller: AbortController | null = null
   let socket: WebSocket | null = null, reconnect: ReturnType<typeof setTimeout> | null = null
   let statusTimer: ReturnType<typeof setInterval> | null = null, disposed = false
@@ -76,7 +76,7 @@ export const useEditorStore = defineStore('editor', () => {
       prompts.value = lines.prompts.map(parsePromptLine)
       let transient: any = {}
       try { transient = JSON.parse(localStorage.getItem(`prompt_transient_${job}`) || '{}') } catch { /* ignore corrupt cache */ }
-      negativePrompt.value = transient.negative_prompt ?? (doc.architecture === 'krea2' ? '' : defaultNegativePrompt)
+      negativePrompt.value = transient.negative_prompt ?? (['krea2','moss_image'].includes(doc.architecture) ? '' : defaultNegativePrompt)
       configSnapshot.value = canonical(config.value); datasetSnapshot.value = canonical(dataset.value)
       promptSnapshot.value = canonical(prompts.value); savedNegative.value = negativePrompt.value
       running.value = status.running; phase.value = status.phase; operation.value = status.operation
@@ -88,6 +88,7 @@ export const useEditorStore = defineStore('editor', () => {
   }
   function validate() {
     if (Object.keys(fieldErrors.value).length) throw Error(Object.values(fieldErrors.value).join('; '))
+    if (architecture.value === 'moss_image') { Moss.validate(config.value); Moss.validateDataset(dataset.value) }
     if (architecture.value === 'krea2') { Krea2.validate(config.value); Krea2.validateDataset(dataset.value) }
     const sets = Array.isArray(dataset.value.datasets) ? dataset.value.datasets : [dataset.value.datasets].filter(Boolean)
     for (const d of sets) {
@@ -98,7 +99,7 @@ export const useEditorStore = defineStore('editor', () => {
   }
   async function save() {
     if (!name.value || saving.value || loading.value) throw Error('当前任务不可保存')
-    if (architecture.value === 'krea2' && running.value && (canonical(config.value) !== configSnapshot.value || canonical(dataset.value) !== datasetSnapshot.value)) throw Error('请先停止 Krea 2 再修改配置或数据集')
+    if (['krea2','moss_image'].includes(architecture.value) && running.value && (canonical(config.value) !== configSnapshot.value || canonical(dataset.value) !== datasetSnapshot.value)) throw Error('请先停止 Krea 2 再修改配置或数据集')
     saving.value = true; error.value = ''; notice.value = ''
     const target = name.value
     // Save each resource separately so a later failure cannot mark unsaved resources clean.

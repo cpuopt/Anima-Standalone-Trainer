@@ -6,6 +6,7 @@ import ConfigField from '@/components/forms/ConfigField.vue'
 import { LBAI } from '@/domain/legacy'
 
 const store = useEditorStore()
+const moss = computed(() => store.architecture === 'moss_image')
 type RecordValue = Record<string, any>
 const collapsed = reactive(new WeakSet<object>())
 const counts = reactive(new Map<string, { count?: number; error?: string }>())
@@ -33,7 +34,7 @@ function subsets(dataset: RecordValue): RecordValue[] {
   return Array.isArray(dataset.subsets) ? dataset.subsets : dataset.subsets ? [dataset.subsets] : []
 }
 function addDataset() {
-  store.dataset.datasets = [...datasets.value, { resolution: [1024, 1024], batch_size: 1, caption_extension: '.txt', subsets: [{ image_dir: '', num_repeats: 1 }] }]
+  store.dataset.datasets = [...datasets.value, { resolution: moss.value ? [512,512] : [1024, 1024], batch_size: 1, caption_extension: '.txt', subsets: [{ image_dir: '', num_repeats: 1 }] }]
   store.touch()
 }
 function deleteDataset(index: number) {
@@ -41,7 +42,7 @@ function deleteDataset(index: number) {
   store.touch()
 }
 function addSubset(dataset: RecordValue) {
-  dataset.subsets = [...subsets(dataset), store.architecture === 'krea2' ? { image_dir: '', num_repeats: 1 } : { image_dir: '', num_repeats: 1, epoch_sample_rate: 1, keep_tokens: 1, caption_dropout_rate: 0.05 }]
+  dataset.subsets = [...subsets(dataset), ['krea2','moss_image'].includes(store.architecture) ? { image_dir: '', num_repeats: 1 } : { image_dir: '', num_repeats: 1, epoch_sample_rate: 1, keep_tokens: 1, caption_dropout_rate: 0.05 }]
   store.touch()
 }
 function deleteSubset(dataset: RecordValue, index: number) {
@@ -104,7 +105,7 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
   <section class="panel dataset-panel" v-if="store.name">
     <h2>数据集</h2>
     <p class="muted">每个 Dataset 保留独立分辨率、批量和全部子集。未编辑的扩展字段保持原值。</p>
-    <section v-if="store.architecture !== 'krea2'" class="lbai total-lbai">
+    <section v-if="!['krea2','moss_image'].includes(store.architecture)" class="lbai total-lbai">
       <strong>总 LBAI {{ totalEstimate ? Number(totalEstimate.value.toPrecision(4)) : '—' }}</strong>
       <select v-model="targetIndex" aria-label="LBAI 比较目标"><option v-for="(target, ti) in targets" :key="ti" :value="ti">{{ target.name }}：{{ target.type === 'point' ? target.value : `${target.min}–${target.max}` }}</option></select>
       <meter v-if="totalEstimate" min="0" :max="Math.max(LBAI.scaleMaximum(targets), totalEstimate.value)" :value="totalEstimate.value" />
@@ -114,13 +115,14 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
     <fieldset :disabled="store.locked" class="dataset-edit-fields">
     <div class="fields">
       <template v-for="[field, label, type, fallback] in generalFields" :key="field">
-        <ConfigField v-if="store.architecture !== 'krea2' || ['enable_bucket','bucket_no_upscale'].includes(field)" :object="general" :field="field" :label="label" :type="type" :fallback="fallback" @change="setGeneral(field,$event)" />
+        <ConfigField v-if="!['krea2','moss_image'].includes(store.architecture) || ['enable_bucket','bucket_no_upscale'].includes(field) || moss && ['min_bucket_reso','max_bucket_reso','bucket_reso_steps'].includes(field)" :object="general" :field="field" :label="label" :type="type" :fallback="fallback" @change="setGeneral(field,$event)" />
       </template>
     </div>
-    <div v-if="store.architecture !== 'krea2'" class="fields">
+    <div v-if="!['krea2','moss_image'].includes(store.architecture)" class="fields">
       <ConfigField :object="training" field="resolution_schedule" label="Progressive Resolution Schedule" help="留空关闭。格式：512:0.4,1024:0.3,1536:0.3；按顺序切换分辨率，各比例之和应为 1。各阶段优先使用相同分辨率的 Dataset，否则覆盖分辨率。支持 epochs 和 steps。" @change="setTraining('resolution_schedule',$event)" />
       <ConfigField :object="training" field="disable_bucket_shuffle" label="Disable Bucket Shuffle" type="boolean" :fallback="false" help="保持 resolution bucket 内的 DataLoader 顺序。" @change="setTraining('disable_bucket_shuffle',$event)" />
     </div>
+    <ConfigField v-if="moss" :object="general" field="enable_multiline_caption" label="保留多行 Caption" type="boolean" :fallback="true" @change="setGeneral('enable_multiline_caption',$event)"/>
     <button class="button" @click="addDataset">添加 Dataset</button>
     <article v-for="(dataset, di) in datasets" :key="di" class="dataset-card">
       <header><h3>Dataset {{ di + 1 }}</h3><button class="button" :disabled="datasets.length <= 1" @click="deleteDataset(di)">删除 Dataset</button></header>
@@ -129,7 +131,7 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
         <ConfigField :object="dataset" field="batch_size" label="Batch Size" type="number" :fallback="1" :min="1" />
         <ConfigField :object="dataset" field="caption_extension" label="Caption 扩展名" fallback=".txt" />
       </div>
-      <section v-if="store.architecture !== 'krea2'" class="lbai">
+      <section v-if="!['krea2','moss_image'].includes(store.architecture)" class="lbai">
         <strong>LBAI {{ estimates[di] ? Number(estimates[di].value.toPrecision(4)) : '—' }}</strong>
         <small class="muted">本 Dataset 的贡献；需要 epoch 模式及有效图片计数。</small>
       </section>
@@ -139,7 +141,8 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
           <div class="fields"><ConfigField :object="subset" field="image_dir" label="服务器图片目录" /><ConfigField :object="subset" field="num_repeats" label="重复次数" type="number" :min="1" :fallback="1" /></div>
           <button class="button" :disabled="!subset.image_dir" @click="openFolder(subset.image_dir)">打开目录</button>
           <button class="button" @click="counts.delete(String(subset.image_dir || '').trim()); refreshCounts()">重新计数</button>
-          <div class="fields" v-if="store.architecture !== 'krea2'">
+          <div v-if="moss" class="fields"><ConfigField :object="subset" field="caption_prefix" label="Caption 前缀"/><ConfigField :object="subset" field="caption_suffix" label="Caption 后缀"/><ConfigField :object="subset" field="caption_dropout_rate" label="Caption Dropout" type="number" :min="0" :max="1" :step="0.01"/></div>
+          <div class="fields" v-if="!['krea2','moss_image'].includes(store.architecture)">
             <ConfigField v-for="[field,label,fallback] in subsetNumbers" :key="field" :object="subset" :field="field" :label="label" type="number" :fallback="fallback" :step="field.includes('rate') ? 0.01 : 1" :min="0" :max="field.includes('rate') ? 1 : undefined" />
             <ConfigField :object="subset" field="caption_prefix" label="Caption 前缀" />
             <ConfigField v-for="[field,label] in [['shuffle_caption','打乱 Caption'],['flip_aug','水平翻转'],['is_reg','正则化数据集'],['alpha_mask','Alpha Mask']]" :key="field" :object="subset" :field="field" :label="label" type="boolean" />

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import MossTrainingPanel from './MossTrainingPanel.vue'
 import { useEditorStore } from '@/stores/editor'
 import Field from '@/components/forms/ConfigField.vue'
 import { Krea2 } from '@/domain/legacy'
@@ -31,7 +32,8 @@ function checkpointChanged(event: Event) {
 </script>
 
 <template>
-  <fieldset class="panel" :disabled="store.locked">
+  <MossTrainingPanel v-if="store.architecture === 'moss_image'"/>
+  <fieldset v-else class="panel" :disabled="store.locked">
     <h2>Optimization</h2>
     <div class="fields">
       <Field :object="t" field="learning_rate" label="Learning Rate" type="number" :step="'any'" :fallback="0.00005" />

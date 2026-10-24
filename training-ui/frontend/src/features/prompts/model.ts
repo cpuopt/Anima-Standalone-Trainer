@@ -17,9 +17,9 @@ export function parsePromptLine(input: string): Prompt {
 }
 export function serializePrompt(p: Prompt, architecture: string, negativePrompt: string): string {
   let line = `${p.text.replace(/[\r\n]+/g, ' ').trim()} --w ${p.w} --h ${p.h} --s ${p.s} --d ${p.d} --l ${p.l}`;
-  if (architecture !== 'krea2') line += ` --ss ${p.sampler || 'euler'} --ls ${Math.max(0, Math.min(2, Number(p.strength) || 0))} --sched ${p.scheduler || 'linear'}`;
+  if (!['krea2','moss_image'].includes(architecture)) line += ` --ss ${p.sampler || 'euler'} --ls ${Math.max(0, Math.min(2, Number(p.strength) || 0))} --sched ${p.scheduler || 'linear'}`;
   const negative = (p.sourceNegative ?? negativePrompt).replace(/[\r\n]+/g, ' ').trim(); if (negative) line += ` --n ${negative}`;
-  return architecture !== 'krea2' && p.skip ? `# ${line}` : line;
+  return !['krea2','moss_image'].includes(architecture) && p.skip ? `# ${line}` : line;
 }
 export function applyGlobalNegative(prompts: Prompt[], negativePrompt: string): void {
   for (const p of prompts) p.sourceNegative=negativePrompt

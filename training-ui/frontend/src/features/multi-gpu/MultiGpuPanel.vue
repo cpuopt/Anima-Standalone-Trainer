@@ -5,7 +5,7 @@ import { useEditorStore } from '@/stores/editor'
 import { parallelMode, section, selectParallelMode, setCudaDirect } from '../training/rules'
 const store = useEditorStore()
 const t = computed(() => section(store.config, 'training_arguments'))
-const krea = computed(() => store.architecture === 'krea2')
+const krea = computed(() => ['krea2','moss_image'].includes(store.architecture))
 const selected = computed(() => String(store.config.gpu_ids || '').split(',').map(x => x.trim()).filter(Boolean))
 // An empty GPU selection means automatic allocation; display all detected GPUs as in the original UI.
 const ids = computed(() => selected.value.length ? selected.value : store.gpus.map((gpu: any) => String(gpu.index)))
@@ -34,12 +34,12 @@ function setProfile(event: Event) {
 <template>
   <fieldset class="panel" :disabled="store.locked">
     <h2>Hardware Allocation</h2>
-    <p class="muted">{{ krea ? 'Krea 2 支持单卡。未显式选择时使用自动设备分配。' : '选择训练 GPU；未显式指定时由启动器自动分配。' }}</p>
+    <p class="muted">{{ krea ? 'Krea 2 / MOSS 支持单卡。未显式选择时使用自动设备分配。' : '选择训练 GPU；未显式指定时由启动器自动分配。' }}</p>
     <p v-if="!store.gpus.length" class="muted">未检测到 NVIDIA GPU（CPU only），或硬件信息尚未返回。</p>
     <div class="gpu-grid">
       <label v-for="gpu in store.gpus" :key="gpu.index" class="gpu-card" :class="{ selected: isChecked(String(gpu.index)) }"><input type="checkbox" :checked="isChecked(String(gpu.index))" @change="toggleGpu(String(gpu.index))" /><strong>GPU {{ gpu.index }}</strong><span>{{ gpu.name }}</span><small>{{ gpu.memory }}</small></label>
     </div>
-    <label class="field">GPU IDs<input v-model="gpuIds" /><small class="muted">逗号分隔物理 GPU 编号；Krea 2 仅可指定一个编号。空值使用自动分配。</small></label>
+    <label class="field">GPU IDs<input v-model="gpuIds" /><small class="muted">逗号分隔物理 GPU 编号；Krea 2 / MOSS 仅可指定一个编号。空值使用自动分配。</small></label>
     <template v-if="!krea">
       <h2>Multi-GPU Optimization</h2>
       <label class="field">Parallelism Mode<select v-model="mode" :disabled="count < 2"><option value="ddp">DDP — Data Parallel</option><option value="fsdp">FSDP1</option><option value="fsdp2">FSDP2 (Linux only)</option><option value="deepspeed">DeepSpeed — ZeRO</option><option value="tp_sp">Tensor + Sequence Parallel</option></select></label>

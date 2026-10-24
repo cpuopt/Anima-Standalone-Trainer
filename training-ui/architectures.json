@@ -167,6 +167,54 @@
           "cfg-freeze-llm-adapter"
         ]
       }
+    },
+    "moss_image": {
+      "display_name": "MOSS-Image",
+      "backend": "sd-scripts",
+      "network_modules": [
+        "networks.lora_generic"
+      ],
+      "scripts": {
+        "train_network": "vendor/sd-scripts/moss_image_train_network.py",
+        "generate": "scripts/moss_runtime.py"
+      },
+      "global_paths": {
+        "moss_dit_path": {
+          "label": "MOSS-Image Base DiT (first shard or single file)",
+          "placeholder": "",
+          "cli_flag": "pretrained_model_name_or_path"
+        },
+        "moss_sft_path": {
+          "label": "MOSS-Image SFT DiT (optional)",
+          "placeholder": "",
+          "cli_flag": "sft"
+        },
+        "moss_text_encoder_path": {
+          "label": "Qwen3.5-9B Text Encoder (first shard or ConvRot INT8)",
+          "placeholder": "",
+          "cli_flag": "text_encoder"
+        },
+        "moss_vae_path": {
+          "label": "FLUX.2 VAE",
+          "placeholder": "",
+          "cli_flag": "vae"
+        },
+        "moss_tokenizer_path": {
+          "label": "Local tokenizer directory (optional)",
+          "placeholder": "",
+          "cli_flag": "tokenizer_cache_dir"
+        }
+      },
+      "training_section": "moss_arguments",
+      "all_in_one": false,
+      "capabilities": {
+        "single_gpu": true,
+        "adapter_types": [
+          "lora",
+          "loha",
+          "lokr"
+        ]
+      }
     }
   },
   "default_architecture": "anima"
