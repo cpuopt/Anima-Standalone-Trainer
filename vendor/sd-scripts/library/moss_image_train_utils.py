@@ -493,7 +493,7 @@ def _sample_image_inference(
     num_suffix = f"e{epoch:06d}" if epoch is not None else f"{steps:06d}"
     seed_suffix = "" if seed is None else f"_{seed}"
     i = prompt_dict.get("enum", 0)
-    img_filename = f"{'' if args.output_name is None else args.output_name + '_'}{num_suffix}_{i:02d}_{ts_str}{seed_suffix}.png"
+    img_filename = f"{'' if args.output_name is None else args.output_name + '_'}{i:02d}_{num_suffix}_{ts_str}{seed_suffix}.png"
     image.save(os.path.join(save_dir, img_filename))
 
     # Log to wandb if enabled

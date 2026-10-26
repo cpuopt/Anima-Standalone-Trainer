@@ -8,7 +8,7 @@
 - 单张支持 BF16 的 NVIDIA GPU；仅训练 DiT，Qwen3.5-9B 冻结。
 - 不支持完整微调、文本编码器训练、多卡、图像编辑或 FP8/GPTQ/NF4 底模。
 - Anima 使用原环境与代码，Krea 2 使用原 Musubi 环境，MOSS 使用 `venv-moss`；三者不可混装。
-- 源码原样导出在 `vendor/sd-scripts`，来源及逐文件 SHA256 记录在 vendor 清单中。许可证见该后端的 LICENSE.md 与各文件声明。
+- 源码基于固定版本导出在 `vendor/sd-scripts`；本地补丁列在 `vendor/SD_SCRIPTS_VERSION.json`，逐文件 SHA256 包含补丁后的内容。许可证见该后端的 LICENSE.md 与各文件声明。
 
 ## 安装
 
@@ -73,6 +73,8 @@ Linux 使用 `venv-moss/bin/hf`。SFT 可另外下载 `OpenMOSS-Team/MOSS-Image-
 
 输出使用原有任务目录：checkpoint 在 `output/`，训练采样在 `output/sample/`，独立出图在 `samples/`，TensorBoard 在 `output/tensorboard/`。独立图片旁保存 JSON 参数记录。
 
+训练预览图命名为 `{output_name}_{提示词序号}_{步数或epoch}_{时间戳}_{seed}.png`，提示词序号从 `00` 开始，进度补齐六位，epoch 带 `e` 前缀。例如 `my_moss_lora_00_000500_20261026143025_42.png` 或 `my_moss_lora_00_e000003_20261026143025_42.png`。未指定 seed 时省略 seed 后缀。这样按文件名排序时同一提示词的不同训练轮次相邻；仅影响之后生成的训练预览图，不重命名旧图片，也不改变独立出图文件名。
+
 MOSS 运行期间不允许另起其他训练/生成；反之亦然。先停止其他任务并卸载常驻采样模型。停止会终止整棵进程树，结束后才释放任务所有权。运行中的 MOSS 配置及数据集不能修改，提示词更新只在下次启动生效。
 
 MOSS 独立出图（非训练内采样）在 GPU 上编码整批正负提示词，embedding 暂存 CPU；编码完成后立即释放文本编码器，再加载 DiT。DiT 完成后释放，再使用 VAE 解码。整批出图完成或异常退出时清理模型和 CUDA 缓存，生成子进程随后退出，不保留常驻模型。文本编码不自动回退 CPU；显存不足时可启用 Text Encoder ConvRot INT8 或缩短文本。训练内采样的缓存策略不受此改动影响。
@@ -107,6 +109,7 @@ npm --prefix training-ui run test:ui
 npm --prefix training-ui run build
 .\venv-moss\Scripts\python.exe scripts/test_moss_runtime.py
 python scripts/test_moss_generation.py
+python scripts/test_moss_sample_names.py
 ```
 
 后端测试会使用已安装的 MOSS 环境验证真实上游参数解析器与数据集 schema；没有环境时该项明确跳过。Python 测试用微型上游 MOSS Block 验证三类适配器的加载、零强度恒等、权重生效、LoKr factor/full matrix 和 ConvRot INT8 底模不被修改。这些是合成测试，**不等于完整 MOSS 模型训练成功**。
