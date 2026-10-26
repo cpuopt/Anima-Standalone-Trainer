@@ -74,42 +74,54 @@ def generate(spec):
     torch.cuda.reset_peak_memory_stats()
     args = argparse.Namespace(dit=spec['dit'], text_encoder=spec['text_encoder'], vae=spec['vae'],
         tokenizer_cache_dir=spec.get('tokenizer') or None, lora_weight=None, lora_multiplier=1.0,
-        max_token_length=spec.get('moss_max_token_length', 4096), text_encoder_cpu=True,
+        max_token_length=spec.get('moss_max_token_length', 4096), text_encoder_cpu=False,
         convrot_int8=spec.get('convrot_int8', False), convrot_int8_text_encoder=spec.get('convrot_int8_text_encoder', False),
         blocks_to_swap=spec.get('blocks_to_swap', 0), attn_mode='torch', device=device,
         uncond_skip_layers='22', flow_shift=spec['flow_shift'], save_path=spec['output'],
         output_type='images', no_metadata=False, prompt='', negative_prompt='')
-    tokenizer = moss_image_utils.load_tokenizer(args.tokenizer_cache_dir)
-    encoder = inference.load_text_encoder(args, torch.device('cpu'))
-    cache = {}
-    prompts = []
-    for prompt in spec['prompts']:
-        item = argparse.Namespace(**vars(args))
-        item.prompt = prompt['prompt']; item.negative_prompt = prompt['negative_prompt']
-        item.image_size = [prompt['height'], prompt['width']]
-        item.seed = prompt['seed']; item.infer_steps = prompt['sample_steps']; item.guidance_scale = prompt['scale']
-        inference.check_inputs(item)
-        embeddings = inference.prepare_text_inputs(item, tokenizer, encoder, torch.device('cpu'), cache)
-        prompts.append((item, embeddings))
-    del encoder, tokenizer, cache
-    gc.collect(); clean_memory_on_device(device)
-    model = inference.load_dit_model(args, device)
-    adapter = None
-    if spec.get('network_weights'):
-        adapter = attach_adapter(model, spec['network_module'], spec['network_weights'], spec['multiplier'], device, spec.get('network_args'))
-    latents = []
-    for item, (positive, negative) in prompts:
-        latents.append(inference.generate_latents(item, model, positive, negative, device, item.seed).cpu())
-    del model, adapter
-    gc.collect(); clean_memory_on_device(device)
-    vae = inference.load_vae(args, 'cpu')
-    for i, ((item, _), latent) in enumerate(zip(prompts, latents)):
-        pixels = inference.decode_latents(vae, latent.to(device), device)
-        output = inference.save_image(pixels, item, f'moss_{i:03d}')
-        Path(output + '.json').write_text(json.dumps({'prompt': item.prompt, 'negative_prompt': item.negative_prompt,
-            'seed': item.seed, 'width': item.image_size[1], 'height': item.image_size[0], 'steps': item.infer_steps,
-            'cfg': item.guidance_scale, 'flow_shift': item.flow_shift, 'adapter': spec.get('network_weights'),
-            'multiplier': spec['multiplier'], 'revision': REVISION}, ensure_ascii=False, indent=2), encoding='utf-8')
+    # Independent generation is a short-lived subprocess, never a persistent sampler.
+    # Keep stages disjoint: GPU text encoding -> release TE -> DiT -> release DiT -> VAE.
+    tokenizer = encoder = model = adapter = vae = None
+    embeddings = positive = negative = latent = pixels = None
+    cache, prompts, latents = {}, [], []
+    try:
+        tokenizer = moss_image_utils.load_tokenizer(args.tokenizer_cache_dir)
+        print('MOSS standalone: encoding prompts on CUDA', flush=True)
+        encoder = inference.load_text_encoder(args, device)
+        for prompt in spec['prompts']:
+            item = argparse.Namespace(**vars(args))
+            item.prompt = prompt['prompt']; item.negative_prompt = prompt['negative_prompt']
+            item.image_size = [prompt['height'], prompt['width']]
+            item.seed = prompt['seed']; item.infer_steps = prompt['sample_steps']; item.guidance_scale = prompt['scale']
+            inference.check_inputs(item)
+            # Upstream returns CPU embeddings, so no GPU text tensors survive this stage.
+            embeddings = inference.prepare_text_inputs(item, tokenizer, encoder, device, cache)
+            prompts.append((item, embeddings))
+        encoder = tokenizer = None
+        cache.clear()
+        gc.collect(); clean_memory_on_device(device)
+        print('MOSS standalone: text encoder released; loading DiT', flush=True)
+        model = inference.load_dit_model(args, device)
+        if spec.get('network_weights'):
+            adapter = attach_adapter(model, spec['network_module'], spec['network_weights'], spec['multiplier'], device, spec.get('network_args'))
+        for item, (positive, negative) in prompts:
+            latents.append(inference.generate_latents(item, model, positive, negative, device, item.seed).cpu())
+        model = adapter = None
+        gc.collect(); clean_memory_on_device(device)
+        vae = inference.load_vae(args, 'cpu')
+        for i, ((item, _), latent) in enumerate(zip(prompts, latents)):
+            pixels = inference.decode_latents(vae, latent.to(device), device)
+            output = inference.save_image(pixels, item, f'moss_{i:03d}')
+            Path(output + '.json').write_text(json.dumps({'prompt': item.prompt, 'negative_prompt': item.negative_prompt,
+                'seed': item.seed, 'width': item.image_size[1], 'height': item.image_size[0], 'steps': item.infer_steps,
+                'cfg': item.guidance_scale, 'flow_shift': item.flow_shift, 'adapter': spec.get('network_weights'),
+                'multiplier': spec['multiplier'], 'revision': REVISION}, ensure_ascii=False, indent=2), encoding='utf-8')
+    finally:
+        encoder = tokenizer = model = adapter = vae = None
+        embeddings = positive = negative = latent = pixels = None
+        cache.clear(); prompts.clear(); latents.clear()
+        gc.collect(); clean_memory_on_device(device)
+        print('MOSS standalone: models released; CUDA cache cleared', flush=True)
     print(f'MOSS peak CUDA allocated: {torch.cuda.max_memory_allocated() / 2**20:.0f} MiB')
 
 

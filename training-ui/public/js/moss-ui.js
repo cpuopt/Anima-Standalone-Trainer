@@ -49,6 +49,14 @@ const MossUI = (() => {
     field(el,m,'weighting_scheme','Loss weighting','text',['uniform','none','sigma_sqrt','cosmap']);
     for(const key of ['convrot_int8','convrot_int8_text_encoder'])field(el,m,key,key,'checkbox');
     for(const key of ['text_encoder_batch_size','moss_max_token_length'])field(el,m,key,key);
+    const heading=document.createElement('h3');heading.textContent='编译与 CUDA 加速';el.appendChild(heading);
+    field(el,t,'compile','启用 torch.compile（按 DiT Block）','checkbox');
+    field(el,t,'compile_backend','Compile Backend','text',Moss.COMPILE_BACKENDS);
+    field(el,t,'compile_mode','Compile Mode','text',Moss.COMPILE_MODES);
+    field(el,t,'compile_dynamic','Compile Dynamic Shapes','text',Moss.COMPILE_DYNAMIC);
+    field(el,t,'compile_cache_size_limit','Compile Cache Size Limit');
+    for(const key of ['compile_fullgraph','cuda_allow_tf32','cuda_cudnn_benchmark'])field(el,t,key,key,'checkbox');
+    const compileNote=document.createElement('p');compileNote.textContent='推荐 inductor / default / auto；其他 Backend 仅用于诊断且 Mode 必须为 default。首次编译和新尺寸需要预热，可能增加显存，不保证加速。INT8 / Block Swap 会排除对应 Linear 层。CUDA 开关独立生效。Linux 需要 Triton 和 C/C++ 编译器；Windows dynamic=true 需要 VS 2022 C++。';el.appendChild(compileNote);
     const note=document.createElement('p');note.textContent='BF16, single GPU, frozen text encoder. Activation offload excludes Block Swap. H2D-only requires gradient checkpointing. No FP8 support.';el.appendChild(note);
   }
   function network() {

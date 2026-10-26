@@ -75,7 +75,22 @@ Linux 使用 `venv-moss/bin/hf`。SFT 可另外下载 `OpenMOSS-Team/MOSS-Image-
 
 MOSS 运行期间不允许另起其他训练/生成；反之亦然。先停止其他任务并卸载常驻采样模型。停止会终止整棵进程树，结束后才释放任务所有权。运行中的 MOSS 配置及数据集不能修改，提示词更新只在下次启动生效。
 
+MOSS 独立出图（非训练内采样）在 GPU 上编码整批正负提示词，embedding 暂存 CPU；编码完成后立即释放文本编码器，再加载 DiT。DiT 完成后释放，再使用 VAE 解码。整批出图完成或异常退出时清理模型和 CUDA 缓存，生成子进程随后退出，不保留常驻模型。文本编码不自动回退 CPU；显存不足时可启用 Text Encoder ConvRot INT8 或缩短文本。训练内采样的缓存策略不受此改动影响。
+
 ## 缓存与兼容性
+
+### torch.compile 与 CUDA 加速
+
+Vue 与 `/legacy/` 的 MOSS 训练页提供「编译与 CUDA 加速」。默认关闭编译，不改变旧任务行为；旧配置缺少这些字段时继续采用上游默认值。设置保存在 `training_arguments`，启动时传入 `_moss_config.toml`，不是生成/推理参数。
+
+- `compile`：按 DiT Block 启用 `torch.compile`；推荐 `compile_backend = "inductor"`、`compile_mode = "default"`、`compile_dynamic = "auto"`、`compile_cache_size_limit = 32`。
+- Mode 可选 `default`、`reduce-overhead`、`max-autotune`、`max-autotune-no-cudagraphs`；Dynamic 为字符串 `auto` / `true` / `false`，不是布尔值。
+- `eager` / `aot_eager` Backend 仅供诊断，Mode 必须为 `default`。`compile_fullgraph` 为高级选项，默认关闭。旧的 `torch_compile` 和 `split_attn` 不在本项目 MOSS 配置白名单中，不能混入任务。
+- `cuda_allow_tf32` 与 `cuda_cudnn_benchmark` 独立于编译开关生效，默认均关闭。
+- ConvRot INT8 / Block Swap 可与编译组合，但对应 Linear 层会排除编译。首次启动及新尺寸可能触发编译/预热；不同分辨率桶可能增加重编译次数、显存和缓存占用，不保证加速。关闭 `compile` 即可回退，无需修改 checkpoint。
+- Linux 使用 `bash setup_moss.sh` 安装独立 Python 3.12 环境及锁定 Torch/Triton，并安装系统 C/C++ 编译器（Ubuntu：`sudo apt install build-essential python3.12-dev`）。Windows 使用锁定的 triton-windows 与相应工具链；`compile_dynamic = "true"` 需要 VS 2022 C++ 编译器。
+
+配置链路和 UI 测试不等于真实 GPU 编译训练验收；实际运行需在目标 Linux/GPU 上验证 loss、采样、显存和预热后的速度。
 
 - 数据集按模型文件身份、caption 内容、图片身份、分辨率、tokenizer、文本量化及预处理参数生成指纹；实际缓存写入任务内 `cache/moss/`，不污染原图目录。
 - 训练使用 sd-scripts 原生缓存流程，`_moss_config.toml` 和 `_moss_dataset.toml` 是启动快照，不要手动编辑活动运行快照。
@@ -91,6 +106,7 @@ npm --prefix training-ui test
 npm --prefix training-ui run test:ui
 npm --prefix training-ui run build
 .\venv-moss\Scripts\python.exe scripts/test_moss_runtime.py
+python scripts/test_moss_generation.py
 ```
 
 后端测试会使用已安装的 MOSS 环境验证真实上游参数解析器与数据集 schema；没有环境时该项明确跳过。Python 测试用微型上游 MOSS Block 验证三类适配器的加载、零强度恒等、权重生效、LoKr factor/full matrix 和 ConvRot INT8 底模不被修改。这些是合成测试，**不等于完整 MOSS 模型训练成功**。

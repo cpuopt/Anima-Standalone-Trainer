@@ -42,5 +42,19 @@ const duration = computed({get:()=>t.value.max_train_steps ? 'steps':'epochs',se
       <Field v-for="[key,label] in [['gradient_checkpointing','Gradient Checkpointing'],['block_swap_h2d_only','H2D-only Block Swap'],['use_pinned_memory_for_block_swap','Pinned Block Swap Memory'],['cache_latents_to_disk','Cache Latents to Disk'],['cache_text_encoder_outputs_to_disk','Cache Text Outputs to Disk'],['cpu_offload_checkpointing','CPU Activation Offload'],['unsloth_offload_checkpointing','Unsloth Activation Offload']]" :key="key" :object="t" :field="key!" :label="label!" type="boolean"/>
     </div>
     <p class="muted">Activation Offload 与 Block Swap 互斥；H2D-only 需要 Gradient Checkpointing。ConvRot 使用锁定环境的 Triton。不会修改已有 Anima / Krea 环境。</p>
+    <h2>编译与 CUDA 加速</h2>
+    <Field :object="t" field="compile" label="启用 torch.compile（按 DiT Block）" type="boolean"/>
+    <div v-if="t.compile" class="fields">
+      <Field :object="t" field="compile_backend" label="Compile Backend" type="select" :options="Moss.COMPILE_BACKENDS"/>
+      <Field :object="t" field="compile_mode" label="Compile Mode" type="select" :options="Moss.COMPILE_MODES"/>
+      <Field :object="t" field="compile_dynamic" label="Compile Dynamic Shapes" type="select" :options="Moss.COMPILE_DYNAMIC"/>
+      <Field :object="t" field="compile_cache_size_limit" label="Compile Cache Size Limit" type="number" :min="1"/>
+      <Field :object="t" field="compile_fullgraph" label="Compile Fullgraph（高级）" type="boolean"/>
+    </div>
+    <div class="fields">
+      <Field :object="t" field="cuda_allow_tf32" label="CUDA Allow TF32" type="boolean"/>
+      <Field :object="t" field="cuda_cudnn_benchmark" label="CUDA cuDNN Benchmark" type="boolean"/>
+    </div>
+    <p class="muted">首次编译和新分辨率桶需要预热，可能增加显存；不保证加速。推荐 inductor / default / auto，eager 与 aot_eager 仅用于诊断（Mode 必须为 default）。ConvRot INT8 或 Block Swap 会排除对应 Linear 层。CUDA 开关独立生效。Linux 需要匹配的 Triton 和 C/C++ 编译器；Windows 需相应工具链，dynamic=true 需要 VS 2022 C++。</p>
   </fieldset>
 </template>

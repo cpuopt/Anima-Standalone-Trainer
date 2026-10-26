@@ -43,6 +43,30 @@ for(const [name,change] of [
 test('MOSS datasets reject non-multiple resolutions and cached caption augmentation',()=>{
   for(const edit of [d=>d.datasets[0].resolution=[513,512],d=>d.general.bucket_reso_steps=17,d=>d.datasets[0].subsets[0].shuffle_caption=true,d=>d.datasets[0].subsets[0].epoch_sample_rate=0.5]){const ds=M.datasetDefaults();edit(ds);assert.throws(()=>M.validateDataset(ds));}
 });
+test('MOSS compile options validate strictly and old tasks remain compatible',()=>{
+  const c=M.defaults();
+  for(const k of M.TRAIN_KEYS.filter(k=>k.startsWith('compile')||k.startsWith('cuda_'))) delete c.training_arguments[k];
+  M.validate(c);
+  for(const [key,value] of Object.entries({compile:'true',compile_fullgraph:1,cuda_allow_tf32:'false',cuda_cudnn_benchmark:0,
+    compile_backend:'unknown',compile_mode:'fast',compile_dynamic:true,compile_cache_size_limit:0})) {
+    const bad=M.defaults();bad.training_arguments[key]=value;assert.throws(()=>M.validate(bad),key);
+  }
+  c.training_arguments.compile=true;c.training_arguments.compile_backend='eager';c.training_arguments.compile_mode='max-autotune';
+  assert.throws(()=>M.validate(c),/default compile_mode/);
+  c.training_arguments.compile_mode='default';M.validate(c);
+  c.training_arguments.torch_compile=true;assert.throws(()=>M.validate(c),/torch_compile/);
+});
+test('MOSS compile and CUDA options survive TOML round-trip into native launch config',t=>{
+  const f=fixture(t),c=M.defaults();
+  const options={compile:true,compile_backend:'inductor',compile_mode:'default',compile_dynamic:'false',
+    compile_fullgraph:true,compile_cache_size_limit:64,cuda_allow_tf32:true,cuda_cudnn_benchmark:true};
+  Object.assign(c.training_arguments,options);
+  B.prepareTraining(TOML.parse(TOML.stringify(c)),f.dataset,f.root,f.global);
+  const native=TOML.parse(fs.readFileSync(path.join(f.root,'_moss_config.toml'),'utf8'));
+  for(const [k,v] of Object.entries(options))assert.equal(native[k],v,k);
+  c.training_arguments.compile=false;B.prepareTraining(c,f.dataset,f.root,f.global);
+  assert.equal(TOML.parse(fs.readFileSync(path.join(f.root,'_moss_config.toml'),'utf8')).compile,false);
+});
 test('checkpoint sharding verifies first shard, all siblings and formats',t=>{
   const {root}=fixture(t),first=path.join(root,'model-00001-of-00002.safetensors'),second=path.join(root,'model-00002-of-00002.safetensors');
   fs.writeFileSync(first,'one');assert.throws(()=>B.checkpoint(first));fs.writeFileSync(second,'two');assert.equal(B.checkpoint(first).length,2);assert.throws(()=>B.checkpoint(second));
@@ -141,7 +165,7 @@ test('MOSS route dispatch and GPU ownership are symmetric across training and ge
 test('generated config keys are accepted by the real pinned parser and dataset sanitizer',t=>{
   const python=process.env.MOSS_TEST_PYTHON||path.resolve(__dirname,'../../venv-moss',process.platform==='win32'?'Scripts/python.exe':'bin/python');
   if(!fs.existsSync(python))return t.skip('Install setup_moss first for native parser verification');
-  const f=fixture(t);B.prepareTraining(M.defaults(),f.dataset,f.root,f.global);
+  const f=fixture(t),c=M.defaults();c.training_arguments.compile=true;B.prepareTraining(c,f.dataset,f.root,f.global);
   const script=`import sys, json, toml\nfrom pathlib import Path\nsys.path.insert(0,${JSON.stringify(path.resolve(__dirname,'../../scripts'))})\nimport moss_runtime\nmoss_runtime.isolate()\nimport moss_image_train_network as train\nfrom library.config_util import ConfigSanitizer\np=train.setup_parser()\nc=toml.load(sys.argv[1])\nunknown=set(c)-{a.dest for a in p._actions}\nassert not unknown, unknown\na=p.parse_args(['--config_file',sys.argv[1]])\nfrom library.args import read_config_from_file\na=read_config_from_file(a,p)\nassert a.network_train_unet_only and a.mixed_precision=='bf16'\nConfigSanitizer(True,True,False,True).sanitize_user_config(toml.load(a.dataset_config))\nprint('NATIVE MOSS CONFIG OK')`;
   const runnable=script.replace("a=read_config_from_file(a,p)","sys.argv=[sys.argv[0],'--config_file',sys.argv[1]]\na=read_config_from_file(a,p)");
   const result=spawnSync(python,['-c',runnable,path.join(f.root,'_moss_config.toml')],{encoding:'utf8',timeout:60000,windowsHide:true});

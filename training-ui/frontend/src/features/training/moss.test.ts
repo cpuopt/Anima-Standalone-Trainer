@@ -35,6 +35,24 @@ it('MOSS dataset and hardware edits do not inject Anima-only fields',async()=>{
   await ds.findAll('button').find(b=>b.text()==='添加子集')!.trigger('click');Moss.validateDataset(s.dataset);ds.unmount()
   const hw=mount(MultiGpuPanel);await hw.findAll('.gpu-card input')[1]!.setValue(true);expect(s.config.gpu_ids).toBe('1');expect(s.config.training_arguments.multigpu_mode).toBeUndefined();hw.unmount()
 })
+it('MOSS compile controls edit, validate and preserve settings when disabled',async()=>{
+  const s=fixture();const w=mount(TrainingPanel)
+  const control=(key:string)=>w.findAllComponents(Field).find(x=>x.props('field')===key)!
+  expect(control('compile_mode')).toBeUndefined()
+  await control('compile').find('input').setValue(true)
+  await control('compile_mode').find('select').setValue('max-autotune-no-cudagraphs')
+  await control('compile_dynamic').find('select').setValue('false')
+  await control('compile_cache_size_limit').find('input').setValue('64')
+  await control('compile_fullgraph').find('input').setValue(true)
+  await control('cuda_allow_tf32').find('input').setValue(true)
+  expect(s.config.training_arguments).toMatchObject({compile:true,compile_mode:'max-autotune-no-cudagraphs',compile_dynamic:'false',compile_cache_size_limit:64,compile_fullgraph:true,cuda_allow_tf32:true})
+  Moss.validate(s.config)
+  await control('compile').find('input').setValue(false)
+  expect(control('compile_mode')).toBeUndefined()
+  expect(s.config.training_arguments.compile_mode).toBe('max-autotune-no-cudagraphs')
+  s.running=true;await flushPromises();expect(w.find('fieldset').attributes()).toHaveProperty('disabled')
+  w.unmount()
+})
 it('MOSS prompt serialization preserves seed 0 and explicit empty negative without Anima flags',()=>{
   const p=parsePromptLine('fox --w 512 --h 768 --s 3 --l 0 --d 0 --n')
   const text=serializePrompt(p,'moss_image','do not replace explicit empty')
@@ -48,6 +66,12 @@ it('legacy MOSS forms preserve loaded configuration, adapter options and dataset
   const config=Moss.defaults();config.network_arguments.network_module='networks.lokr';config.network_arguments.network_args=['factor=3','full_matrix=true']
   ui.populate(config);ui.setDataset(Moss.datasetDefaults());(document.getElementById('cfg-enable-sampling') as HTMLInputElement).checked=false
   expect(ui.config()).toEqual(config);expect(ui.datasetValue()).toEqual(Moss.datasetDefaults())
+  const compile=document.querySelector('input[id^="moss-compile-"]') as HTMLInputElement
+  compile.checked=true;compile.dispatchEvent(new Event('input'))
+  const mode=document.querySelector('select[id^="moss-compile_mode-"]') as HTMLSelectElement
+  mode.value='max-autotune';mode.dispatchEvent(new Event('input'))
+  expect(ui.config().training_arguments.compile).toBe(true)
+  expect(ui.config().training_arguments.compile_mode).toBe('max-autotune');Moss.validate(ui.config())
   const factor=[...document.querySelectorAll('.moss-panel input')].find(x=>x.id.startsWith('moss-factor-')) as HTMLInputElement
   factor.value='16';factor.dispatchEvent(new Event('input'));factor.dispatchEvent(new Event('change'))
   expect(ui.config().network_arguments.network_args).toContain('factor=16');Moss.validate(ui.config())

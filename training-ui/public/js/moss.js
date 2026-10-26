@@ -10,7 +10,9 @@
     'max_data_loader_n_workers','persistent_data_loader_workers','gradient_accumulation_steps','max_grad_norm',
     'gradient_checkpointing','blocks_to_swap','block_swap_h2d_only','block_swap_ring_size','use_pinned_memory_for_block_swap',
     'seed','log_with','cpu_offload_checkpointing','unsloth_offload_checkpointing','vae_batch_size',
-    'cache_latents_to_disk','cache_text_encoder_outputs_to_disk'];
+    'cache_latents_to_disk','cache_text_encoder_outputs_to_disk',
+    'compile','compile_backend','compile_mode','compile_dynamic','compile_fullgraph','compile_cache_size_limit',
+    'cuda_allow_tf32','cuda_cudnn_benchmark'];
   const NETWORK_KEYS = ['network_module','network_dim','network_alpha','network_dropout','network_args',
     'network_weights','resume','auto_resume_last_state','network_train_unet_only'];
   const MODEL_KEYS = ['flavour','timestep_sampling','discrete_flow_shift','weighting_scheme','convrot_int8',
@@ -18,6 +20,9 @@
   const TIMESTEPS = ['sigma','uniform','sigmoid','shift','flux_shift'];
   const OPTIMIZERS = ['AdamW8bit','AdamW','Adafactor'];
   const SCHEDULERS = ['constant','linear','cosine','cosine_with_restarts','cosine_with_min_lr','polynomial'];
+  const COMPILE_BACKENDS = ['inductor','eager','aot_eager'];
+  const COMPILE_MODES = ['default','reduce-overhead','max-autotune','max-autotune-no-cudagraphs'];
+  const COMPILE_DYNAMIC = ['auto','true','false'];
   const pick = (obj, keys) => Object.fromEntries(keys.filter(k => obj[k] !== undefined).map(k => [k,obj[k]]));
   function defaults() {
     return { architecture:'moss_image', gpu_ids:'0', training_arguments:{ output_name:'my_moss_lora', max_train_epochs:10,
@@ -26,7 +31,9 @@
       gradient_checkpointing:true, gradient_accumulation_steps:1, max_grad_norm:1, max_data_loader_n_workers:0,
       persistent_data_loader_workers:false, seed:42, log_with:'tensorboard', blocks_to_swap:20,
       block_swap_h2d_only:true, block_swap_ring_size:2, cache_latents_to_disk:true,
-      cache_text_encoder_outputs_to_disk:true, vae_batch_size:1 },
+      cache_text_encoder_outputs_to_disk:true, vae_batch_size:1,
+      compile:false, compile_backend:'inductor', compile_mode:'default', compile_dynamic:'auto',
+      compile_fullgraph:false, compile_cache_size_limit:32, cuda_allow_tf32:false, cuda_cudnn_benchmark:false },
       network_arguments:{network_module:MODULES[0], network_dim:16, network_alpha:16, network_train_unet_only:true},
       moss_arguments:{flavour:'base', timestep_sampling:'shift', discrete_flow_shift:3, weighting_scheme:'uniform',
         convrot_int8:false, convrot_int8_text_encoder:false, text_encoder_batch_size:1, moss_max_token_length:4096} };
@@ -72,6 +79,14 @@
     if(t.block_swap_h2d_only&&!t.gradient_checkpointing) throw Error('H2D-only requires gradient checkpointing');
     if(t.save_precision&&!['bf16','fp16','float'].includes(t.save_precision)) throw Error('Unsupported save precision');
     if(t.log_with&&t.log_with!=='tensorboard') throw Error('MOSS uses TensorBoard');
+    for(const k of ['compile','compile_fullgraph','cuda_allow_tf32','cuda_cudnn_benchmark'])
+      if(t[k]!==undefined&&typeof t[k]!=='boolean') throw Error(`${k}: expected boolean`);
+    for(const [k,values] of [['compile_backend',COMPILE_BACKENDS],['compile_mode',COMPILE_MODES],['compile_dynamic',COMPILE_DYNAMIC]])
+      if(t[k]!==undefined&&!values.includes(t[k])) throw Error(`Unsupported MOSS ${k}`);
+    if(t.compile_cache_size_limit!==undefined) number(t.compile_cache_size_limit,'compile_cache_size_limit',1,Infinity,true);
+    // Non-Inductor backends are diagnostic only and do not accept Inductor mode options.
+    if(t.compile&&(t.compile_backend??'inductor')!=='inductor'&&(t.compile_mode??'default')!=='default')
+      throw Error('Non-Inductor compile backend requires default compile_mode');
     number(m.discrete_flow_shift,'flow shift',Number.EPSILON); number(m.text_encoder_batch_size??1,'TE batch',1,Infinity,true);
     number(m.moss_max_token_length??4096,'token length',1,4096,true);
     if(n.network_dropout!==undefined) number(n.network_dropout,'dropout',0,0.999999);
@@ -116,5 +131,5 @@
     }
     return ds;
   }
-  return {MODULES,TRAIN_KEYS,NETWORK_KEYS,MODEL_KEYS,TIMESTEPS,OPTIMIZERS,SCHEDULERS,pick,defaults,datasetDefaults,validate,validateDataset};
+  return {MODULES,TRAIN_KEYS,NETWORK_KEYS,MODEL_KEYS,TIMESTEPS,OPTIMIZERS,SCHEDULERS,COMPILE_BACKENDS,COMPILE_MODES,COMPILE_DYNAMIC,pick,defaults,datasetDefaults,validate,validateDataset};
 });
