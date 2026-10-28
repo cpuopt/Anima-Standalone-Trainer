@@ -1,3 +1,5 @@
+anima_lumina_venv_path = ""
+# Legacy explicit environment path (fallback only).
 venv_path = ""
 krea2_venv_path = ""
 moss_venv_path = ""

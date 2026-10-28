@@ -17,7 +17,7 @@ function tensorboardLogDir(jobPath) {
 const UNSUPPORTED_IMAGE_EXTENSIONS = new Set(['.avif', '.jxl']);
 
 function runtime(global, nativePath = x => x) {
-  const envPath = nativePath(global.krea2_venv_path || path.join(ROOT, 'venv-krea2'));
+  const envPath = require('./environment-manager').environmentPath(ROOT, 'krea2', global, nativePath);
   return { python: path.join(envPath, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python'),
     cwd: VENDOR, models: Object.fromEntries(Object.entries(MODEL_PATHS).map(([k, v]) => [k, nativePath(global.model_paths?.[v] || '')])) };
 }

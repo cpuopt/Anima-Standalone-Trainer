@@ -2961,7 +2961,7 @@ async function loadGlobalSettings() {
       if (input) input.value = config.model_paths?.[configKey] || "";
     }
   }
-  $("cfg-global-venv").value = config.venv_path || "";
+  $("cfg-global-venv").value = config.anima_lumina_venv_path || config.venv_path || "";
   $("cfg-global-krea2-venv").value = config.krea2_venv_path || "";
   $("cfg-global-moss-venv").value = config.moss_venv_path || "";
   api("/api/backends/moss_image/status").then(s => { $("moss-environment-status").textContent = s.dependencies ? `Dependencies verified; CUDA: ${s.cuda}` : s.error || "Run setup_moss.bat / setup_moss.sh"; }).catch(e => { $("moss-environment-status").textContent = e.message; });
@@ -3022,7 +3022,8 @@ async function saveGlobalSettings() {
   const config = {
     ...existingConfig,
     model_paths,
-    venv_path: $("cfg-global-venv").value,
+    anima_lumina_venv_path: $("cfg-global-venv").value,
+    venv_path: "",
     krea2_venv_path: $("cfg-global-krea2-venv").value,
     moss_venv_path: $("cfg-global-moss-venv").value,
     ui: {

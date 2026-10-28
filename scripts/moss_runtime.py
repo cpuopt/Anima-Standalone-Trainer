@@ -33,6 +33,7 @@ def check(cuda=False):
     import transformers
     import tensorboard
     import moss_image_train_network
+    import moss_image_minimal_inference
     from transformers import Qwen3_5TextModel
     from networks import lora_generic, loha, lokr
     if cuda and (not torch.cuda.is_available() or not torch.cuda.is_bf16_supported()):

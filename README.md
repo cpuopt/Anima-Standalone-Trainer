@@ -73,14 +73,26 @@ Run the provided setup script for your operating system:
 ./setup_env.sh
 ```
 
-*This will create a virtual environment (`venv`), install all Python dependencies (assuming you have met the prereqisites), and set up the Web UI.*
+*This prepares a lightweight Python 3.12 control environment (uv 0.12.18) and builds the Node.js Web UI. Install/check the three isolated model environments from Global Settings → Environment Management. No model environment is required to launch the UI.*
 
-This script will probably install Torch and Torchvision version below.
-Depends on your system, you may want to install another version of Pytorch with CUDA.
+### Isolated Python environments (Windows / Linux)
 
-```cmd
-pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-```
+See [Environment management](docs/environment-management.md) for live installation logs, shared uv caching, migration, rollback, and local-only API access. Managed installations use final generation paths under `.runtime/environments`; the legacy directories below remain lookup fallbacks until migrated.
+
+| Models | Default directory | Windows installer | Linux installer |
+| --- | --- | --- | --- |
+| Anima / Lumina (shared) | `venv-anima-lumina` | `setup_anima_lumina.bat` | `bash setup_anima_lumina.sh` |
+| Krea 2 | `venv-krea2` | `setup_krea2.bat` | `bash setup_krea2.sh` |
+| MOSS-Image | `venv-moss` | `setup_moss.bat` | `bash setup_moss.sh` |
+
+The UI itself uses Node.js. The `main_venv_path` control environment contains uv, not model training libraries. All four managed environments use Python 3.12.
+Set `anima_lumina_venv_path`, `krea2_venv_path`, or `moss_venv_path` in Global Settings to override the corresponding directory. Empty model paths use the legacy defaults above; successful UI/CLI installs automatically save the new managed path.
+An explicit legacy `venv_path` remains a fallback for Anima/Lumina only; new installs no longer create or select the root `venv` by default.
+Do not simply rename a virtual environment: its activation scripts and console launchers can contain absolute paths. Recreate it with the installer instead. Keep the original until validation succeeds.
+
+The managed Anima/Lumina environment pins PyTorch 2.7.0 and Torchvision 0.22.0
+with CUDA 12.8. Krea 2 and MOSS use their own locked dependencies; do not install
+model dependencies into the lightweight control environment.
 
 ## Launching the UI
 
@@ -126,7 +138,7 @@ After launching the UI for the first time, you'll need to configure your model p
    - **DiT Model Path** — Path to your Anima DiT safetensors file (e.g. `C:\model\anima.safetensors`)
    - **VAE Path** — Path to the VAE model (e.g. `C:\model\qwen_image_vae.safetensors`)  
    - **TE Path** — Path to the CLIP text encoder (e.g. `C:\model\text_encoders\qwen_3_06b_base.safetensors`)
-   - **Venv Path** - Path to your local venv, venv can be reused if you redownload the repo
+   - **Anima / Lumina Python Environment** - Dedicated environment path (default `venv-anima-lumina`); an existing compatible environment can be selected explicitly.
 3. Click **Save**
 
 These paths are saved globally and shared across all training jobs.

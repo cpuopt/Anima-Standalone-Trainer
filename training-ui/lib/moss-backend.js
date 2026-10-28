@@ -11,7 +11,7 @@ const VENDOR = path.join(ROOT, 'vendor/sd-scripts');
 const RUNNER = path.join(ROOT, 'scripts/moss_runtime.py');
 const MODEL_KEYS = { dit:'moss_dit_path', sft:'moss_sft_path', text_encoder:'moss_text_encoder_path', vae:'moss_vae_path' };
 function runtime(global, native=x=>x) {
-  const venv=native(global.moss_venv_path||path.join(ROOT,'venv-moss'));
+  const venv=require('./environment-manager').environmentPath(ROOT,'moss',global,native);
   return {python:path.join(venv,process.platform==='win32'?'Scripts/python.exe':'bin/python'), cwd:VENDOR,
     models:Object.fromEntries(Object.entries(MODEL_KEYS).map(([k,v])=>[k,native(global.model_paths?.[v]||'')])),
     tokenizer:native(global.model_paths?.moss_tokenizer_path||'')};

@@ -23,6 +23,7 @@ function fixture(architecture) {
     fs: { existsSync: p => folders.has(p), mkdirSync: p => folders.add(p), readFileSync: () => JSON.stringify({ architecture }) },
     TOML: { parse: JSON.parse }, getArchForJob: c => ({ id: c.architecture }), getGlobalConfig: () => ({}),
     toNativePath: x => x, getVenvPaths: () => ({ activate: 'activate' }),
+    animaLuminaEnvironmentPath: require('../lib/anima-lumina-env').environmentPath,
     kreaBackend: { tensorboardLogDir: backend.tensorboardLogDir, runtime: () => ({ python: 'krea-python' }) },
     buildShellScript: (_activate, _cwd, cmd) => cmd, spawnShell: cmd => child(cmd, true),
     spawn: (_python, args) => child(args), killProcess: async pid => { killed.push(pid); },

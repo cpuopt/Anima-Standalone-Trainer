@@ -22,6 +22,16 @@ it('saves validated default estimate targets only on explicit save',async()=>{
   expect(state.store.globalConfig.ui.lbai_targets.length).toBeGreaterThan(0)
   expect(state.store.saveGlobal).toHaveBeenCalledOnce();wrapper.unmount()
 })
+it('edits the isolated Anima/Lumina environment independently of other backends',async()=>{
+  state.store.globalConfig={krea2_venv_path:'krea',moss_venv_path:'moss'}
+  const wrapper=mount(SettingsPanel);await flushPromises()
+  const environment=wrapper.findAll('label').find(l=>l.text().includes('Anima / Lumina Python 环境'))!
+  await environment.find('input').setValue('/env/anima-lumina')
+  expect(state.store.globalConfig.anima_lumina_venv_path).toBe('/env/anima-lumina')
+  expect(state.store.globalConfig.krea2_venv_path).toBe('krea')
+  expect(state.store.globalConfig.moss_venv_path).toBe('moss')
+  wrapper.unmount()
+})
 it('confirms reset, warns about unsaved edits, and reloads the same job only after success',async()=>{
   Object.assign(state.store,{name:'example',dirty:true,running:false,selectJob:vi.fn().mockResolvedValue(undefined)})
   const confirm=vi.spyOn(window,'confirm').mockReturnValue(false)

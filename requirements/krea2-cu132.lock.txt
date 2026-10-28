@@ -238,7 +238,7 @@ typing-extensions==4.16.0
     #   torch
 urllib3==2.8.0
     # via requests
-uv==0.10.0
+uv==0.12.18
     # via -r requirements/krea2-cu132.in
 voluptuous==0.15.2
     # via -r requirements/krea2-cu132.in

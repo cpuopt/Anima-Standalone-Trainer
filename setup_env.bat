@@ -65,112 +65,18 @@ if %errorlevel% neq 0 (
 echo Node.js detected.
 echo.
 
-python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo.
-    echo [ERROR] Python is not installed or not on PATH!
-    echo Please install Python 3.10 - 3.13 from: https://www.python.org/downloads/
-    echo Make sure to check "Add Python to PATH" during installation.
-    echo.
-    pause
+node -e "const [a,b]=process.versions.node.split('.').map(Number);process.exit((a===20&&b>=19)||(a===22&&b>=12)||a>22?0:1)"
+if errorlevel 1 (
+    echo [ERROR] Node.js 20.19 or 22.12 and newer is required for the UI build.
     exit /b 1
 )
-
-for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set PYVER=%%v
-for /f "tokens=1,2 delims=." %%a in ("%PYVER%") do (
-    set PY_MAJOR=%%a
-    set PY_MINOR=%%b
-)
-if %PY_MAJOR% neq 3 (
-    echo.
-    echo [ERROR] Python 3.10 - 3.13 is required. Found Python %PYVER%.
-    echo Please install a supported version from: https://www.python.org/downloads/
-    echo.
-    pause
-    exit /b 1
-)
-if %PY_MINOR% LSS 10 (
-    echo.
-    echo [ERROR] Python %PYVER% is too old. Minimum required: Python 3.10.
-    echo Please install Python 3.10 - 3.13 from: https://www.python.org/downloads/
-    echo.
-    pause
-    exit /b 1
-)
-if %PY_MINOR% GEQ 14 (
-    echo.
-    echo [ERROR] Python %PYVER% is not yet supported. Maximum supported: Python 3.13.
-    echo Please install Python 3.10 - 3.13 from: https://www.python.org/downloads/
-    echo.
-    pause
-    exit /b 1
-)
-echo Python %PYVER% detected.
-echo.
-
-if not exist venv (
-    echo Creating venv...
-    python -m venv venv
-    if %errorlevel% neq 0 (
-        echo.
-        echo [ERROR] Failed to create virtual environment.
-        echo Make sure Python 3.10+ is installed correctly.
-        echo.
-        pause
-        exit /b 1
-    )
-) else (
-    echo Venv already exists.
-)
-
-set "VENV_PYTHON=venv\Scripts\python.exe"
-if not exist "%VENV_PYTHON%" (
-    echo.
-    echo [ERROR] Virtual environment Python not found at %VENV_PYTHON%
-    echo Try deleting the venv folder and running this script again.
-    echo.
-    pause
-    exit /b 1
-)
-
-echo ----------------------------------------------------------------------
-echo Upgrading pip and installing requirements...
-echo ----------------------------------------------------------------------
-"%VENV_PYTHON%" -m pip install --upgrade pip
-if %errorlevel% neq 0 (
-    echo [WARNING] Failed to upgrade pip. Continuing with requirements...
-)
-
-"%VENV_PYTHON%" -m pip install -r requirements.txt
-if %errorlevel% neq 0 (
-    echo.
-    echo [ERROR] pip install failed.
-    echo Check the output above for details.
-    echo.
-    pause
-    exit /b 1
-)
-
-echo.
-echo ----------------------------------------------------------------------
-echo Installing UI dependencies (npm install)...
-echo ----------------------------------------------------------------------
-cd training-ui
-call npm install
-if %errorlevel% neq 0 (
-    echo.
-    echo [ERROR] npm install failed.
-    echo Check the output above for details.
-    echo.
-    cd ..
-    pause
-    exit /b 1
-)
-cd ..
-
-echo.
-echo ----------------------------------------------------------------------
-echo Installation Complete!
-echo ----------------------------------------------------------------------
-pause
-
+python "%~dp0scripts\bootstrap_environment.py"
+if errorlevel 1 exit /b 1
+cd /d "%~dp0training-ui"
+call npm ci
+if errorlevel 1 exit /b 1
+call npm --prefix frontend ci
+if errorlevel 1 exit /b 1
+call npm --prefix frontend run build
+if errorlevel 1 exit /b 1
+echo Main control environment and UI ready. Install models from Global Settings.

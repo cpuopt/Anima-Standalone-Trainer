@@ -1,0 +1,2 @@
+# Lightweight control environment; Python 3.12, Windows/Linux.
+uv==0.12.18

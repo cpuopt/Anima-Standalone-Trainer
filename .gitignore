@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
 *$py.class
 *.so
 .Python
@@ -25,6 +26,8 @@ share/python-wheels/
 MANIFEST
 
 # Virtual Environment
+venv-anima-lumina/
+.environment-backups/
 venv/
 env/
 ENV/
@@ -38,6 +41,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # Project Specific
+# Downloaded model weights and their local download metadata.
+/models/
 output/
 logs/
 *.safetensors
@@ -61,3 +66,6 @@ venv-krea2/
 
 # Isolated MOSS backend
 venv-moss/
+
+# Managed environments, cache and task logs
+.runtime/

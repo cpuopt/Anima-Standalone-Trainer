@@ -12,6 +12,7 @@ import SamplesPanel from '@/features/samples/SamplesPanel.vue'
 import ConsolePanel from '@/features/console/ConsolePanel.vue'
 import TensorBoardPanel from '@/features/tensorboard/TensorBoardPanel.vue'
 import SettingsPanel from '@/features/settings/SettingsPanel.vue'
+import PersistentPanels from './PersistentPanels.vue'
 
 const store = useEditorStore()
 const tabs = [
@@ -23,7 +24,6 @@ const tabs = [
 ]
 const cached = localStorage.getItem('lastTab') || 'training'
 const tab = ref(tabs.some(t => t.id === cached) ? cached : 'training')
-const active = computed(() => tabs.find(t => t.id === tab.value)!)
 const newName = ref(''), newArch = ref('anima'), search = ref(''), busy = ref(false)
 const filteredJobs = computed(() => store.jobs.filter(j => j.name.toLowerCase().includes(search.value.toLowerCase())))
 const unsaved = computed(() => store.dirty || store.globalDirty)
@@ -110,7 +110,7 @@ onBeforeUnmount(() => { store.dispose(); window.removeEventListener('beforeunloa
       <nav class="tabs" aria-label="配置页面"><button v-for="item in tabs" :key="item.id" :class="{ active: tab === item.id }" :disabled="!store.name && item.id !== 'settings'" @click="tab = item.id">{{ item.label }}</button></nav>
       <div class="workspace">
         <p v-if="store.loading" role="status" class="muted">正在读取任务…</p>
-        <component :is="active.component" v-else-if="store.name || tab === 'settings'" :key="`${store.name}:${tab}`" />
+        <PersistentPanels v-else-if="store.name || tab === 'settings'" :key="store.name ?? 'global'" :tabs="tabs" :active="tab" />
         <section v-else class="welcome"><div class="welcome-mark">A</div><h2>开始一次新的训练</h2><p>选择已有任务，或在左侧创建 Anima / Krea 2 / MOSS 任务。</p><button class="button" @click="tab='settings'">配置模型与运行环境</button></section>
       </div>
     </main>

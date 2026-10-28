@@ -22,5 +22,5 @@ hatchling==1.27.0
 editables==0.5
 torch==2.7.1+cu128
 torchvision==0.22.1+cu128
-uv==0.10.0
+uv==0.12.18
 pip==25.3

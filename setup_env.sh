@@ -108,76 +108,13 @@ if [ "$PY_MAJOR" -ne 3 ] || [ "$PY_MINOR" -lt 10 ]; then
     echo ""
     exit 1
 fi
-if [ "$PY_MINOR" -ge 14 ]; then
-    echo ""
-    echo "[ERROR] Python $PY_VER is not yet supported. Maximum supported: Python 3.13."
-    echo "Please install Python 3.10 - 3.13 from: https://www.python.org/downloads/"
-    echo ""
+
+
+node -e "const [a,b]=process.versions.node.split('.').map(Number);process.exit((a===20&&b>=19)||(a===22&&b>=12)||a>22?0:1)" || {
+    echo "[ERROR] Node.js 20.19 or 22.12 and newer is required for the UI build."
     exit 1
-fi
-
-echo "Using $PYTHON_CMD ($PY_VER)..."
-
-if [ ! -d "venv" ]; then
-    echo "Creating venv..."
-    $PYTHON_CMD -m venv venv
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo "[ERROR] Failed to create virtual environment."
-        echo ""
-        exit 1
-    fi
-else
-    echo "Venv already exists."
-fi
-
-# Activate venv
-if [ -f "venv/bin/activate" ]; then
-    source venv/bin/activate
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo "[ERROR] Failed to activate virtual environment."
-        echo "Try deleting the venv folder and running this script again."
-        echo ""
-        exit 1
-    fi
-else
-    echo ""
-    echo "[ERROR] venv/bin/activate not found!"
-    echo "Try deleting the venv folder and running this script again."
-    echo ""
-    exit 1
-fi
-
-echo "----------------------------------------------------------------------"
-echo "Installing requirements from requirements.txt..."
-echo "----------------------------------------------------------------------"
-pip install -r requirements.txt
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "[ERROR] pip install failed."
-    echo "Check the output above for details."
-    echo ""
-    exit 1
-fi
-
-echo ""
-echo "----------------------------------------------------------------------"
-echo "Installing UI dependencies (npm install)..."
-echo "----------------------------------------------------------------------"
+}
+"$PYTHON_CMD" scripts/bootstrap_environment.py || exit 1
 cd training-ui
-npm install
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "[ERROR] npm install failed."
-    echo "Check the output above for details."
-    echo ""
-    cd ..
-    exit 1
-fi
-cd ..
-
-echo ""
-echo "----------------------------------------------------------------------"
-echo "Installation Complete!"
-echo "----------------------------------------------------------------------"
+npm ci && npm --prefix frontend ci && npm --prefix frontend run build || exit 1
+echo "Main control environment and UI ready. Install models from Global Settings."

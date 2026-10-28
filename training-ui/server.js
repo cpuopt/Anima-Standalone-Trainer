@@ -2,6 +2,7 @@ const express = require('express');
 const { spawn, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { environmentPath: animaLuminaEnvironmentPath } = require('./lib/anima-lumina-env');
 const { snapshotSamplePrompts } = require('./lib/prompt-snapshot');
 const { countDatasetImages } = require('./lib/dataset-images');
 const LBAI = require('./public/js/lbai');
@@ -16,7 +17,7 @@ const { findAvailablePort } = require('./lib/ports');
 const http = require('http');
 const WebSocket = require('ws');
 
-require('./lib/setup').runSetup();
+// Model dependencies are installed explicitly from Global Settings, never on UI startup.
 
 const app = express();
 const server = http.createServer(app);
@@ -159,12 +160,41 @@ function getGlobalConfig() {
             gemma2_path: '',
             lumina_vae_path: ''
         },
-        venv_path: path.join(ROOT_DIR, 'venv'),
+        anima_lumina_venv_path: '',
+        venv_path: '', // Legacy explicit path only; new installs use venv-anima-lumina.
         ui: {
             log_language: 'zh_CN'
         }
     });
 }
+
+// Environment management has its own logs, process ownership and local-only API.
+const { EnvironmentManager } = require('./lib/environment-manager');
+const environmentManager = new EnvironmentManager({ root: ROOT_DIR, getConfig: getGlobalConfig,
+    isBusy: () => runningJobs.size > 0 || !!persistentGenProcess || tbProcesses.size > 0 });
+environmentManager.mount(app);
+const trainingLeaseFile = path.join(ROOT_DIR, '.runtime', 'ui-training-active.json');
+function updateTrainingLease(active) {
+    const temporary = trainingLeaseFile + '.tmp';
+    fs.writeFileSync(temporary, JSON.stringify({pid:process.pid,active}));
+    fs.renameSync(temporary, trainingLeaseFile);
+}
+setInterval(() => updateTrainingLease(runningJobs.size > 0 || !!persistentGenProcess || tbProcesses.size > 0), 1000).unref();
+app.use((req, res, next) => {
+    const launch = req.method === 'POST' && /^\/api\/jobs\/[^/]+\/(train\/start|generate|tensorboard)$/.test(req.path);
+    if (launch && environmentManager.installing()) return res.status(409).json({error:'Environment operation running; wait for it to finish'});
+    if (launch) updateTrainingLease(true);
+    next();
+});
+process.on('exit', () => {
+    for (const child of environmentManager.children.values()) {
+        if (!child.pid) continue;
+        try {
+            if (isWindows) execFileSync('taskkill', ['/PID', String(child.pid), '/F', '/T'], {windowsHide:true,stdio:'ignore'});
+            else process.kill(-child.pid, 'SIGKILL');
+        } catch (_) {}
+    }
+});
 
 // Serve architecture registry to frontend
 app.get('/api/architectures', (req, res) => {
@@ -231,47 +261,13 @@ async function getDetectedGPUs() {
                 return resolve(gpus);
             }
 
-            // 2. Fallback to Python (torch)
-            console.warn("nvidia-smi failed, trying python fallback...");
-            const globalConfig = getGlobalConfig();
-            const venvPath = toNativePath(globalConfig.venv_path || path.join(ROOT_DIR, 'venv'));
-            let pythonPath = 'python'; // Default
-            if (process.platform === 'win32') {
-                pythonPath = path.join(venvPath, 'Scripts', 'python.exe');
-            } else {
-                pythonPath = path.join(venvPath, 'bin', 'python');
-            }
-
-            if (!fs.existsSync(pythonPath)) {
-                pythonPath = 'python';
-            }
-
-            const pyScript = "import torch; import json; print(json.dumps([{'index': i, 'name': torch.cuda.get_device_name(i), 'memory': f'{torch.cuda.get_device_properties(i).total_memory // 1024**2} MiB'} for i in range(torch.cuda.device_count())]))";
-
-            const pyProc = spawn(pythonPath, ['-c', pyScript]);
-            let pyOut = '';
-            let pyErr = '';
-
-            pyProc.stdout.on('data', (data) => pyOut += data);
-            pyProc.stderr.on('data', (data) => pyErr += data);
-
-            pyProc.on('close', (pyCode) => {
-                if (pyCode !== 0) {
-                    console.error("Python GPU detection failed:", pyErr);
-                    return resolve([]);
-                }
-                try {
-                    const gpus = JSON.parse(pyOut.trim());
-                    resolve(gpus);
-                } catch (e) {
-                    console.error("Failed to parse Python GPU output:", e);
-                    resolve([]);
-                }
-            });
+            // UI discovery must not depend on any training environment.
+            console.warn('nvidia-smi unavailable; install/check a model environment for CUDA diagnostics.');
+            resolve([]);
         });
 
         smi.on('error', (err) => {
-            // Silently fail to fallback
+            resolve([]);
         });
     });
 }
@@ -563,6 +559,7 @@ app.get('/api/global-config', (req, res) => {
 app.put('/api/global-config', (req, res) => {
     try {
         const body = req.body;
+        if (environmentManager.installing()) return res.status(409).json({error:'Wait for environment operation before saving settings'});
         if (body.model_paths) {
             for (const key in body.model_paths) {
                 body.model_paths[key] = stripQuotes(body.model_paths[key]);
@@ -572,7 +569,9 @@ app.put('/api/global-config', (req, res) => {
         body.ui.log_language = normalizeLogLanguage(body.ui.log_language);
         body.ui.lbai_targets = LBAI.normalizeTargets(body.ui.lbai_targets);
         const tomlStr = TOML.stringify(body);
-        fs.writeFileSync(GLOBAL_CONFIG_PATH, tomlStr, 'utf8');
+        const tmp = GLOBAL_CONFIG_PATH + '.save.tmp';
+        fs.writeFileSync(tmp, tomlStr, 'utf8');
+        fs.renameSync(tmp, GLOBAL_CONFIG_PATH);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1292,7 +1291,7 @@ app.post('/api/jobs/:name/generate', async (req, res) => {
         }
 
         const globalConfig = getGlobalConfig();
-        const venvPath = toNativePath(globalConfig.venv_path || path.join(ROOT_DIR, 'venv'));
+        const venvPath = animaLuminaEnvironmentPath(ROOT_DIR, globalConfig, toNativePath);
         const venv = getVenvPaths(venvPath);
 
         // Resolve architecture from job config
@@ -1683,7 +1682,7 @@ app.post('/api/jobs/:name/train/start', async (req, res) => {
 
         // Get venv path from global config
         const globalConfig = getGlobalConfig();
-        const venvPath = toNativePath(globalConfig.venv_path || path.join(ROOT_DIR, 'venv'));
+        const venvPath = animaLuminaEnvironmentPath(ROOT_DIR, globalConfig, toNativePath);
         const venv = getVenvPaths(venvPath);
 
         const jobArch = getArchForJob(mergedConfig);
@@ -1837,7 +1836,7 @@ app.post('/api/jobs/:name/tensorboard', async (req, res) => {
 
         // Get venv path
         const globalConfig = getGlobalConfig();
-        const venvPath = toNativePath(globalConfig.venv_path || path.join(ROOT_DIR, 'venv'));
+        const venvPath = animaLuminaEnvironmentPath(ROOT_DIR, globalConfig, toNativePath);
         const venv = getVenvPaths(venvPath);
 
         const port = nextTbPort++;
@@ -2137,7 +2136,7 @@ process.on('unhandledRejection', (reason, promise) => {
     server.listen(port, () => {
         console.log(`Anima Training UI running at http://localhost:${port}`);
         try {
-            openNative(`http://localhost:${port}`, true);
+            if (!process.env.ANIMA_NO_BROWSER) openNative(`http://localhost:${port}`, true);
         } catch (e) {
             console.warn('Could not open browser automatically.');
         }

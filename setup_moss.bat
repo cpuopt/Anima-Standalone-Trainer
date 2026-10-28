@@ -1,4 +1,4 @@
 @echo off
 setlocal
-py -3.12 "%~dp0scripts\setup_moss.py" %*
+node "%~dp0training-ui\scripts\manage-environment.js" moss %*
 exit /b %errorlevel%
