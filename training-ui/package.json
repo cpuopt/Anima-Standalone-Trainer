@@ -13,8 +13,10 @@
         "test:ui": "npm --prefix frontend test"
     },
     "dependencies": {
+        "@iarna/toml": "^2.2.5",
+        "7zip-bin-full": "26.5.1",
         "express": "^4.18.2",
-        "ws": "^8.16.0",
-        "@iarna/toml": "^2.2.5"
+        "sharp": "0.35.5",
+        "ws": "^8.16.0"
     }
 }

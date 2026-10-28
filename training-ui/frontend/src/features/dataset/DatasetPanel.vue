@@ -6,6 +6,7 @@ import ConfigField from '@/components/forms/ConfigField.vue'
 import FieldHelp from '@/components/forms/FieldHelp.vue'
 import { provideFieldHelp } from '@/components/forms/help-context'
 import { LBAI } from '@/domain/legacy'
+import DatasetAssetManager from './DatasetAssetManager.vue'
 
 const store = useEditorStore()
 provideFieldHelp('dataset')
@@ -23,6 +24,23 @@ const datasets = computed<RecordValue[]>(() => {
 })
 const general = computed(() => store.dataset?.general || {})
 const training = computed(() => store.config.training_arguments || {})
+const assetTarget = ref<{ dataset: RecordValue; subset: RecordValue; mode: 'import' | 'browse'; job: string | null } | null>(null)
+function manageAssets(dataset: RecordValue, subset: RecordValue, mode: 'import' | 'browse') {
+  assetTarget.value = { dataset, subset, mode, job: store.name }
+}
+function applyImported(directories: string[]) {
+  const target = assetTarget.value
+  if (!target || target.job !== store.name || store.locked || store.running || !directories.length ||
+    !datasets.value.includes(target.dataset) || !subsets(target.dataset).includes(target.subset)) return
+  const existing = new Set(subsets(target.dataset).filter(s => s !== target.subset).map(s => String(s.image_dir || '').trim().toLowerCase()))
+  const paths = directories.filter(p => !existing.has(p.toLowerCase()))
+  if (!paths.length) { store.error = '这些目录已绑定到当前 Dataset 的其他子集'; return }
+  target.subset.image_dir = paths[0]
+  target.dataset.subsets = [...subsets(target.dataset), ...paths.slice(1).map(image_dir => ({ ...target.subset, image_dir }))]
+  paths.forEach(p => counts.delete(p))
+  store.touch(); assetTarget.value = null; void refreshCounts()
+  store.notice = '数据集目录已绑定，请保存任务配置后再训练。'
+}
 function setTraining(field: string, value: any) {
   if (!store.config.training_arguments) store.config.training_arguments = {}
   if (value === undefined) delete store.config.training_arguments[field]
@@ -76,7 +94,7 @@ async function refreshCounts() {
     }
   }))
 }
-watch(() => store.name, () => { generation++; countRequest?.abort(); counts.clear() })
+watch(() => store.name, () => { generation++; countRequest?.abort(); counts.clear(); assetTarget.value = null })
 watch(() => datasets.value.flatMap(d => subsets(d).map(s => s.image_dir)), () => {
   clearTimeout(countTimer)
   countTimer = setTimeout(refreshCounts, 400)
@@ -143,6 +161,8 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
         <div v-if="!collapsed.has(subset)">
           <div class="fields"><ConfigField :object="subset" field="image_dir" label="服务器图片目录" /><ConfigField :object="subset" field="num_repeats" label="重复次数" type="number" :min="1" :fallback="1" /></div>
           <button class="button" :disabled="!subset.image_dir" @click="openFolder(subset.image_dir)">打开目录</button>
+          <button class="button" :disabled="store.running" @click="manageAssets(dataset, subset, 'import')">导入数据集</button>
+          <button class="button" :disabled="!subset.image_dir" @click="manageAssets(dataset, subset, 'browse')">浏览 / 预览</button>
           <button class="button" @click="counts.delete(String(subset.image_dir || '').trim()); refreshCounts()">重新计数</button>
           <div v-if="moss" class="fields"><ConfigField :object="subset" field="caption_prefix" label="Caption 前缀"/><ConfigField :object="subset" field="caption_suffix" label="Caption 后缀"/><ConfigField :object="subset" field="caption_dropout_rate" label="Caption Dropout" type="number" :min="0" :max="1" :step="0.01"/></div>
           <div class="fields" v-if="!['krea2','moss_image'].includes(store.architecture)">
@@ -155,6 +175,10 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
       <button class="button" @click="addSubset(dataset)">添加子集</button>
     </article>
     </fieldset>
+    <section v-if="store.locked" aria-label="数据集只读预览">
+      <template v-for="(dataset, di) in datasets" :key="di"><button v-for="(subset, si) in subsets(dataset)" :key="si" class="button" :disabled="!subset.image_dir" @click="manageAssets(dataset, subset, 'browse')">预览 Dataset {{ di + 1 }} / 子集 {{ si + 1 }}</button></template>
+    </section>
+    <DatasetAssetManager v-if="assetTarget" :key="assetTarget.job || ''" :directory="assetTarget.subset.image_dir || ''" :mode="assetTarget.mode" :caption-extension="assetTarget.dataset.caption_extension || '.txt'" :disabled="store.locked || store.running" @close="assetTarget = null" @imported="applyImported" />
   </section>
 </template>
 

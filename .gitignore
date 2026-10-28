@@ -51,6 +51,7 @@ logs/
 *.pth
 training-ui/jobs/
 training-ui/public/uploads/
+training-ui/datasets/
 training-ui/global_config.toml
 training-ui/_merged_config.toml
 training-ui/server.*.log

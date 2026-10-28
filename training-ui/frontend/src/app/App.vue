@@ -9,6 +9,7 @@ import NetworkPanel from '@/features/network/NetworkPanel.vue'
 import MultiGpuPanel from '@/features/multi-gpu/MultiGpuPanel.vue'
 import PromptsPanel from '@/features/prompts/PromptsPanel.vue'
 import SamplesPanel from '@/features/samples/SamplesPanel.vue'
+import ArtifactsPanel from '@/features/artifacts/ArtifactsPanel.vue'
 import ConsolePanel from '@/features/console/ConsolePanel.vue'
 import TensorBoardPanel from '@/features/tensorboard/TensorBoardPanel.vue'
 import SettingsPanel from '@/features/settings/SettingsPanel.vue'
@@ -20,11 +21,14 @@ const tabs = [
   { id:'network', label:'网络', component:NetworkPanel }, { id:'multi-gpu', label:'多 GPU', component:MultiGpuPanel },
   { id:'prompts', label:'提示词与生成', component:PromptsPanel }, { id:'samples', label:'样例', component:SamplesPanel },
   { id:'console', label:'控制台', component:ConsolePanel }, { id:'tensorboard', label:'TensorBoard', component:TensorBoardPanel },
+  { id:'artifacts', label:'训练产出', component:ArtifactsPanel },
   { id:'settings', label:'设置', component:SettingsPanel },
 ]
 const cached = localStorage.getItem('lastTab') || 'training'
 const tab = ref(tabs.some(t => t.id === cached) ? cached : 'training')
 const newName = ref(''), newArch = ref('anima'), search = ref(''), busy = ref(false)
+const accessExpired = ref(false)
+function expired() { accessExpired.value = true }
 const filteredJobs = computed(() => store.jobs.filter(j => j.name.toLowerCase().includes(search.value.toLowerCase())))
 const unsaved = computed(() => store.dirty || store.globalDirty)
 watch(tab, v => localStorage.setItem('lastTab', v))
@@ -70,10 +74,11 @@ function keyboard(event: KeyboardEvent) {
   }
 }
 onMounted(() => {
+  window.addEventListener('ui-access-expired', expired)
   window.addEventListener('beforeunload', unload); window.addEventListener('keydown', keyboard)
   void run(() => store.initialize())
 })
-onBeforeUnmount(() => { store.dispose(); window.removeEventListener('beforeunload', unload); window.removeEventListener('keydown', keyboard) })
+onBeforeUnmount(() => { store.dispose(); window.removeEventListener('ui-access-expired', expired); window.removeEventListener('beforeunload', unload); window.removeEventListener('keydown', keyboard) })
 </script>
 <template>
   <div class="app-background" :style="background" />
@@ -106,6 +111,7 @@ onBeforeUnmount(() => { store.dispose(); window.removeEventListener('beforeunloa
         </div>
       </header>
       <div v-if="store.error" class="banner error" role="alert">{{ store.error }}<button aria-label="关闭错误" @click="store.error = ''">×</button></div>
+      <div v-if="accessExpired" class="banner error" role="alert">远程会话已过期，未保存的编辑仍保留。<a href="/login" target="_blank" rel="noopener">在新标签页重新登录</a><button @click="accessExpired = false">关闭提示</button></div>
       <div v-if="store.notice" class="banner notice" role="status">{{ store.notice }}</div>
       <nav class="tabs" aria-label="配置页面"><button v-for="item in tabs" :key="item.id" :class="{ active: tab === item.id }" :disabled="!store.name && item.id !== 'settings'" @click="tab = item.id">{{ item.label }}</button></nav>
       <div class="workspace">

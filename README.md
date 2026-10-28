@@ -3,6 +3,10 @@
 
 # Anima Standalone Trainer
 
+The dataset page supports folder/image/TXT uploads, automatic ZIP/7z extraction, and image-caption previews. LAN access now requires a shared access code; manage codes and directory grants from localhost Settings. See [dataset import and LAN access guide](training-ui/DATASETS.md).
+
+The **Training Outputs / 训练产出** tab previews and downloads saved epoch/step model files and training sample images. See [training outputs guide](training-ui/ARTIFACTS.md).
+
 MOSS-Image Base/SFT LoRA, LoHa and LoKr training, resume, training previews and independent generation are available through an isolated, pinned sd-scripts backend. Select **MOSS-Image** when creating a job. See [MOSS setup and usage](docs/MOSS_IMAGE.md).
 
 Krea 2 LoRA and LoKR training are available through a separately pinned Musubi Tuner backend and environment. Select **Krea 2** when creating a UI job, then choose LoRA or LoKR. See [Krea 2 setup, supported features, and limitations](docs/KREA2.md).

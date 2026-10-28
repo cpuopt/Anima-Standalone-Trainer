@@ -17,7 +17,10 @@ export async function api<T = any>(url: string, options: ApiOptions = {}): Promi
     const text = await response.text()
     let data: any
     try { data = text ? JSON.parse(text) : null } catch { data = null }
-    if (!response.ok) throw new ApiError(data?.error || `${response.status} ${response.statusText}`, response.status)
+    if (!response.ok) {
+      if (response.status === 401) window.dispatchEvent(new Event('ui-access-expired'))
+      throw new ApiError(data?.error || `${response.status} ${response.statusText}`, response.status)
+    }
     return data as T
   } finally {
     clearTimeout(timeout)

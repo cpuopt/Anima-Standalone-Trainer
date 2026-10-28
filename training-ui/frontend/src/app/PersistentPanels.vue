@@ -10,7 +10,7 @@ watch(() => props.active, id => { visited.value.add(id) }, { immediate: true, fl
   <!-- Keep iframe DOM attached: KeepAlive alone detaches it and can reload TensorBoard. -->
   <template v-for="item in tabs" :key="item.id">
     <div v-if="visited.has(item.id)" v-show="active === item.id" :data-panel="item.id">
-      <component :is="toRaw(item.component)" />
+      <component :is="toRaw(item.component)" v-bind="item.id === 'artifacts' ? { active: active === item.id } : {}" />
     </div>
   </template>
 </template>

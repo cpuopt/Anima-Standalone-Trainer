@@ -21,7 +21,11 @@ const WebSocket = require('ws');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const { UiAccess } = require('./lib/ui-access');
+const uiAccess = new UiAccess({ file: path.join(__dirname, '..', '.runtime', 'ui-access-code') });
+uiAccess.mount(app);
+const wss = new WebSocket.Server({ server, verifyClient: ({ req }) => uiAccess.websocketAllowed(req) });
+wss.on('connection', (socket, request) => uiAccess.track(socket, request));
 
 // Parse CLI argument for port
 const args = process.argv.slice(2);
@@ -107,6 +111,17 @@ if (!fs.existsSync(GLOBAL_CONFIG_PATH) && fs.existsSync(TEMPLATE_CONFIG_PATH)) {
 
 // Track running processes
 const runningJobs = new Map();
+const { DatasetLibrary } = require('./lib/dataset-library');
+const datasetLibrary = new DatasetLibrary({
+    root: path.join(__dirname, 'datasets'),
+    isBusy: () => runningJobs.size > 0,
+    toNativePath,
+});
+datasetLibrary.mount(app);
+datasetLibrary.initialize().catch(error => console.warn('Dataset storage initialization failed:', error.message));
+const { JobArtifacts } = require('./lib/job-artifacts');
+new JobArtifacts({ jobsDir: JOBS_DIR, isRunning: name => runningJobs.has(name),
+    thumbnail: target => datasetLibrary.thumbnail(target) }).mount(app);
 
 // WebSocket clients per job
 const wsClients = new Map(); // jobName -> Set<ws>
@@ -2135,6 +2150,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
     server.listen(port, () => {
         console.log(`Anima Training UI running at http://localhost:${port}`);
+        console.log('LAN access requires a shared code. Manage it from localhost → Global Settings → LAN Access. Do not expose this service directly to the Internet.');
         try {
             if (!process.env.ANIMA_NO_BROWSER) openNative(`http://localhost:${port}`, true);
         } catch (e) {

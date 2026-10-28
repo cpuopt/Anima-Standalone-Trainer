@@ -29,6 +29,28 @@ describe('dataset draft preservation', () => {
     expect(state.dataset.custom).toBe('top')
     wrapper.unmount()
   })
+  it('binds all imported image directories, inherits subset settings and asks to save', async () => {
+    const wrapper = shallowMount(DatasetPanel)
+    await wrapper.findAll('button').find(button => button.text() === '导入数据集')!.trigger('click')
+    wrapper.findComponent({ name: 'DatasetAssetManager' }).vm.$emit('imported', ['/new/a','/new/b'])
+    await flushPromises()
+    expect(state.dataset.datasets[0].subsets).toEqual([{ image_dir:'/new/a', num_repeats:1, custom:'a' },{ image_dir:'/new/b', num_repeats:1, custom:'a' }])
+    expect(state.dataset.datasets[1].subsets).toHaveLength(1)
+    expect(state.notice).toContain('保存任务配置')
+    wrapper.unmount()
+  })
+  it('closes the import on task switch and provides read-only preview outside the locked fieldset', async () => {
+    const wrapper = shallowMount(DatasetPanel)
+    await wrapper.findAll('button').find(button => button.text() === '导入数据集')!.trigger('click')
+    state.name = 'other'; await flushPromises()
+    expect(wrapper.findComponent({ name: 'DatasetAssetManager' }).exists()).toBe(false)
+    state.locked = true; state.dataset.datasets[0].subsets[0].image_dir = '/existing'; await flushPromises()
+    const button = wrapper.find('section[aria-label="数据集只读预览"] button')
+    expect(button.element.matches(':disabled')).toBe(false)
+    await button.trigger('click')
+    expect(wrapper.findComponent({ name:'DatasetAssetManager' }).props('mode')).toBe('browse')
+    wrapper.unmount()
+  })
   it('preserves progressive schedule on view and updates only its training field', async () => {
     state.config = { training_arguments: { resolution_schedule:'512:0.4,1024:0.6', disable_bucket_shuffle:true, custom:'keep' } }
     state.dataset.datasets[0].subsets[0].alpha_mask = true

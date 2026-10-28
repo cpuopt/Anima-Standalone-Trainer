@@ -4,6 +4,7 @@ import { useEditorStore } from '@/stores/editor'
 import { api, jobUrl } from '@/services/api'
 import Field from '@/components/forms/ConfigField.vue'
 import EnvironmentPanel from './EnvironmentPanel.vue'
+import AccessPanel from './AccessPanel.vue'
 import { LBAI } from '@/domain/legacy'
 const store=useEditorStore(), message=ref(''), busy=ref(false), environment=ref(''), preview=ref<HTMLElement|null>(null)
 const mossEnvironment=ref('')
@@ -49,6 +50,7 @@ onBeforeUnmount(()=>controller?.abort())
 </script>
 <template>
   <section class="space-y-6">
+    <AccessPanel />
     <div class="flex gap-3 items-center"><h2 class="font-semibold mr-auto">全局设置</h2><span v-if="message" role="status" class="text-sm">{{message}}</span><button class="btn bg-primary text-primary-foreground" :disabled="busy" @click="save">{{busy?'保存中…':'保存全局设置'}}</button></div>
     <EnvironmentPanel @changed="syncEnvironmentPaths"/><section v-if="store.name" class="rounded-lg border p-4 space-y-3"><h3 class="font-semibold">任务维护 · {{store.name}}</h3><div class="flex gap-2 flex-wrap"><button class="btn" :disabled="busy" @click="maintain('open-folder')">打开任务目录</button><button class="btn" :disabled="busy || store.running" @click="maintain('clear-logs')">清理 TensorBoard 日志</button><button class="btn text-destructive" :disabled="busy || store.running" @click="maintain('reset-config')">恢复模板默认配置</button></div><p class="text-sm text-muted-foreground">运行时暂停日志清理和重置。恢复默认配置会重新读取任务，并丢弃尚未保存的任务编辑。</p></section>
     <section v-for="[id,arch] in arches" :key="id" class="rounded-lg border p-4 space-y-4"><h3 class="font-semibold">{{arch.display_name}} 模型路径</h3><Field v-for="(def,key) in arch.global_paths" :key="key" :object="paths" :field="String(key)" :label="(def as any).label" type="text" :help="(def as any).placeholder"/><button v-if="arch.all_in_one && arch.all_in_one_source_key" class="btn" @click="sync(arch)">将首个路径用作 All-in-One 权重</button><template v-if="id==='krea2'"><Field :object="store.globalConfig" field="krea2_venv_path" label="Krea 2 Python 环境" help="安装后自动更新路径；旧默认：项目目录 / venv-krea2"/><p class="text-sm text-muted-foreground">{{environment}}</p></template><template v-if="id==='moss_image'"><Field :object="store.globalConfig" field="moss_venv_path" label="MOSS Python 环境" help="安装后自动更新路径；旧默认：项目目录 / venv-moss"/><p class="text-sm text-muted-foreground">{{mossEnvironment}}</p></template></section>
