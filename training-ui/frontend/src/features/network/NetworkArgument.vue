@@ -25,4 +25,4 @@ const holder = computed(() => new Proxy({} as Record<string, any>, {
   },
 }))
 </script>
-<template><Field :object="holder" field="value" :label="label" :type="type || 'text'" :fallback="fallback" :help="help" :disabled="disabled" :min="min" :max="max" :step="step" @change="emit('change', $event)" /></template>
+<template><Field :object="holder" field="value" :help-key="name" :label="label" :type="type || 'text'" :fallback="fallback" :help="help" :disabled="disabled" :min="min" :max="max" :step="step" @change="emit('change', $event)" /></template>

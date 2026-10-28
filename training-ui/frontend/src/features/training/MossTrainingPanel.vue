@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Field from '@/components/forms/ConfigField.vue'
+import FieldHelp from '@/components/forms/FieldHelp.vue'
+import { provideFieldHelp } from '@/components/forms/help-context'
 import { useEditorStore } from '@/stores/editor'
 import { Moss } from '@/domain/legacy'
 import { section, selectDuration } from './rules'
 const store = useEditorStore()
+provideFieldHelp('training')
 const t = computed(() => section(store.config, 'training_arguments'))
 const m = computed(() => section(store.config, 'moss_arguments'))
 const duration = computed({get:()=>t.value.max_train_steps ? 'steps':'epochs',set:value=>selectDuration(t.value,value)})
@@ -22,7 +25,7 @@ const duration = computed({get:()=>t.value.max_train_steps ? 'steps':'epochs',se
       <Field :object="t" field="lr_warmup_steps" label="Warmup Steps" type="number" :min="0"/>
       <Field :object="t" field="lr_scheduler_num_cycles" label="Scheduler Cycles" type="number" :min="1"/>
       <Field :object="t" field="lr_scheduler_min_lr_ratio" label="Min LR Ratio" type="number" :min="0" :max="1" step="any"/>
-      <label class="field">Duration<select v-model="duration"><option value="epochs">Epochs</option><option value="steps">Steps</option></select></label>
+      <label class="field"><span class="field-label-row">Duration<FieldHelp field="duration_unit" label="Duration" /></span><select v-model="duration"><option value="epochs">Epochs</option><option value="steps">Steps</option></select></label>
       <Field :object="t" :field="duration==='steps'?'max_train_steps':'max_train_epochs'" label="Training Duration" type="number" :min="1"/>
       <Field :object="t" :field="duration==='steps'?'save_every_n_steps':'save_every_n_epochs'" label="Save Every N" type="number" :min="1"/>
       <Field v-for="[key,label] in [['seed','Seed'],['gradient_accumulation_steps','Gradient Accumulation'],['max_grad_norm','Max Grad Norm'],['max_data_loader_n_workers','DataLoader Workers'],['vae_batch_size','VAE Cache Batch']]" :key="key" :object="t" :field="key!" :label="label!" type="number" :min="0"/>

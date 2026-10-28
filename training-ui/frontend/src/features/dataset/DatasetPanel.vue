@@ -3,9 +3,12 @@ import { computed, onUnmounted, reactive, ref, watch } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { api } from '@/services/api'
 import ConfigField from '@/components/forms/ConfigField.vue'
+import FieldHelp from '@/components/forms/FieldHelp.vue'
+import { provideFieldHelp } from '@/components/forms/help-context'
 import { LBAI } from '@/domain/legacy'
 
 const store = useEditorStore()
+provideFieldHelp('dataset')
 const moss = computed(() => store.architecture === 'moss_image')
 type RecordValue = Record<string, any>
 const collapsed = reactive(new WeakSet<object>())
@@ -107,7 +110,7 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
     <p class="muted">每个 Dataset 保留独立分辨率、批量和全部子集。未编辑的扩展字段保持原值。</p>
     <section v-if="!['krea2','moss_image'].includes(store.architecture)" class="lbai total-lbai">
       <strong>总 LBAI {{ totalEstimate ? Number(totalEstimate.value.toPrecision(4)) : '—' }}</strong>
-      <select v-model="targetIndex" aria-label="LBAI 比较目标"><option v-for="(target, ti) in targets" :key="ti" :value="ti">{{ target.name }}：{{ target.type === 'point' ? target.value : `${target.min}–${target.max}` }}</option></select>
+      <select v-model="targetIndex" aria-label="LBAI 比较目标"><option v-for="(target, ti) in targets" :key="ti" :value="ti">{{ target.name }}：{{ target.type === 'point' ? target.value : `${target.min}–${target.max}` }}</option></select><FieldHelp field="lbai_target" label="LBAI 比较目标" />
       <meter v-if="totalEstimate" min="0" :max="Math.max(LBAI.scaleMaximum(targets), totalEstimate.value)" :value="totalEstimate.value" />
       <span>{{ comparison(totalEstimate) }}</span>
       <small class="muted">合计所有 Dataset 的训练程度；每项按其非正则化图片数 × repeats × 采样比例 × epochs × 有效学习率 × rank/32，再除以该项 batch size × 梯度累积。多分辨率训练中同一路径在不同 Dataset 会分别贡献训练量。</small>

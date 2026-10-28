@@ -2,11 +2,13 @@
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { Input } from '@/components/ui/input'
 import { useEditorStore } from '@/stores/editor'
+import FieldHelp from './FieldHelp.vue'
+import SchedulerSelect from './SchedulerSelect.vue'
 const props = withDefaults(defineProps<{
   object: Record<string, any>; field: string; label: string;
   type?: 'text' | 'number' | 'boolean' | 'textarea' | 'select' | 'json';
   options?: Array<string | { value: any; label: string }>; fallback?: any; disabled?: boolean;
-  min?: number | string; max?: number | string; step?: number | string; help?: string;
+  min?: number | string; max?: number | string; step?: number | string; help?: string; helpKey?: string;
 }>(), { type: 'text' })
 const emit = defineEmits<{ change: [value: any]; 'update:modelValue': [value: any] }>()
 const store = useEditorStore(), id = useId(), localError = ref(''), jsonText = ref('')
@@ -43,11 +45,12 @@ onBeforeUnmount(() => { delete store.fieldErrors[id] })
   <div class="field" :class="{ 'field-check': type === 'boolean' }">
     <template v-if="type === 'boolean'">
       <input :id="id" type="checkbox" :checked="Boolean(value)" :disabled="disabled" @change="update(($event.target as HTMLInputElement).checked)">
-      <label :for="id">{{ label }}</label>
+      <label :for="id">{{ label }}</label><FieldHelp :field="helpKey || field" :label="label" :note="help" />
     </template>
     <template v-else>
-      <label :for="id">{{ label }}</label>
-      <select v-if="type === 'select'" :id="id" :value="value" :disabled="disabled" @change="update(($event.target as HTMLSelectElement).value)">
+      <div class="field-label-row"><label :for="id">{{ label }}</label><FieldHelp :field="helpKey || field" :label="label" :note="help" /></div>
+      <SchedulerSelect v-if="type === 'select' && field === 'lr_scheduler'" :id="id" :model-value="String(value)" :label="label" :options="options" :disabled="disabled || store.locked" @update:model-value="update" />
+      <select v-else-if="type === 'select'" :id="id" :value="value" :disabled="disabled" @change="update(($event.target as HTMLSelectElement).value)">
         <option v-if="value === ''" value="">未设置</option>
         <option v-for="option in options" :key="String(typeof option === 'string' ? option : option.value)" :value="typeof option === 'string' ? option : option.value">{{ typeof option === 'string' ? option : option.label }}</option>
       </select>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Field from '@/components/forms/ConfigField.vue'
+import FieldHelp from '@/components/forms/FieldHelp.vue'
+import { provideFieldHelp } from '@/components/forms/help-context'
 import { useEditorStore } from '@/stores/editor'
 import { AdapterMatrix, Krea2, LayerRank, Moss } from '@/domain/legacy'
 import { argumentValue, replaceArgument, section } from '../training/rules'
@@ -8,6 +10,7 @@ import Arg from './NetworkArgument.vue'
 import LayerRankEditor from './LayerRankEditor.vue'
 import { adapterDrafts, resumeDrafts } from './drafts'
 const store = useEditorStore()
+provideFieldHelp('network')
 const n = computed(() => section(store.config, 'network_arguments'))
 const t = computed(() => section(store.config, 'training_arguments'))
 const moss = computed(() => store.architecture === 'moss_image')
@@ -72,11 +75,11 @@ const previewSupported = computed(() => (krea.value ? modules.value.includes(mod
 <template>
   <fieldset class="panel" :disabled="store.locked">
     <h2>Training Type</h2>
-    <label class="field">Training Type<select v-model="trainingType" :disabled="isolated"><option value="lora">Adapter (LoRA / LoHa / LoKR)</option><option v-if="!isolated" value="full_finetune">Full Finetune</option></select></label>
+    <label class="field"><span class="field-label-row">Training Type<FieldHelp field="training_type" label="Training Type" /></span><select v-model="trainingType" :disabled="isolated"><option value="lora">Adapter (LoRA / LoHa / LoKR)</option><option v-if="!isolated" value="full_finetune">Full Finetune</option></select></label>
     <template v-if="trainingType === 'lora'">
       <h2>Adapter Configuration</h2>
       <div class="fields">
-        <label class="field">Network Module<select v-model="selectedModule"><option v-for="name in modules" :key="name">{{ name }}</option><option v-if="moduleName && !modules.includes(moduleName)" :value="moduleName">{{ moduleName }}</option></select></label>
+        <label class="field"><span class="field-label-row">Network Module<FieldHelp field="network_module" label="Network Module" /></span><select v-model="selectedModule"><option v-for="name in modules" :key="name">{{ name }}</option><option v-if="moduleName && !modules.includes(moduleName)" :value="moduleName">{{ moduleName }}</option></select></label>
         <Field :object="n" field="network_dim" label="Network Dim (Rank)" type="number" :min="1" :fallback="16" :disabled="rankDisabled" :help="full ? 'Full Matrix 下 Rank 不生效。' : rankDisabled ? 'Block 层采用高级分层设置；此 Rank 值保留。' : '更高 Rank 增加容量与显存。'" />
         <Field :object="n" field="network_alpha" label="Network Alpha" type="number" :min="0.000001" step="any" :fallback="16" help="通常与 Rank 相同；Full Matrix 下缩放固定为 1。" />
         <Arg v-if="lokr" :network="n" name="factor" label="LoKR Factor" type="number" :min="-1" :step="1" help="空值 / -1 自动平衡分解；否则为正整数。" />
@@ -86,13 +89,13 @@ const previewSupported = computed(() => (krea.value ? modules.value.includes(mod
         <Arg v-if="dora" :network="n" name="use_dora" :label="lokr ? 'Use DoKr' : 'Use DoRA'" type="boolean" :fallback="false" help="保存 ComfyUI 兼容的 dora_scale 权重。" @change="value => { if (!value) n.network_args = replaceArgument(n.network_args, 'dora_scale_fp32', undefined) }" />
         <Arg v-if="dora && enabledArg('use_dora')" :network="n" name="dora_scale_fp32" label="Save Magnitude Scale in FP32" type="boolean" :fallback="false" />
         <Arg v-if="lycoris" :network="n" name="mod_dim" label="Mod Dim" type="number" :min="0" :step="1" help="AdaLN modulation rank；空值排除。" />
-        <Arg v-if="lycoris || isolated" :network="n" name="rank_dropout" label="Rank Dropout" type="number" :min="0" :max="isolated ? 0.999 : 1" :step="0.05" help="LyCORIS 为输出通道 dropout，不是 Rank 维度。" />
+        <Arg v-if="lycoris || isolated" :network="n" name="rank_dropout" label="Rank Dropout" type="number" :min="0" :max="isolated ? 0.999 : 1" :step="0.05" :help="lycoris ? 'LyCORIS 为输出通道 dropout，不是 Rank 维度。' : '丢弃轴由当前原生模块实现决定，概率必须小于 1。'" />
         <Arg v-if="lycoris || isolated" :network="n" name="module_dropout" label="Module Dropout" type="number" :min="0" :max="isolated ? 0.999 : 1" :step="0.05" />
         <Arg v-if="lycoris" :network="n" name="use_tucker" label="Use Tucker" type="boolean" :fallback="false" help="用于 Conv2d 3×3；Anima DiT 的 Linear 层不受影响。" />
         <Arg v-if="krea && !lokr || moss && moduleName === Moss.MODULES[0]" :network="n" name="loraplus_lr_ratio" label="LoRA+ LR Ratio" type="number" :min="0.01" step="any" />
       </div>
       <LayerRankEditor v-if="layered" :network="n" :full="full" :disabled="store.locked" />
-      <label class="field">Network Args<textarea v-model="freeArgs" rows="3" spellcheck="false" /><small class="muted">空格分隔 key=value；JSON 列表与对象整体保留。专用字段优先。Krea 仅支持当前 adapter 的参数白名单。</small></label>
+      <label class="field"><span class="field-label-row">Network Args<FieldHelp field="network_args" label="Network Args" /></span><textarea v-model="freeArgs" rows="3" spellcheck="false" /><small class="muted">空格分隔 key=value；JSON 列表与对象整体保留。专用字段优先。Krea 仅支持当前 adapter 的参数白名单。</small></label>
       <details><summary>全部 Network Args（JSON）</summary><Field :object="n" field="network_args" label="Network Args JSON" type="json" help="可用于修正已有原始参数与 layer_configs；保存时校验。" /></details>
       <details v-if="previewSupported" open>
         <summary>样例层矩阵与参数量</summary>

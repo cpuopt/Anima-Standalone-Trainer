@@ -4,6 +4,7 @@ import { LayerRank } from '@/domain/legacy'
 import { api } from '@/services/api'
 import { argumentValue, replaceArgument } from '../training/rules'
 import { layerDrafts } from './drafts'
+import FieldHelp from '@/components/forms/FieldHelp.vue'
 const props = defineProps<{ network: Record<string, any>; full: boolean; disabled?: boolean }>()
 const layers = ref<string[]>([]), message = ref(''), error = ref('')
 const draft = ref<any>(null)
@@ -77,19 +78,19 @@ onBeforeUnmount(() => { generation++; controller?.abort() })
 </script>
 <template>
   <section class="layer-editor">
-    <label><input type="checkbox" :checked="active" :disabled="disabled" @change="toggle" /> 高级分层设置</label>
+    <label><input type="checkbox" :checked="active" :disabled="disabled" @change="toggle" /> 高级分层设置 <FieldHelp field="layer_configs" label="高级分层设置" /></label>
     <template v-if="active">
-      <div class="layer-actions"><label v-if="draft">配置模式<select v-model="draft.mode" :disabled="disabled" @change="commit"><option value="type">按层类型</option><option value="layer">按单个层</option></select></label><button class="button" type="button" @click="refresh">重新读取模型</button><button class="button" type="button" :disabled="disabled" @click="reset">重置为原 Rank</button></div>
+      <div class="layer-actions"><label v-if="draft"><span class="field-label-row">配置模式<FieldHelp field="layer_mode" label="配置模式" /></span><select v-model="draft.mode" :disabled="disabled" @change="commit"><option value="type">按层类型</option><option value="layer">按单个层</option></select></label><button class="button" type="button" @click="refresh">重新读取模型</button><button class="button" type="button" :disabled="disabled" @click="reset">重置为原 Rank</button></div>
       <p class="muted">仅配置 DiT Block，优先于全局 Alpha、Factor 和旧的 Block 配置。Alpha 默认随 Rank 变化；切换模式只应用当前模式，另一模式草稿暂存于此页面。</p>
       <p v-if="full" class="muted">Full Matrix 下 Rank / Alpha 不生效；训练开关和 Factor 仍生效。</p>
       <p role="status">{{ message }}</p><p v-if="error" class="error" role="alert">{{ error }}</p>
       <template v-if="draft">
-        <div class="fields"><label class="field">默认 Rank<input v-model.number="draft.default_rank" type="number" min="1" :disabled="disabled || full" @input="commit" /></label><label v-if="lokr" class="field">默认 Factor<input v-model.number="draft.default_factor" type="number" min="-1" :disabled="disabled" @input="commit" /></label></div>
+        <div class="fields"><label class="field"><span class="field-label-row">默认 Rank<FieldHelp field="layer_rank" label="默认 Rank" /></span><input v-model.number="draft.default_rank" type="number" min="1" :disabled="disabled || full" @input="commit" /></label><label v-if="lokr" class="field"><span class="field-label-row">默认 Factor<FieldHelp field="layer_factor" label="默认 Factor" /></span><input v-model.number="draft.default_factor" type="number" min="-1" :disabled="disabled" @input="commit" /></label></div>
         <details v-for="(group, i) in groups" :key="group.title" :open="i === 0"><summary>{{ group.title }}</summary>
           <div v-for="name in group.names" :key="name" class="layer-row">
             <span>{{ draft.mode === 'type' ? LayerRank.types[name] : name }}</span>
-            <label><input type="checkbox" :checked="values(name).enabled" :disabled="disabled" @change="edit(name, 'enabled', $event)" /> 训练</label>
-            <label v-for="key in (lokr ? ['rank','alpha','factor'] : ['rank','alpha'])" :key="key">{{ key }}<input type="number" :aria-label="`${name} ${key}`" :value="values(name)[key]" :min="key === 'factor' ? -1 : key === 'alpha' ? 0.000001 : 1" :step="key === 'alpha' ? 'any' : 1" :disabled="disabled || !values(name).enabled || (full && key !== 'factor')" @input="edit(name, key, $event)" /></label>
+            <label><input type="checkbox" :checked="values(name).enabled" :disabled="disabled" @change="edit(name, 'enabled', $event)" /> 训练 <FieldHelp field="layer_enabled" :label="`${name} 训练`" /></label>
+            <label v-for="key in (lokr ? ['rank','alpha','factor'] : ['rank','alpha'])" :key="key"><span class="field-label-row">{{ key }}<FieldHelp :field="`layer_${key}`" :label="`${name} ${key}`" /></span><input type="number" :aria-label="`${name} ${key}`" :value="values(name)[key]" :min="key === 'factor' ? -1 : key === 'alpha' ? 0.000001 : 1" :step="key === 'alpha' ? 'any' : 1" :disabled="disabled || !values(name).enabled || (full && key !== 'factor')" @input="edit(name, key, $event)" /></label>
           </div>
         </details>
       </template>
