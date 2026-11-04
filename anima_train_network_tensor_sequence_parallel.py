@@ -1041,17 +1041,14 @@ class AnimaNetworkTrainerTPSP(AnimaNetworkTrainer):
         if dist.is_initialized():
             dist.barrier()
 
-        # Save RNG state
-        rng_state = torch.get_rng_state()
-        cuda_rng_state = torch.cuda.get_rng_state() if torch.cuda.is_available() else None
-
         org_vae_device = next(vae.parameters()).device
         vae.to(accelerator.device)
         vae_scale_gpu = [t.to(accelerator.device) for t in self.vae_scale]
 
-        from library.anima_train_utils import _sample_image_inference
+        from library.anima_train_utils import _sample_image_inference, sampling_context
 
         lora_network = getattr(self, "_tp_lora_network", None)
+        sample_network = accelerator.unwrap_model(network) if network is not None else None
         original_lora_dtypes = []
         if lora_network is not None:
             for param in lora_network.parameters():
@@ -1060,7 +1057,7 @@ class AnimaNetworkTrainerTPSP(AnimaNetworkTrainer):
                     param.data = param.data.to(dtype=sample_dtype)
 
         try:
-            with torch.no_grad(), accelerator.autocast():
+            with sampling_context(dit, qwen3_te, vae, lora_network, sample_network), torch.no_grad(), accelerator.autocast():
                 for prompt_dict in prompts:
                     # ALL ranks run forward (TP collectives need all ranks)
                     # Only rank 0 saves the image file
@@ -1070,7 +1067,7 @@ class AnimaNetworkTrainerTPSP(AnimaNetworkTrainer):
                         save_dir, prompt_dict, epoch, global_step,
                         self.sample_prompts_te_outputs, None,
                         save_image=(tp_rank == 0),
-                        network=accelerator.unwrap_model(network) if network is not None else None,
+                        network=sample_network,
                     )
         finally:
             for param, dtype in original_lora_dtypes:
@@ -1078,11 +1075,6 @@ class AnimaNetworkTrainerTPSP(AnimaNetworkTrainer):
 
             vae.to(org_vae_device)
             clean_memory_on_device(accelerator.device)
-
-            # Restore RNG state
-            torch.set_rng_state(rng_state)
-            if cuda_rng_state is not None:
-                torch.cuda.set_rng_state(cuda_rng_state)
 
         if dist.is_initialized():
             dist.barrier()

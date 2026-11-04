@@ -1,8 +1,10 @@
 # Anima Training Utilities
 
 import argparse
+from contextlib import contextmanager
 import math
 import os
+import random
 import time
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -18,6 +20,7 @@ Image.MAX_IMAGE_PIXELS = None
 from PIL.PngImagePlugin import PngInfo
 
 from library.device_utils import init_ipex, clean_memory_on_device
+from library.memory_trace import trace_mark
 
 init_ipex()
 
@@ -865,6 +868,31 @@ def do_sample(
     return x
 
 
+@contextmanager
+def sampling_context(*models):
+    """Isolate inference dropout and RNG from the surrounding training loop."""
+    python_rng = random.getstate()
+    numpy_rng = np.random.get_state()
+    cpu_rng = torch.get_rng_state()
+    cuda_rng = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
+    # Preserve mixed child states as well (e.g. frozen/eval text encoders).
+    modules = {id(module): module for model in models if model is not None for module in model.modules()}
+    training_states = [(module, module.training) for module in modules.values()]
+    try:
+        for model in models:
+            if model is not None:
+                model.eval()
+        yield
+    finally:
+        for module, training in training_states:
+            module.training = training
+        random.setstate(python_rng)
+        np.random.set_state(numpy_rng)
+        torch.set_rng_state(cpu_rng)
+        if cuda_rng is not None:
+            torch.cuda.set_rng_state_all(cuda_rng)
+
+
 def sample_images(
     accelerator: Accelerator,
     args: argparse.Namespace,
@@ -929,34 +957,29 @@ def sample_images(
     else:
         logger.info(tr("no_assigned_prompts", rank=rank))
 
-    # Save RNG state
-    rng_state = torch.get_rng_state()
-    cuda_rng_state = None
-    try:
-        cuda_rng_state = torch.cuda.get_rng_state() if torch.cuda.is_available() else None
-    except Exception:
-        pass
-
     if my_prompts:
-        # Move VAE to GPU once
+        trace_mark(args, "sample.begin", sample_step=steps, sample_epoch=epoch)
+        # Keep a CPU VAE off GPU during DiT denoising; upload only for decoding.
         org_vae_device = next(vae.parameters()).device
-        vae.to(accelerator.device)
-        vae_scale_gpu = [t.to(accelerator.device) for t in vae_scale]
-
-        with torch.no_grad(), accelerator.autocast():
-            for prompt_dict in my_prompts:
-                _sample_image_inference(
-                    accelerator, args, dit, text_encoder, vae, vae_scale_gpu,
-                    tokenize_strategy, text_encoding_strategy,
-                    save_dir, prompt_dict, epoch, steps,
-                    sample_prompts_te_outputs, prompt_replacement,
-                    dit_secondary=dit_secondary,
-                    network=sample_network,
-                )
-
-        # Move VAE back and clean up
-        vae.to(org_vae_device)
-        clean_memory_on_device(accelerator.device)
+        with sampling_context(dit, text_encoder, vae, sample_network, dit_secondary):
+            try:
+                vae_scale_gpu = [t.to(accelerator.device) for t in vae_scale]
+                with torch.no_grad(), accelerator.autocast():
+                    for prompt_dict in my_prompts:
+                        _sample_image_inference(
+                            accelerator, args, dit, text_encoder, vae, vae_scale_gpu,
+                            tokenize_strategy, text_encoding_strategy,
+                            save_dir, prompt_dict, epoch, steps,
+                            sample_prompts_te_outputs, prompt_replacement,
+                            dit_secondary=dit_secondary,
+                            network=sample_network,
+                        )
+            finally:
+                vae.to(org_vae_device)
+                if hasattr(vae, "clear_cache"):
+                    vae.clear_cache()
+                clean_memory_on_device(accelerator.device)
+                trace_mark(args, "sample.after_restore", models={"vae": vae, "dit": dit})
 
     # Synchronize all processes before resuming training
     accelerator.wait_for_everyone()
@@ -1050,12 +1073,16 @@ def _sample_image_inference(
     )
 
     # Encode prompt
+    trace_mark(args, "sample.text_encoding.before", width=width, height=height)
     def encode_prompt(prpt):
         if sample_prompts_te_outputs and prpt in sample_prompts_te_outputs:
             return sample_prompts_te_outputs[prpt]
         if text_encoder is not None:
             tokens = tokenize_strategy.tokenize(prpt)
-            encoded = text_encoding_strategy.encode_tokens(tokenize_strategy, [text_encoder], tokens)
+            # Sampling must never apply the training caption/embedding dropout.
+            encoded = text_encoding_strategy.encode_tokens(
+                tokenize_strategy, [text_encoder], tokens, enable_dropout=False
+            )
             return encoded
         return None
 
@@ -1092,6 +1119,7 @@ def _sample_image_inference(
 
     # Encode negative prompt for CFG
     neg_crossattn_emb = None
+    neg_encoded = neg_pe = neg_am = neg_t5_ids = neg_t5_am = None
     if scale > 1.0 and negative_prompt is not None:
         neg_encoded = encode_prompt(negative_prompt)
         if neg_encoded is not None:
@@ -1118,6 +1146,7 @@ def _sample_image_inference(
             else:
                 neg_crossattn_emb = neg_pe
 
+    trace_mark(args, "sample.text_encoding.after")
     original_blocks_to_swap = getattr(dit, "blocks_to_swap", 0)
     original_network_multiplier = getattr(network, "multiplier", 1.0) if can_set_strength else None
 
@@ -1130,6 +1159,7 @@ def _sample_image_inference(
             )
 
         if original_blocks_to_swap and original_blocks_to_swap > 0:
+            trace_mark(args, "sample.all_blocks_to_gpu.before")
             logger.info(tr("disable_block_swap_for_sampling"))
             from library.custom_offloading_utils import weighs_to_device
             for block in dit.blocks:
@@ -1142,9 +1172,11 @@ def _sample_image_inference(
             dit.blocks_to_swap = 0
             if dit_secondary is not None:
                 dit_secondary.blocks_to_swap = 0
+            trace_mark(args, "sample.all_blocks_to_gpu.after")
 
         # Generate sample
         clean_memory_on_device(accelerator.device)
+        trace_mark(args, "sample.denoise.before")
         latents = do_sample(
             height, width, seed, dit, crossattn_emb,
             sample_steps, dit.t_embedding_norm.weight.dtype,
@@ -1154,6 +1186,7 @@ def _sample_image_inference(
             scheduler=scheduler,
             flow_shift=flow_shift,
         )
+        trace_mark(args, "sample.denoise.after")
 
     except torch.cuda.OutOfMemoryError as e:
         if original_blocks_to_swap and original_blocks_to_swap > 0:
@@ -1196,11 +1229,29 @@ def _sample_image_inference(
                 dit_secondary.prepare_block_swap_before_forward()
             clean_memory_on_device(accelerator.device)
 
+    # Conditioning is no longer used by decode. empty_cache alone cannot free
+    # tensors still held by these local variables.
+    encoded = prompt_embeds = attn_mask = t5_input_ids = t5_attn_mask = None
+    neg_encoded = neg_pe = neg_am = neg_t5_ids = neg_t5_am = None
+    crossattn_emb = neg_crossattn_emb = None
+    trace_mark(args, "sample.conditions_released")
+
     # Decode latents
     clean_memory_on_device(accelerator.device)
-    # VAE is already on GPU
-    decoded = vae.decode(latents.to(next(vae.parameters()).device, dtype=next(vae.parameters()).dtype), vae_scale)
+    org_decode_device = next(vae.parameters()).device
+    try:
+        trace_mark(args, "sample.vae_upload.before")
+        vae.to(accelerator.device)
+        trace_mark(args, "sample.vae_upload.after")
+        decoded = vae.decode(latents.to(accelerator.device, dtype=next(vae.parameters()).dtype), vae_scale)
+        trace_mark(args, "sample.vae_decode.after")
+    finally:
+        if hasattr(vae, "clear_cache"):
+            vae.clear_cache()
+        vae.to(org_decode_device)
+    del latents
     clean_memory_on_device(accelerator.device)
+    trace_mark(args, "sample.vae_offload.after")
 
     # Convert to image
     image = decoded.float()
@@ -1212,6 +1263,8 @@ def _sample_image_inference(
     decoded_np = decoded_np.astype(np.uint8)
 
     image = Image.fromarray(decoded_np)
+    del decoded
+    trace_mark(args, "sample.image_on_cpu")
     
     # Prepare metadata
     if save_image:

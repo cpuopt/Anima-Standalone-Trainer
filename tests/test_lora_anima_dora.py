@@ -27,6 +27,27 @@ class TinyAnima(torch.nn.Module):
 
 
 class DoRALoRAAnimaTests(unittest.TestCase):
+    def test_plain_lora_save_precision_casts_weights_without_changing_training_dtype(self):
+        from safetensors.torch import load_file
+
+        model = TinyAnima()
+        network = lora_anima.create_network(1.0, 2, 2, None, [], model)
+        network.apply_to([], model)
+        original = {key: value.detach().clone() for key, value in network.state_dict().items()}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for dtype in (torch.bfloat16, torch.float16, torch.float32):
+                with self.subTest(dtype=dtype):
+                    path = os.path.join(tmpdir, f"lora-{dtype}.safetensors")
+                    network.save_weights(path, dtype, {})
+                    saved = load_file(path)
+                    weights = [value for key, value in saved.items() if key.endswith(".weight")]
+                    self.assertTrue(weights)
+                    self.assertTrue(all(value.dtype == dtype for value in weights))
+                    del weights, saved  # Release Windows memory mappings before cleanup.
+                    for key, value in network.state_dict().items():
+                        self.assertEqual(value.dtype, original[key].dtype)
+                        self.assertTrue(torch.equal(value, original[key]))
+
     def test_plain_lora_state_dict_does_not_get_dora_key(self):
         model = TinyAnima()
         network = lora_anima.create_network(1.0, 2, 2, None, [], model)

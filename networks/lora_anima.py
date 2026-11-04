@@ -1546,7 +1546,8 @@ class LoRANetwork(torch.nn.Module):
                     key.endswith(".dora_scale") or key.endswith(".alpha")
                 ):
                     target_dtype = torch.float32
-                v = v.detach().clone().to("cpu").to(target_dtype)
+                # Export a private CPU copy directly, without a transient GPU clone.
+                v = v.detach().to(device="cpu", dtype=target_dtype, copy=True)
                 state_dict[key] = v
 
         if os.path.splitext(file)[1] == ".safetensors":

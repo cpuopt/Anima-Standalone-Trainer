@@ -27,6 +27,39 @@ class EnvironmentTests(unittest.TestCase):
         self.assertEqual(result['status'], 'missing')
         self.assertFalse(result['dependencies'])
 
+    def test_optional_triton_targets_existing_environment_and_checks_gpu(self):
+        report = {'dependencies': True, 'cuda': True, 'versions': {'torch': '2.7.0+cu128'},
+                  'triton': {'status': 'importable', 'distributions': {}}}
+        with patch.object(manager.sys, 'platform', 'win32'), \
+             patch.object(manager, 'inspect', return_value=report), \
+             patch.object(manager, 'run') as run:
+            result = manager.install_triton('anima-lumina')
+        install_args = list(map(str, run.call_args_list[0].args[0]))
+        self.assertIn(str(manager.python_at(manager.current('anima-lumina'))), install_args)
+        self.assertIn('triton-windows>=3.3,<3.4', install_args)
+        self.assertIn('--no-deps', install_args)
+        self.assertEqual(run.call_args_list[1].kwargs['timeout'], 180)
+        self.assertTrue(result['triton']['gpu_compile_verified'])
+
+    def test_optional_triton_rejects_unsupported_torch_without_installing(self):
+        with patch.object(manager.sys, 'platform', 'win32'), \
+             patch.object(manager, 'inspect', return_value={
+                 'dependencies': True, 'cuda': True, 'versions': {'torch': '2.8.0'}}), \
+             patch.object(manager, 'run') as run:
+            with self.assertRaisesRegex(RuntimeError, 'expected 2.7'):
+                manager.install_triton('anima-lumina')
+            run.assert_not_called()
+
+    def test_optional_triton_compile_failure_is_not_reported_as_success(self):
+        report = {'dependencies': True, 'cuda': True, 'versions': {'torch': '2.7.0'},
+                  'triton': {'status': 'missing'}}
+        with patch.object(manager.sys, 'platform', 'win32'), \
+             patch.object(manager, 'inspect', return_value=report), \
+             patch.object(manager, 'run', side_effect=[None, subprocess.CalledProcessError(1, 'compile')]):
+            with self.assertRaises(subprocess.CalledProcessError):
+                manager.install_triton('anima-lumina')
+        self.assertNotIn('gpu_compile_verified', report['triton'])
+
     def test_triton_missing_is_reported(self):
         with patch.object(manager.metadata, 'version', side_effect=manager.metadata.PackageNotFoundError), \
              patch.object(manager.importlib, 'import_module', side_effect=ModuleNotFoundError("No module named 'triton'", name='triton')):

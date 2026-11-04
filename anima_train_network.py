@@ -8,6 +8,7 @@ from typing import Any, Optional, Union
 import torch
 from accelerate import Accelerator
 from library.device_utils import init_ipex, clean_memory_on_device
+from library.memory_trace import trace_mark, cpu_prompt_outputs
 
 init_ipex()
 
@@ -40,6 +41,11 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
         train_dataset_group: Union[train_util.DatasetGroup, train_util.MinimalDataset],
         val_dataset_group: Optional[train_util.DatasetGroup],
     ):
+        variants = getattr(args, "cache_text_encoder_variants", False)
+        if variants:
+            args.cache_text_encoder_outputs_to_disk = True
+            if self.is_train_text_encoder(args):
+                raise ValueError("Per-use text variants require network_train_unet_only=true")
         if args.cache_text_encoder_outputs_to_disk and not args.cache_text_encoder_outputs:
             logger.warning(
                 "cache_text_encoder_outputs_to_disk is enabled, so cache_text_encoder_outputs is also enabled"
@@ -48,7 +54,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
 
         global_dropout_rate = getattr(args, 'caption_dropout_rate', 0.0)
         max_subset_dropout = 0.0
-        if hasattr(train_dataset_group, 'datasets'):
+        if not variants and hasattr(train_dataset_group, 'datasets'):
             for dataset in train_dataset_group.datasets:
                 for subset in dataset.subsets:
                     if subset.caption_dropout_rate > 0:
@@ -61,7 +67,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
         elif global_dropout_rate > 0:
             logger.info(tr("global_caption_dropout", rate=global_dropout_rate))
 
-        if args.cache_text_encoder_outputs:
+        if args.cache_text_encoder_outputs and not variants:
             assert (
                 train_dataset_group.is_text_encoder_output_cacheable()
             ), "when caching Text Encoder output, shuffle_caption, token_warmup_step or caption_tag_dropout_rate cannot be used"
@@ -108,6 +114,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
             args.qwen3_path, dtype=weight_dtype, device="cpu"
         )
         self.qwen3_text_encoder.eval()
+        trace_mark(args, "load.qwen3.after", models={"qwen3": self.qwen3_text_encoder})
 
         # Parse transformer_dtype
         transformer_dtype = None
@@ -132,6 +139,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
         )
 
         # Attention backend
+        trace_mark(args, "load.dit.after", models={"dit": dit})
         if getattr(args, 'flash_attn', False):
             dit.set_flash_attn(True)
 
@@ -151,6 +159,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
         )
 
         # Return format: (model_type, text_encoders, vae, unet)
+        trace_mark(args, "load.vae.after", models={"vae": self.vae})
         return "anima", [self.qwen3_text_encoder], self.vae, dit
 
     def get_tokenize_strategy(self, args):
@@ -177,7 +186,8 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
     def get_text_encoding_strategy(self, args):
         caption_dropout_rate = getattr(args, 'caption_dropout_rate', 0.0)
         self.text_encoding_strategy = strategy_anima.AnimaTextEncodingStrategy(
-            dropout_rate=caption_dropout_rate,
+            # Per-use variants already contain deterministic caption dropout.
+            dropout_rate=0.0 if getattr(args, "cache_text_encoder_variants", False) else caption_dropout_rate,
         )
         return self.text_encoding_strategy
 
@@ -229,7 +239,16 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
             text_encoders[0].to(accelerator.device, dtype=weight_dtype)
 
             with accelerator.autocast():
-                dataset.new_cache_text_encoder_outputs(text_encoders, accelerator)
+                trace_mark(args, "text_cache.before")
+                if getattr(args, "cache_text_encoder_variants", False):
+                    from library.anima_text_variants import cache_variants
+                    cache_variants(dataset, text_encoders, accelerator, args,
+                                   strategy_base.TokenizeStrategy.get_strategy(),
+                                   strategy_base.TextEncodingStrategy.get_strategy(),
+                                   strategy_base.TextEncoderOutputsCachingStrategy.get_strategy())
+                else:
+                    dataset.new_cache_text_encoder_outputs(text_encoders, accelerator)
+                trace_mark(args, "text_cache.after")
 
             # cache sample prompts
             if args.sample_prompts is not None:
@@ -246,12 +265,12 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
                             if p not in sample_prompts_te_outputs:
                                 logger.info(f"  cache TE outputs for: {p}")
                                 tokens_and_masks = tokenize_strategy.tokenize(p)
-                                sample_prompts_te_outputs[p] = text_encoding_strategy.encode_tokens(
+                                sample_prompts_te_outputs[p] = cpu_prompt_outputs(text_encoding_strategy.encode_tokens(
                                     tokenize_strategy,
                                     text_encoders,
                                     tokens_and_masks,
                                     enable_dropout=False,
-                                )
+                                ))
                 self.sample_prompts_te_outputs = sample_prompts_te_outputs
 
             # Pre-cache unconditional embeddings for caption dropout before text encoder is deleted
@@ -418,6 +437,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
         from library.custom_train_functions import apply_masked_loss
 
         with torch.no_grad():
+            trace_mark(args, "batch.latents.before", detail=True, is_train=is_train)
             if "latents" in batch and batch["latents"] is not None:
                 latents = typing.cast(torch.FloatTensor, batch["latents"].to(accelerator.device))
             else:
@@ -433,12 +453,14 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
                             chunk = self.encode_images_to_latents(args, vae, chunk.to(accelerator.device, dtype=vae_dtype))
                             list_latents.append(chunk)
                     latents = torch.cat(list_latents, dim=0)
+                    del list_latents, chunk
 
                 if torch.any(torch.isnan(latents)):
                     accelerator.print("NaN found in latents, replacing with zeros")
                     latents = typing.cast(torch.FloatTensor, torch.nan_to_num(latents, 0, out=latents))
 
             latents = self.shift_scale_latents(args, latents)
+        trace_mark(args, "batch.latents.after", detail=True, is_train=is_train)
 
         # Text encoder conditions
         text_encoder_conds = []
@@ -466,11 +488,13 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
                     if encoded_text_encoder_conds[i] is not None:
                         text_encoder_conds[i] = encoded_text_encoder_conds[i]
 
+        trace_mark(args, "batch.text_encoding.after", detail=True, is_train=is_train)
         noise_pred, target, timesteps, weighting = self.get_noise_pred_and_target(
             args, accelerator, noise_scheduler, latents, batch,
             text_encoder_conds, unet, network, weight_dtype, train_unet, is_train=is_train,
         )
 
+        trace_mark(args, "batch.dit_forward.after", detail=True, is_train=is_train)
         huber_c = train_util.get_huber_threshold_if_needed(args, timesteps, noise_scheduler)
         loss = train_util.conditional_loss(noise_pred.float(), target.float(), args.loss_type, "none", huber_c)
 
@@ -541,6 +565,7 @@ class AnimaNetworkTrainer(train_network.NetworkTrainer):
 
 def setup_parser() -> argparse.ArgumentParser:
     parser = train_network.setup_parser()
+    parser.add_argument("--cache_text_encoder_variants", action="store_true", help="Precompute a deterministic caption encoding for every image/epoch/repeat; enables disk text cache")
     train_util.add_dit_training_arguments(parser)
     anima_train_utils.add_anima_training_arguments(parser)
     parser.add_argument(

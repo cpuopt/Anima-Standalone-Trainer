@@ -6,6 +6,7 @@ const { environmentPath: animaLuminaEnvironmentPath } = require('./lib/anima-lum
 const { snapshotSamplePrompts } = require('./lib/prompt-snapshot');
 const { countDatasetImages } = require('./lib/dataset-images');
 const LBAI = require('./public/js/lbai');
+const { memoryTraceUpdateError } = require('./lib/memory-trace-settings');
 const {readAnimaLayers, validateLayerArgs} = require('./lib/anima-layers');
 const TOML = require('@iarna/toml');
 const Krea2 = require('./public/js/krea2');
@@ -185,23 +186,34 @@ function getGlobalConfig() {
 
 // Environment management has its own logs, process ownership and local-only API.
 const { EnvironmentManager } = require('./lib/environment-manager');
+const { TensorBenchmark } = require('./lib/tensor-benchmark');
+const tensorBenchmark = new TensorBenchmark({ root: ROOT_DIR, getConfig: getGlobalConfig, nativePath: toNativePath,
+    isBusy: () => runningJobs.size > 0 || !!persistentGenProcess || environmentManager.installing() });
 const environmentManager = new EnvironmentManager({ root: ROOT_DIR, getConfig: getGlobalConfig,
-    isBusy: () => runningJobs.size > 0 || !!persistentGenProcess || tbProcesses.size > 0 });
+    isBusy: () => runningJobs.size > 0 || !!persistentGenProcess || tbProcesses.size > 0 || tensorBenchmark.busy() });
 environmentManager.mount(app);
+tensorBenchmark.mount(app);
 const trainingLeaseFile = path.join(ROOT_DIR, '.runtime', 'ui-training-active.json');
 function updateTrainingLease(active) {
     const temporary = trainingLeaseFile + '.tmp';
     fs.writeFileSync(temporary, JSON.stringify({pid:process.pid,active}));
     fs.renameSync(temporary, trainingLeaseFile);
 }
-setInterval(() => updateTrainingLease(runningJobs.size > 0 || !!persistentGenProcess || tbProcesses.size > 0), 1000).unref();
+setInterval(() => updateTrainingLease(runningJobs.size > 0 || !!persistentGenProcess || tbProcesses.size > 0 || tensorBenchmark.busy()), 1000).unref();
 app.use((req, res, next) => {
     const launch = req.method === 'POST' && /^\/api\/jobs\/[^/]+\/(train\/start|generate|tensorboard)$/.test(req.path);
     if (launch && environmentManager.installing()) return res.status(409).json({error:'Environment operation running; wait for it to finish'});
+    if (launch && tensorBenchmark.busy()) return res.status(409).json({error:'请先停止性能测试，再启动训练或采样'});
     if (launch) updateTrainingLease(true);
     next();
 });
 process.on('exit', () => {
+    if (tensorBenchmark.child?.pid) {
+        try {
+            if (process.platform === 'win32') execFileSync('taskkill', ['/PID', String(tensorBenchmark.child.pid), '/F', '/T'], {windowsHide:true,stdio:'ignore'});
+            else process.kill(-tensorBenchmark.child.pid, 'SIGKILL');
+        } catch (_) {}
+    }
     for (const child of environmentManager.children.values()) {
         if (!child.pid) continue;
         try {
@@ -300,9 +312,11 @@ function getDefaultConfig() {
         config: {
             training_arguments: {
                 output_name: 'my_anima_lora',
+                memory_trace: false,
                 learning_rate: 5e-5,
                 max_train_epochs: 20,
-                mixed_precision: 'bf16'
+                mixed_precision: 'bf16',
+                save_precision: 'bf16'
             },
             network_arguments: {
                 network_module: 'networks.lora_anima',
@@ -427,6 +441,8 @@ function buildTrainingConfig(jobName, jobPath) {
     delete trainingArgs.cache_text_encoder_outputs_to_disk;
     merged.training_arguments = {
         ...trainingArgs,
+        // Match the UI default even for older jobs that omit this field.
+        save_precision: trainingArgs.save_precision ?? 'bf16',
         console_log_language: normalizeLogLanguage(globalConfig.ui?.log_language),
         output_dir: outputDir,
         logging_dir: loggingDir,
@@ -741,6 +757,11 @@ app.put('/api/jobs/:name', (req, res) => {
         }
 
         const oldConfig = TOML.parse(fs.readFileSync(path.join(jobPath, 'config.toml'), 'utf8'));
+        if (req.body.config) {
+            const running = runningJobs.has(sanitizeName(req.params.name));
+            const memoryError = memoryTraceUpdateError(oldConfig, req.body.config, running);
+            if (memoryError) return res.status(running ? 409 : 400).json({ error: memoryError });
+        }
         const arch = getArchForJob(oldConfig).id;
         if (['krea2','moss_image'].includes(arch) && runningJobs.has(sanitizeName(req.params.name))) return res.status(400).json({ error: 'Stop Krea 2 before editing configuration or dataset' });
         if (req.body.config && getArchForJob(req.body.config).id !== arch) return res.status(400).json({ error: 'Create a new job to change architecture' });
@@ -2123,7 +2144,8 @@ function getActiveGpus() {
     return active;
 }
 
-require('./lib/hardware').startHardwareMonitor(wss, getActiveGpus);
+require('./lib/hardware').startHardwareMonitor(wss, getActiveGpus,
+    () => require('./lib/memory-status').readMemoryStatuses(JOBS_DIR, runningJobs));
 
 // Prevent server crash on unhandled errors
 process.on('uncaughtException', (err) => {

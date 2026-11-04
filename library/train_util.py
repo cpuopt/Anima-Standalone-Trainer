@@ -1,6 +1,7 @@
 # common functions for training
 
 import argparse
+from collections import Counter
 import ast
 import asyncio
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -848,10 +849,15 @@ class BaseDataset(torch.utils.data.Dataset):
         self.replacements[str_from] = str_to
 
     def process_caption(self, subset: BaseSubset, caption):
+        from library.caption_split import split_caption
+
+        protected = split_caption(caption) if subset.shuffle_caption else None
+        if protected is not None:
+            caption = protected["tags"]
         # caption に prefix/suffix を付ける
         if subset.caption_prefix:
             caption = subset.caption_prefix + " " + caption
-        if subset.caption_suffix:
+        if subset.caption_suffix and protected is None:
             caption = caption + " " + subset.caption_suffix
 
         # dropoutの決定：tag dropがこのメソッド内にあるのでここで行うのが良い
@@ -868,7 +874,7 @@ class BaseDataset(torch.utils.data.Dataset):
             # process wildcards
             if subset.enable_wildcard:
                 # if caption is multiline, random choice one line
-                if "\n" in caption:
+                if protected is None and "\n" in caption:
                     caption = random.choice(caption.split("\n"))
 
                 # wildcard is like '{aaa|bbb|ccc...}'
@@ -889,7 +895,7 @@ class BaseDataset(torch.utils.data.Dataset):
 
                 # unescape the curly braces
                 caption = caption.replace(replacer1, "{").replace(replacer2, "}")
-            else:
+            elif protected is None:
                 # if caption is multiline, use the first line
                 caption = caption.split("\n")[0]
 
@@ -946,6 +952,16 @@ class BaseDataset(torch.utils.data.Dataset):
             # process secondary separator
             if subset.secondary_separator:
                 caption = caption.replace(subset.secondary_separator, subset.caption_separator)
+
+            if protected is not None:
+                separator = protected["separator"]
+                if protected["method"] == "mixed" and not caption:
+                    separator = ""
+                elif protected["method"] == "natural_language" and caption:
+                    separator = " "
+                caption += separator + protected["natural_language"]
+                if subset.caption_suffix:
+                    caption += " " + subset.caption_suffix
 
             # textual inversion対応
             for str_from, str_to in self.replacements.items():
@@ -1652,6 +1668,8 @@ class BaseDataset(torch.utils.data.Dataset):
         flippeds = []  # 変数名が微妙
         text_encoder_outputs_list = []
         custom_attributes = []
+        variant_cache = getattr(self, "_anima_variant_cache", None)
+        variant_occurrences = Counter(bucket[:image_index]) if variant_cache is not None else None
 
         for image_key in bucket[image_index : image_index + bucket_batch_size]:
             image_info = self.image_data[image_key]
@@ -1779,7 +1797,15 @@ class BaseDataset(torch.utils.data.Dataset):
             text_encoder_outputs = None
             input_ids = None
 
-            if image_info.text_encoder_outputs is not None:
+            if variant_cache is not None:
+                occurrence = variant_occurrences[image_key]
+                variant_occurrences[image_key] += 1
+                variant_path = variant_cache.path_for(image_key, self.current_epoch, occurrence)
+                if not os.path.isfile(variant_path):
+                    raise FileNotFoundError(f"Missing per-use text variant: {variant_path}. Rebuild text cache before training.")
+                text_encoder_outputs = self.text_encoder_output_caching_strategy.load_outputs_npz(variant_path)
+                tokenization_required = False
+            elif image_info.text_encoder_outputs is not None:
                 # cached
                 text_encoder_outputs = image_info.text_encoder_outputs
             elif image_info.text_encoder_outputs_npz is not None:
@@ -2022,7 +2048,7 @@ class DreamBoothDataset(BaseDataset):
             self.bucket_reso_steps = None  # この情報は使われない
             self.bucket_no_upscale = False
 
-        def read_caption(img_path, caption_extension, enable_wildcard):
+        def read_caption(img_path, caption_extension, enable_wildcard, shuffle_caption):
             # captionの候補ファイル名を作る
             base_name = os.path.splitext(img_path)[0]
             base_name_face_det = base_name
@@ -2034,14 +2060,16 @@ class DreamBoothDataset(BaseDataset):
             caption = None
             for cap_path in cap_paths:
                 if os.path.isfile(cap_path):
-                    with open(cap_path, "rt", encoding="utf-8") as f:
+                    with open(cap_path, "rt", encoding="utf-8", newline="") as f:
                         try:
                             lines = f.readlines()
                         except UnicodeDecodeError as e:
                             logger.error(f"illegal char in file (not UTF-8) / ファイルにUTF-8以外の文字があります: {cap_path}")
                             raise e
                         assert len(lines) > 0, f"caption file is empty / キャプションファイルが空です: {cap_path}"
-                        if enable_wildcard:
+                        if shuffle_caption:
+                            caption = "".join(lines)
+                        elif enable_wildcard:
                             caption = "\n".join([line.strip() for line in lines if line.strip() != ""])  # 空行を除く、改行で連結
                         else:
                             caption = lines[0].strip()
@@ -2137,7 +2165,7 @@ class DreamBoothDataset(BaseDataset):
 
             logger.info(tr("found_images", path=subset.image_dir, count=len(img_paths)))
 
-            if use_cached_info_for_subset:
+            if use_cached_info_for_subset and not subset.shuffle_caption:
                 captions = [meta["caption"] for meta in metas.values()]
                 missing_captions = [img_path for img_path, caption in zip(img_paths, captions) if caption is None or caption == ""]
             else:
@@ -2150,7 +2178,7 @@ class DreamBoothDataset(BaseDataset):
                 missing_captions = []
                 
                 def _process_caption(i, path):
-                    return i, path, read_caption(path, subset.caption_extension, subset.enable_wildcard)
+                    return i, path, read_caption(path, subset.caption_extension, subset.enable_wildcard, subset.shuffle_caption)
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=optimal_workers) as executor:
                     futures = [executor.submit(_process_caption, i, img_path) for i, img_path in enumerate(img_paths)]
@@ -4109,6 +4137,11 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
     parser.add_argument(
         "--torch_compile", action="store_true", help="use torch.compile (requires PyTorch 2.0) / torch.compile を使う"
     )
+    parser.add_argument("--memory_trace", action="store_true", help="Write phase GPU memory diagnostics to a separate JSONL file")
+    parser.add_argument("--memory_trace_every_n_steps", type=int, default=50, help="Detailed memory trace interval in microbatches/cache batches (first 3 always recorded to JSONL)")
+    parser.add_argument("--memory_trace_console_interval", type=float, default=10.0, help="Deprecated compatibility option; memory diagnostics are file-only")
+    parser.add_argument("--memory_trace_sync", action="store_true", help="Synchronize CUDA at trace nodes for attribution; affects throughput")
+    parser.add_argument("--memory_monitor", action=argparse.BooleanOptionalAction, default=True, help="Publish lightweight model/memory status for hardware monitor")
     parser.add_argument(
         "--dynamo_backend",
         type=str,

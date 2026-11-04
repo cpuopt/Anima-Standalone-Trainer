@@ -391,6 +391,8 @@ class AnimaTextEncoderOutputsCachingStrategy(TextEncoderOutputsCachingStrategy):
 
             if self.cache_to_disk:
                 safetensors_path = os.path.splitext(info.text_encoder_outputs_npz)[0] + ".safetensors"
+                variant_identity = getattr(info, "variant_identity", None)
+                output_path = safetensors_path + f".tmp.{os.getpid()}" if variant_identity else safetensors_path
                 safetensors_save(
                     {
                         "prompt_embeds": prompt_embeds_i.contiguous(),
@@ -398,8 +400,11 @@ class AnimaTextEncoderOutputsCachingStrategy(TextEncoderOutputsCachingStrategy):
                         "t5_input_ids": t5_input_ids_i.contiguous(),
                         "t5_attn_mask": t5_attn_mask_i.contiguous(),
                     },
-                    safetensors_path,
+                    output_path,
+                    metadata={"variant_identity": variant_identity} if variant_identity else None,
                 )
+                if variant_identity:
+                    os.replace(output_path, safetensors_path)
             else:
                 info.text_encoder_outputs = (prompt_embeds_i.float().numpy(), attn_mask_i.numpy(), t5_input_ids_i.numpy(), t5_attn_mask_i.numpy())
 

@@ -160,7 +160,7 @@ function getGpuStats() {
 
 // wss       - WebSocket.Server instance
 // getActiveGpus - () => { [gpuIndex]: 'training'|'sampling' }
-function startHardwareMonitor(wss, getActiveGpus) {
+function startHardwareMonitor(wss, getActiveGpus, getMemoryStatuses = () => []) {
     setInterval(async () => {
         if (wss.clients.size === 0) return;
 
@@ -182,7 +182,8 @@ function startHardwareMonitor(wss, getActiveGpus) {
                 cpu: cpuPct,
                 cpuTemp,
                 ram: { total: totalMem, used: totalMem - freeMem },
-                gpus
+                gpus,
+                memoryProcesses: getMemoryStatuses()
             }
         });
 

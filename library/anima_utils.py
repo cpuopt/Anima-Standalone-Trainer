@@ -1,6 +1,7 @@
 # Anima model loading/saving utilities
 
 import os
+import time
 from typing import Dict, List, Optional, Union
 import torch
 import torch.nn as nn
@@ -9,6 +10,7 @@ from accelerate.utils import set_module_tensor_to_device  # kept for potential f
 
 from .utils import setup_logging
 from .i18n import tr
+from .loading_progress import LoadingStage
 
 setup_logging()
 import logging
@@ -51,12 +53,18 @@ def load_anima_dit(
     if transformer_dtype is None:
         transformer_dtype = dtype
 
+    load_started = time.perf_counter()
     logger.info(tr("loading_model_from", model="Anima DiT", path=dit_path))
-    if disable_mmap:
-        from library.safetensors_utils import load_safetensors as load_safetensors_no_mmap
-        state_dict = load_safetensors_no_mmap(dit_path, device="cpu", disable_mmap=True)
-    else:
-        state_dict = load_file(dit_path, device="cpu")
+    if os.path.isfile(dit_path):
+        logger.info(tr("load_file_details", model="Anima DiT",
+                       gib=f"{os.path.getsize(dit_path) / (1024 ** 3):.2f}",
+                       device=str(device), dtype=str(dtype)))
+    with LoadingStage(logger, "Anima DiT", "load_open_weights"):
+        if disable_mmap:
+            from library.safetensors_utils import load_safetensors as load_safetensors_no_mmap
+            state_dict = load_safetensors_no_mmap(dit_path, device="cpu", disable_mmap=True)
+        else:
+            state_dict = load_file(dit_path, device="cpu")
 
     # Remove 'net.' prefix if present
     new_state_dict = {}
@@ -67,13 +75,15 @@ def load_anima_dit(
     state_dict = new_state_dict
 
     # Derive config from state_dict
-    dit_config = anima_models.get_dit_config(state_dict)
+    with LoadingStage(logger, "Anima DiT", "load_config"):
+        dit_config = anima_models.get_dit_config(state_dict)
 
     # Detect LLM adapter
     if llm_adapter_path is not None:
         use_llm_adapter = True
         dit_config['use_llm_adapter'] = True
-        llm_adapter_state_dict = load_safetensors(llm_adapter_path, device="cpu")
+        with LoadingStage(logger, "Anima DiT", "load_adapter"):
+            llm_adapter_state_dict = load_safetensors(llm_adapter_path, device="cpu")
     elif 'llm_adapter.out_proj.weight' in state_dict:
         use_llm_adapter = True
         dit_config['use_llm_adapter'] = True
@@ -93,7 +103,8 @@ def load_anima_dit(
     )
 
     # Build model normally on CPU — buffers get proper values from __init__
-    dit = anima_models.MiniTrainDIT(**dit_config)
+    with LoadingStage(logger, "Anima DiT", "load_build"):
+        dit = anima_models.MiniTrainDIT(**dit_config)
 
     # Merge LLM adapter weights into state_dict if loaded separately
     if use_llm_adapter and llm_adapter_state_dict is not None:
@@ -101,7 +112,8 @@ def load_anima_dit(
             state_dict[f"llm_adapter.{k}"] = v
 
     # Load checkpoint: strict=False keeps buffers not in checkpoint (e.g. pos_embedder.seq)
-    missing, unexpected = dit.load_state_dict(state_dict, strict=False)
+    with LoadingStage(logger, "Anima DiT", "load_assign"):
+        missing, unexpected = dit.load_state_dict(state_dict, strict=False)
     if missing:
         # Filter out expected missing buffers (initialized in __init__, not saved in checkpoint)
         unexpected_missing = [k for k in missing if not any(
@@ -123,14 +135,19 @@ def load_anima_dit(
         )
 
     # Apply per-parameter dtype (high precision for 1D/critical, transformer_dtype for rest)
-    for name, p in dit.named_parameters():
-        dtype_to_use = dtype if (
-            any(keyword in name for keyword in KEEP_IN_HIGH_PRECISION) or p.ndim == 1
-        ) else transformer_dtype
-        p.data = p.data.to(dtype=dtype_to_use)
+    total_elements = sum(p.numel() for p in dit.parameters())
+    with LoadingStage(logger, "Anima DiT", "load_cast", interval=2.0, total=total_elements) as progress:
+        for name, p in dit.named_parameters():
+            dtype_to_use = dtype if (
+                any(keyword in name for keyword in KEEP_IN_HIGH_PRECISION) or p.ndim == 1
+            ) else transformer_dtype
+            p.data = p.data.to(dtype=dtype_to_use)
+            progress.advance(p.numel())
 
-    dit.to(device)
+    with LoadingStage(logger, "Anima DiT", "load_device"):
+        dit.to(device)
     logger.info(tr("model_loaded", model="Anima DiT", count=f"{sum(p.numel() for p in dit.parameters()):,}"))
+    logger.info(tr("load_total", model="Anima DiT", seconds=f"{time.perf_counter() - load_started:.1f}"))
     return dit
 
 
@@ -222,14 +239,21 @@ def load_qwen3_text_encoder(qwen3_path: str, dtype: torch.dtype = torch.bfloat16
     import transformers
     from transformers import AutoTokenizer
 
+    load_started = time.perf_counter()
     logger.info(tr("loading_model_from", model="Qwen3 text encoder", path=qwen3_path))
+    if os.path.isfile(qwen3_path):
+        logger.info(tr("load_file_details", model="Qwen3 text encoder",
+                       gib=f"{os.path.getsize(qwen3_path) / (1024 ** 3):.2f}",
+                       device=str(device), dtype=str(dtype)))
 
     if os.path.isdir(qwen3_path):
         # Directory with full model
-        tokenizer = AutoTokenizer.from_pretrained(qwen3_path, local_files_only=True)
-        model = transformers.AutoModelForCausalLM.from_pretrained(
-            qwen3_path, torch_dtype=dtype, local_files_only=True
-        ).model
+        with LoadingStage(logger, "Qwen3 text encoder", "load_tokenizer"):
+            tokenizer = AutoTokenizer.from_pretrained(qwen3_path, local_files_only=True)
+        with LoadingStage(logger, "Qwen3 text encoder", "load_pretrained"):
+            model = transformers.AutoModelForCausalLM.from_pretrained(
+                qwen3_path, torch_dtype=dtype, local_files_only=True
+            ).model
     else:
         # Single safetensors file - use configs/qwen3_06b/ for config
         config_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'configs', 'qwen3_06b')
@@ -240,15 +264,18 @@ def load_qwen3_text_encoder(qwen3_path: str, dtype: torch.dtype = torch.bfloat16
                 "You can download these from the Qwen3-0.6B HuggingFace repository."
             )
 
-        tokenizer = AutoTokenizer.from_pretrained(config_dir, local_files_only=True)
-        qwen3_config = transformers.Qwen3Config.from_pretrained(config_dir, local_files_only=True)
-        model = transformers.Qwen3ForCausalLM(qwen3_config).model
+        with LoadingStage(logger, "Qwen3 text encoder", "load_tokenizer"):
+            tokenizer = AutoTokenizer.from_pretrained(config_dir, local_files_only=True)
+            qwen3_config = transformers.Qwen3Config.from_pretrained(config_dir, local_files_only=True)
+        with LoadingStage(logger, "Qwen3 text encoder", "load_build"):
+            model = transformers.Qwen3ForCausalLM(qwen3_config).model
 
         # Load weights
-        if qwen3_path.endswith('.safetensors'):
-            state_dict = load_file(qwen3_path, device='cpu')
-        else:
-            state_dict = torch.load(qwen3_path, map_location='cpu', weights_only=True)
+        with LoadingStage(logger, "Qwen3 text encoder", "load_open_weights"):
+            if qwen3_path.endswith('.safetensors'):
+                state_dict = load_file(qwen3_path, device='cpu')
+            else:
+                state_dict = torch.load(qwen3_path, map_location='cpu', weights_only=True)
 
         # Remove 'model.' prefix if present
         new_sd = {}
@@ -258,16 +285,19 @@ def load_qwen3_text_encoder(qwen3_path: str, dtype: torch.dtype = torch.bfloat16
             else:
                 new_sd[k] = v
 
-        info = model.load_state_dict(new_sd, strict=False)
+        with LoadingStage(logger, "Qwen3 text encoder", "load_assign"):
+            info = model.load_state_dict(new_sd, strict=False)
         logger.info(tr("state_dict_loaded", model="Qwen3", info=info))
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     model.config.use_cache = False
-    model = model.requires_grad_(False).to(device, dtype=dtype)
+    with LoadingStage(logger, "Qwen3 text encoder", "load_device"):
+        model = model.requires_grad_(False).to(device, dtype=dtype)
 
     logger.info(tr("model_loaded", model="Qwen3 text encoder", count=f"{sum(p.numel() for p in model.parameters()):,}"))
+    logger.info(tr("load_total", model="Qwen3 text encoder", seconds=f"{time.perf_counter() - load_started:.1f}"))
     return model, tokenizer
 
 

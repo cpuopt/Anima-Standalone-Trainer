@@ -14,10 +14,12 @@ optimizer_args = [ "weight_decay=0.01",]
 lr_scheduler = "cosine"
 lr_warmup_steps = 0
 mixed_precision = "bf16"
+save_precision = "bf16"
 gradient_checkpointing = true
 gradient_accumulation_steps = 1
 flash_attn = false
 torch_compile = false
+memory_trace = false
 max_data_loader_n_workers = 4
 persistent_data_loader_workers = true
 seed = 42

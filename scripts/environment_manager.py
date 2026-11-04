@@ -1,4 +1,4 @@
-"""Shared Windows/Linux environment installer. Never installs into a live environment."""
+"""Shared environment installer; optional packages require an idle environment."""
 import argparse
 import contextlib
 import datetime
@@ -253,6 +253,47 @@ def activate(env_id, report):
     os.replace(tmp, CONFIG)
 
 
+def install_triton(env_id):
+    """Add optional Triton to the configured, idle Anima environment only."""
+    if env_id != 'anima-lumina' or sys.platform != 'win32':
+        raise RuntimeError('triton-windows installation requires Anima / Lumina on Windows')
+    target = current(env_id)
+    report = inspect(env_id, target)
+    if not report['dependencies'] or not report.get('cuda'):
+        raise RuntimeError('Verify the Anima / Lumina environment and CUDA before installing Triton')
+    # This environment is pinned to torch 2.7; fail explicitly after future upgrades
+    # rather than installing an incompatible Triton minor version.
+    torch_version = report['versions'].get('torch', '')
+    if not re.match(r'^2\.7\.', torch_version):
+        raise RuntimeError(f'No verified Triton version for PyTorch {torch_version}; expected 2.7.x')
+    if 'triton' in report.get('triton', {}).get('distributions', {}):
+        raise RuntimeError('A conflicting triton distribution exists; remove it before installing triton-windows')
+    executable = python_at(target)
+    env = dict(os.environ)
+    env.pop('PYTHONPATH', None)
+    env.pop('VIRTUAL_ENV', None)
+    env.update(UV_CACHE_DIR=str(CACHE), PYTHONUNBUFFERED='1', PYTHONIOENCODING='utf-8')
+    print(f'Installing triton-windows 3.3 for PyTorch {torch_version} into {target}', flush=True)
+    run([python_at(current('main')), '-m', 'uv', 'pip', 'install', '--python', executable,
+         '--no-deps', '--upgrade', 'triton-windows>=3.3,<3.4'], env=env)
+    print('Verifying Triton GPU compilation (first compilation may take a while)...', flush=True)
+    smoke = '''import torch, triton
+print('Triton:', triton.__version__, flush=True)
+x = torch.randn(1024, device='cuda')
+f = torch.compile(lambda x: torch.sin(x) + x * 2, backend='inductor')
+y = f(x)
+torch.cuda.synchronize()
+torch.testing.assert_close(y, torch.sin(x) + x * 2)
+print('Triton GPU compilation passed', flush=True)
+'''
+    run([executable, '-u', '-c', smoke], env=env, timeout=180)
+    report = inspect(env_id, target)
+    if not report['dependencies'] or report.get('triton', {}).get('status') != 'importable':
+        raise RuntimeError('Environment verification failed after installing Triton')
+    report['triton']['gpu_compile_verified'] = True
+    return report
+
+
 def install(env_id, cuda='cu128', target=None):
     if sys.version_info[:2] != (3, 12):
         raise RuntimeError('Run the installer with Python 3.12')
@@ -324,7 +365,7 @@ def install(env_id, cuda='cu128', target=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['install', 'check', 'probe', 'activate', 'migrate'])
+    parser.add_argument('action', choices=['install', 'install-triton', 'check', 'probe', 'activate', 'migrate'])
     parser.add_argument('id', choices=list(KEYS), nargs='?', default='main')
     parser.add_argument('--cuda', choices=['cu124', 'cu128', 'cu130', 'cu132'], default='cu128')
     parser.add_argument('--target', '--venv', type=Path)
@@ -336,7 +377,7 @@ def main():
     elif args.action == 'check':
         report = inspect(args.id, args.target or current(args.id), args.cuda)
     else:
-        if args.action in ('install', 'migrate') and not args.no_activate:
+        if args.action == 'install-triton' or (args.action in ('install', 'migrate') and not args.no_activate):
             # Direct CLI operations must not mutate environments under an active UI
             # trainer. A running local UI publishes an operation lease below.
             lease = RUNTIME / 'ui-training-active.json'
@@ -352,7 +393,9 @@ def main():
                 else:
                     raise RuntimeError('UI training/generation is active; stop it before CLI environment changes')
         with operation_lock():
-            if args.action == 'activate':
+            if args.action == 'install-triton':
+                report = install_triton(args.id)
+            elif args.action == 'activate':
                 report = json.loads(args.report.read_text('utf-8'))
                 actual = inspect(args.id, Path(report['path']), report.get('cuda_profile', 'cu128'))
                 if not actual['dependencies']:

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import MossTrainingPanel from './MossTrainingPanel.vue'
 import { useEditorStore } from '@/stores/editor'
 import Field from '@/components/forms/ConfigField.vue'
@@ -12,6 +12,9 @@ const store = useEditorStore()
 provideFieldHelp('training')
 const t = computed(() => section(store.config, 'training_arguments'))
 const krea = computed(() => store.architecture === 'krea2')
+watch(() => t.value.cache_text_encoder_variants, enabled => {
+  if (enabled && store.architecture === 'anima') t.value.cache_text_encoder_outputs_to_disk = true
+}, { immediate: true })
 const model = computed(() => {
   const key = store.registry?.architectures?.[store.architecture]?.training_section || (krea.value ? 'krea2_arguments' : 'anima_arguments')
   return section(store.config, key)
@@ -87,6 +90,7 @@ function checkpointChanged(event: Event) {
       <Field v-if="!krea" :object="t" field="cache_latents_to_disk" label="Cache Latents to Disk" type="boolean" :fallback="true" />
       <Field :object="krea ? model : t" field="vae_batch_size" label="VAE Cache Batch Size" type="number" :min="1" :max="32" :fallback="1" />
       <Field v-if="!krea" :object="t" field="cache_text_encoder_outputs_to_disk" label="Cache Text Encoder Outputs to Disk" type="boolean" :fallback="true" />
+      <Field v-if="store.architecture === 'anima'" :object="t" field="cache_text_encoder_variants" label="按图片 / 轮次 / 重复次数缓存文本变体" type="boolean" />
       <Field :object="model" :field="krea ? 'timestep_sampling' : 'timestep_sample_method'" label="Timestep Sample Method" type="select" :options="krea ? Krea2.TIMESTEPS : ['logit_normal','uniform']" :fallback="krea ? 'krea2_shift' : 'logit_normal'" />
       <Field :object="model" field="discrete_flow_shift" label="Flow Shift" type="number" :step="0.1" :min="0" :fallback="krea ? 2.5 : 3" :disabled="krea && model.timestep_sampling === 'krea2_shift'" />
     </div>

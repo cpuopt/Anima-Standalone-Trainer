@@ -12,6 +12,7 @@ import json
 from multiprocessing import Value
 import numpy as np
 from library.profiler import StepProfiler
+from library.memory_trace import MemoryTrace
 
 from tqdm import tqdm
 
@@ -749,6 +750,8 @@ class NetworkTrainer:
         # acceleratorを準備する
         logger.info(tr("preparing_accelerator"))
         accelerator = train_util.prepare_accelerator(args)
+        memory_trace = args._memory_trace = MemoryTrace(args, accelerator.device)
+        memory_trace.mark("accelerator.ready")
         is_main_process = accelerator.is_main_process
         tp_collective_save = int(getattr(args, "tp_degree", 1) or 1) > 1
         tp_rank = int(os.environ.get("RANK", os.environ.get("LOCAL_RANK", 0))) if tp_collective_save else 0
@@ -760,6 +763,7 @@ class NetworkTrainer:
 
         # load target models: unet may be None for lazy loading
         model_version, text_encoder, vae, unet = self.load_target_model(args, weight_dtype, accelerator)
+        memory_trace.mark("models.loaded", models={"dit": unet, "vae": vae})
         if vae_dtype is None:
             vae_dtype = vae.dtype
             logger.info(tr("vae_dtype_from_model", dtype=vae_dtype))
@@ -769,7 +773,9 @@ class NetworkTrainer:
 
         # prepare dataset for latents caching if needed
         if cache_latents:
+            memory_trace.mark("latents_cache.before")
             vae.to(accelerator.device, dtype=vae_dtype)
+            memory_trace.mark("latents_cache.vae_on_gpu")
             vae.requires_grad_(False)
             vae.eval()
 
@@ -784,6 +790,7 @@ class NetworkTrainer:
 
             vae.to("cpu")
             clean_memory_on_device(accelerator.device)
+            memory_trace.mark("latents_cache.after_vae_offload", models={"vae": vae})
 
             accelerator.wait_for_everyone()
 
@@ -798,6 +805,7 @@ class NetworkTrainer:
         self.cache_text_encoder_outputs_if_needed(args, accelerator, unet, vae, text_encoders, train_dataset_group, weight_dtype)
         if val_dataset_group is not None:
             self.cache_text_encoder_outputs_if_needed(args, accelerator, unet, vae, text_encoders, val_dataset_group, weight_dtype)
+        memory_trace.mark("text_cache_or_encoder_placement.after", models={f"text_encoder_{i}": te for i, te in enumerate(text_encoders)})
 
         # For resolution schedule phases
         if _phase_dataset_groups:
@@ -1152,6 +1160,8 @@ class NetworkTrainer:
                 training_model = network
 
         # Prepare phase DataLoaders individually
+        memory_trace.register_optimizer(optimizer)
+        memory_trace.mark("accelerator.prepare.after", models={"dit": unet, "network": network, "vae": vae, **{f"text_encoder_{i}": te for i, te in enumerate(text_encoders)}})
         phase_dataloaders = [accelerator.prepare(dl) for dl in _phase_dataloaders_raw]
 
         if args.gradient_checkpointing:
@@ -1203,7 +1213,9 @@ class NetworkTrainer:
         accelerator.register_load_state_pre_hook(load_model_hook)
 
         # resumeする
+        memory_trace.mark("resume.before")
         train_util.resume_from_local_or_hf_if_specified(accelerator, args)
+        memory_trace.mark("resume.after")
 
         # epoch数を計算する
         num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
@@ -1548,7 +1560,9 @@ class NetworkTrainer:
             sai_metadata = self.get_sai_model_spec(args)
             metadata_to_save.update(sai_metadata)
 
+            memory_trace.mark("save_weights.before", checkpoint=ckpt_name)
             unwrapped_nw.save_weights(ckpt_file, save_dtype, metadata_to_save)
+            memory_trace.mark("save_weights.after", checkpoint=ckpt_name)
             if args.huggingface_repo_id is not None:
                 huggingface_util.upload(args, ckpt_file, "/" + ckpt_name, force_sync_upload=force_sync_upload)
 
@@ -1751,6 +1765,7 @@ class NetworkTrainer:
                 batch_source = enumerate(skipped_dataloader or train_dataloader)
 
             for step, batch in batch_source:
+                memory_trace.begin_step(global_step, batch)
                 current_step.value = global_step
                 if not phase_dataloaders and initial_step > 0:
                     initial_step -= 1
@@ -1783,8 +1798,10 @@ class NetworkTrainer:
                     )
 
                     profiler.on_fwd_done()
+                    memory_trace.mark("forward_and_loss.after", detail=True)
 
                     accelerator.backward(loss)
+                    memory_trace.mark("backward.after", detail=True)
 
                     profiler.on_bwd_done()
 
@@ -1801,6 +1818,7 @@ class NetworkTrainer:
                         if hasattr(network, "update_norms"):
                             network.update_norms()
 
+                    memory_trace.mark("grad_sync_clip.after", detail=True)
                     if (
                         args.blocks_to_swap
                         or getattr(args, "cpu_offload_checkpointing", False)
@@ -1813,9 +1831,12 @@ class NetworkTrainer:
                                 f"to support block swap / offload with the current optimizer."
                             )
                             self._optimizer_device_fix_warned = True
+                    memory_trace.mark("optimizer.before", detail=True)
                     optimizer.step()
+                    memory_trace.mark("optimizer.after", detail=True)
                     lr_scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
+                    memory_trace.mark("zero_grad.after", detail=True)
 
                     profiler.on_step_done(global_step)
 
@@ -1843,6 +1864,12 @@ class NetworkTrainer:
                         mean_combined_norm = None
                         max_mean_logs = {}
 
+                # A Python reference to loss otherwise survives into sampling, validation,
+                # saving and evaluation of the next process_batch RHS. Keep only a scalar.
+                current_loss = loss.detach().item()
+                del loss
+                memory_trace.mark("loss_released", detail=True)
+
                 # Checks if the accelerator has performed an optimization step behind the scenes
                 if accelerator.sync_gradients:
                     progress_bar.update(1)
@@ -1863,7 +1890,9 @@ class NetworkTrainer:
                             save_model(ckpt_name, accelerator.unwrap_model(network), global_step, epoch)
 
                             if args.save_state:
+                                memory_trace.mark("save_state.step.before")
                                 train_util.save_and_remove_state_stepwise(args, accelerator, global_step)
+                                memory_trace.mark("save_state.step.after")
 
                             remove_step_no = train_util.get_remove_step_no(args, global_step)
                             if remove_step_no is not None:
@@ -1871,7 +1900,6 @@ class NetworkTrainer:
                                 remove_model(remove_ckpt_name)
                     optimizer_train_fn()
 
-                current_loss = loss.detach().item()
                 loss_recorder.add(epoch=epoch, step=step, loss=current_loss)
                 avr_loss: float = loss_recorder.moving_average
                 logs = {"avr_loss": avr_loss}  # , "lr": lr_scheduler.get_last_lr()[0]}
@@ -1935,6 +1963,8 @@ class NetworkTrainer:
                             )
 
                             current_loss = loss.detach().item()
+                            del loss
+                            memory_trace.mark("validation.step.loss_released", detail=True, timestep=int(timestep))
                             val_step_loss_recorder.add(epoch=epoch, step=val_timesteps_step, loss=current_loss)
                             val_progress_bar.update(1)
                             val_progress_bar.set_postfix(
@@ -2013,6 +2043,8 @@ class NetworkTrainer:
                         )
 
                         current_loss = loss.detach().item()
+                        del loss
+                        memory_trace.mark("validation.epoch.loss_released", detail=True, timestep=int(timestep))
                         val_epoch_loss_recorder.add(epoch=epoch, step=val_timesteps_step, loss=current_loss)
                         val_progress_bar.update(1)
                         val_progress_bar.set_postfix(
@@ -2062,7 +2094,9 @@ class NetworkTrainer:
                         remove_model(remove_ckpt_name)
 
                     if args.save_state:
+                        memory_trace.mark("save_state.epoch.before")
                         train_util.save_and_remove_state_on_epoch_end(args, accelerator, epoch + 1)
+                        memory_trace.mark("save_state.epoch.after")
 
             self.sample_images(
                 accelerator, args, epoch + 1, global_step, accelerator.device,
@@ -2083,13 +2117,17 @@ class NetworkTrainer:
         optimizer_eval_fn()
 
         if (is_main_process or tp_collective_save) and (args.save_state or args.save_state_on_train_end):
+            memory_trace.mark("save_state.final.before")
             train_util.save_state_on_train_end(args, accelerator)
+            memory_trace.mark("save_state.final.after")
 
         if is_main_process or tp_collective_save:
             ckpt_name = train_util.get_last_ckpt_name(args, "." + args.save_model_as)
             save_model(ckpt_name, network, global_step, num_train_epochs, force_sync_upload=True)
 
             logger.info(tr("model_saved"))
+        memory_trace.mark("training.finished")
+        memory_trace.close()
 
 
 def setup_parser() -> argparse.ArgumentParser:

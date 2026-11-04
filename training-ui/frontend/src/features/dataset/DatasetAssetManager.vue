@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose } from 'reka-ui'
 import { api } from '@/services/api'
+import { splitCaption } from './caption-split'
 import { droppedFiles, isArchive, selectDatasetFiles, uploadDatasetFile, type DatasetFile } from './dataset-files'
 
 const props = defineProps<{ directory: string; mode: 'import' | 'browse'; captionExtension?: string; disabled?: boolean }>()
@@ -12,6 +13,9 @@ const phase = ref('input'), progress = ref(0), currentFile = ref(''), summary = 
 const importId = ref(''), bindingId = ref(''), browsePath = ref(''), page = ref(0), query = ref(''), missing = ref(false)
 const listing = ref<any>(null), loading = ref(false), selected = ref<any>(null), caption = ref(''), captionError = ref(''), imageError = ref(false)
 const kind = ref('images'), captionLoading = ref(false)
+const captionParts = computed(() => splitCaption(caption.value))
+const splitLabels = { multiline: '多行：首行 Tags', mixed: '单行：自动识别', tags: '纯 Tags', natural_language: '自然语言 / 保守保留' }
+
 const brokenThumbnails = ref(new Set<string>())
 let disposed = false, generation = 0, previewGeneration = 0
 let controller = new AbortController(), listController: AbortController | undefined, previewController: AbortController | undefined
@@ -113,6 +117,7 @@ async function bind(use = false) {
 async function load() {
   if (!bindingId.value) return
   listController?.abort(); listController = new AbortController(); const signal = listController.signal
+  ++previewGeneration; previewController?.abort(); caption.value = ''; captionError.value = ''; captionLoading.value = false
   loading.value = true; selected.value = null; error.value = ''; brokenThumbnails.value = new Set()
   try {
     const params = new URLSearchParams({ directory: browsePath.value, page: String(page.value), query: query.value, missing: String(missing.value && kind.value === 'images'), captionExtension: props.captionExtension || '.txt', kind: kind.value })
@@ -194,7 +199,11 @@ if (props.mode === 'browse' && props.directory) void bind()
                 <div class="manager-actions pagination"><button class="button" :disabled="page === 0 || loading" @click="page--; load()">上一页</button><span>{{ page + 1 }} / {{ Math.max(1, Math.ceil(listing.total / listing.pageSize)) }}</span><button class="button" :disabled="(page + 1) * listing.pageSize >= listing.total || loading" @click="page++; load()">下一页</button></div>
               </div>
               <aside class="asset-preview" aria-label="图片与 Caption 预览">
-                <template v-if="selected"><strong class="asset-name">{{ selected.name }}</strong><template v-if="selected.kind !== 'text'"><img v-if="!imageError" :key="selected.path" :src="fileUrl(selected.path)" :alt="selected.name" class="large-preview" @error="imageError = true" @load="(event: Event) => { const img = event.target as HTMLImageElement; if (selected) selected.dimensions = `${img.naturalWidth} × ${img.naturalHeight}` }" /><p v-else class="muted">浏览器无法显示此格式的原图。</p><small v-if="selected.dimensions">{{ selected.dimensions }}</small></template><h4>{{ selected.kind === 'text' ? 'TXT 内容（只读）' : '同名 TXT（只读）' }}</h4><p v-if="captionError" role="alert" class="manager-error">{{ captionError }}</p><pre v-else-if="selected.caption" class="caption-text">{{ captionLoading ? '正在加载…' : caption || '（空 Caption）' }}</pre><p v-else class="muted">未找到同名 {{ captionExtension || '.txt' }} 文件。</p></template>
+                <template v-if="selected"><strong class="asset-name">{{ selected.name }}</strong><template v-if="selected.kind !== 'text'"><img v-if="!imageError" :key="selected.path" :src="fileUrl(selected.path)" :alt="selected.name" class="large-preview" @error="imageError = true" @load="(event: Event) => { const img = event.target as HTMLImageElement; if (selected) selected.dimensions = `${img.naturalWidth} × ${img.naturalHeight}` }" /><p v-else class="muted">浏览器无法显示此格式的原图。</p><small v-if="selected.dimensions">{{ selected.dimensions }}</small></template><h4>原始 TXT（只读）</h4><p v-if="captionError" role="alert" class="manager-error">{{ captionError }}</p><pre v-else-if="selected.caption" class="caption-text">{{ captionLoading ? '正在加载…' : caption || '（空 Caption）' }}</pre><p v-else class="muted">未找到同名 {{ captionExtension || '.txt' }} 文件。</p><template v-if="selected.caption && !captionLoading && !captionError">
+                  <p class="muted caption-split-note">{{ splitLabels[captionParts.method] }}。以下为开启“打乱 Caption”时的切分结果，尚未随机打乱或 Dropout。</p>
+                  <h4>Tags 部分</h4><pre class="caption-text caption-tags">{{ captionParts.tags || '（无 Tags）' }}</pre>
+                  <h4>自然语言部分</h4><pre class="caption-text caption-natural-language">{{ captionParts.natural_language || '（无自然语言）' }}</pre>
+                </template></template>
                 <p v-else class="muted">选择图片，同时查看原图与同名 TXT。</p>
               </aside>
             </div>

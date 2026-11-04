@@ -26,6 +26,25 @@ function fixture(t, options = {}) {
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
+test('optional Triton uses managed logging without activating another environment', {skip:process.platform!=='win32'}, async t => {
+  const f=fixture(t),task=f.manager.start('anima-lumina','install-triton');
+  const args=f.children[0].args;
+  assert.ok(args.includes('install-triton'));
+  assert.throws(()=>f.manager.start('anima-lumina','install-triton'),/already running/);
+  const report={id:'anima-lumina',path:path.join(f.root,'venv-anima-lumina'),dependencies:true,triton:{gpu_compile_verified:true}};
+  fs.writeFileSync(args[args.indexOf('--report')+1],JSON.stringify(report));
+  f.children[0].child.emit('close',0);await flush();
+  assert.equal(task.status,'completed');
+  assert.equal(f.getConfig().anima_lumina_venv_path,undefined);
+  assert.equal(task.report.triton.gpu_compile_verified,true);
+});
+test('optional Triton rejects other environments and busy training', {skip:process.platform!=='win32'}, t => {
+  const f=fixture(t,{isBusy:()=>true});
+  assert.throws(()=>f.manager.start('krea2','install-triton'),/Anima/);
+  assert.throws(()=>f.manager.start('anima-lumina','install-triton'),/Stop training/);
+  assert.equal(f.children.length,0);
+});
+
 test('all backends keep independent paths and native executable layout', () => {
   assert.equal(environmentPath('/project', 'main', {main_venv_path:'/control'}), '/control');
   assert.equal(environmentPath('/project', 'krea2', {venv_path:'/legacy'}), path.join('/project', 'venv-krea2'));

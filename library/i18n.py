@@ -51,6 +51,23 @@ def get_language() -> str:
 
 
 MESSAGES: Dict[str, Dict[str, str]] = {
+    "load_stage_started": {"zh_CN": "[{model}] {stage}：开始", "en": "[{model}] {stage}: starting", "ja": "[{model}] {stage}：開始"},
+    "load_stage_finished": {"zh_CN": "[{model}] {stage}：完成，耗时 {seconds} 秒", "en": "[{model}] {stage}: completed in {seconds}s", "ja": "[{model}] {stage}：完了、{seconds} 秒"},
+    "load_stage_failed": {"zh_CN": "[{model}] {stage}：失败，已耗时 {seconds} 秒", "en": "[{model}] {stage}: failed after {seconds}s", "ja": "[{model}] {stage}：失敗、{seconds} 秒経過"},
+    "load_stage_waiting": {"zh_CN": "[{model}] {stage}：仍在处理，已耗时 {seconds} 秒", "en": "[{model}] {stage}: still working, {seconds}s elapsed", "ja": "[{model}] {stage}：処理中、{seconds} 秒経過"},
+    "load_stage_progress": {"zh_CN": "[{model}] {stage}：{percent}%，已耗时 {seconds} 秒", "en": "[{model}] {stage}: {percent}%, {seconds}s elapsed", "ja": "[{model}] {stage}：{percent}%、{seconds} 秒経過"},
+    "load_file_details": {"zh_CN": "[{model}] 文件大小 {gib} GiB，目标设备 {device}，目标精度 {dtype}", "en": "[{model}] File size {gib} GiB, target device {device}, target dtype {dtype}", "ja": "[{model}] ファイルサイズ {gib} GiB、デバイス {device}、精度 {dtype}"},
+    "load_total": {"zh_CN": "[{model}] 加载总耗时 {seconds} 秒", "en": "[{model}] Total loading time: {seconds}s", "ja": "[{model}] 読み込み合計：{seconds} 秒"},
+    "load_open_weights": {"zh_CN": "打开权重（磁盘数据可能在后续写入时读取）", "en": "Open weights (disk reads may occur during assignment)", "ja": "重みを開く（ディスク読み込みは後続の適用時にも発生）"},
+    "load_config": {"zh_CN": "解析模型配置", "en": "Parse model configuration", "ja": "モデル設定を解析"},
+    "load_adapter": {"zh_CN": "加载适配器权重", "en": "Load adapter weights", "ja": "アダプターの重みを読み込む"},
+    "load_build": {"zh_CN": "创建模型", "en": "Create model", "ja": "モデルを作成"},
+    "load_assign": {"zh_CN": "写入模型权重", "en": "Assign model weights", "ja": "モデルに重みを適用"},
+    "load_cast": {"zh_CN": "转换参数精度", "en": "Convert parameter dtype", "ja": "パラメーターの精度を変換"},
+    "load_device": {"zh_CN": "转换设备和精度", "en": "Convert device and dtype", "ja": "デバイスと精度を変換"},
+    "load_tokenizer": {"zh_CN": "加载分词器和配置", "en": "Load tokenizer and configuration", "ja": "トークナイザーと設定を読み込む"},
+    "load_pretrained": {"zh_CN": "加载目录中的模型", "en": "Load model from directory", "ja": "ディレクトリからモデルを読み込む"},
+
     "cache_latents_to_disk_enabled": {
         "zh_CN": "已启用 cache_latents_to_disk，因此同时启用 cache_latents",
         "en": "cache_latents_to_disk is enabled, so cache_latents is also enabled",

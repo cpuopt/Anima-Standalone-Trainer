@@ -6,6 +6,20 @@ import EnvironmentPanel from './EnvironmentPanel.vue'
 beforeEach(()=>{vi.useFakeTimers();mocks.api.mockReset();vi.spyOn(window,'confirm').mockReturnValue(true)})
 afterEach(()=>{vi.useRealTimers();vi.restoreAllMocks()})
 const listing={environments:[{id:'main',label:'主环境',installed:true,path:'/main',status:'ready',versions:{uv:'0.12.18'}},{id:'krea2',label:'Krea 2',installed:false,path:'/krea'}],history:[],busy:false}
+it('installs optional Triton from the ready Anima card',async()=>{
+  const state={...listing,environments:[{id:'anima-lumina',label:'Anima / Lumina',installed:true,status:'ready'}]}
+  mocks.api.mockImplementation((url:string)=>Promise.resolve(url.endsWith('/install-triton')?{id:'triton-task',status:'running'}:state))
+  const w=mount(EnvironmentPanel);await flushPromises()
+  await w.findAll('button').find(b=>b.text()==='安装 triton-windows')!.trigger('click');await flushPromises()
+  expect(mocks.api).toHaveBeenCalledWith('/api/environments/anima-lumina/install-triton',{method:'POST',body:{}})
+  w.unmount()
+})
+it.each([{status:'missing'},{status:'invalid'},{status:'ready',trainingBusy:true},{status:'ready',busy:true}])('blocks optional install when unavailable: %j',async(state)=>{
+  mocks.api.mockResolvedValue({...listing,...state,environments:[{id:'anima-lumina',label:'Anima / Lumina',status:state.status}]})
+  const w=mount(EnvironmentPanel);await flushPromises()
+  expect(w.findAll('button').find(b=>b.text()==='安装 triton-windows')!.attributes('disabled')).toBeDefined()
+  w.unmount()
+})
 it('renders environment cards without any job or model environment',async()=>{
   mocks.api.mockResolvedValue(listing);const w=mount(EnvironmentPanel);await flushPromises()
   expect(w.text()).toContain('主环境');expect(w.text()).toContain('未安装');expect(w.find('pre[aria-label="安装日志"]').text()).toContain('等待')

@@ -121,12 +121,13 @@ class EnvironmentManager {
     });
   }
   start(id, action, body = {}) {
-    if (!Object.hasOwn(DEFINITIONS, id) || !['check', 'install'].includes(action)) throw Error('Unknown environment or action');
+    if (!Object.hasOwn(DEFINITIONS, id) || !['check', 'install', 'install-triton'].includes(action)) throw Error('Unknown environment or action');
+    if (action === 'install-triton' && (id !== 'anima-lumina' || process.platform !== 'win32')) throw Error('Triton installation requires Anima / Lumina on Windows');
     if (Object.keys(body).some(k => k !== 'cuda')) throw Error('Unsupported request field');
     const cuda = body.cuda || 'cu128';
     if (!(id === 'krea2' ? ['cu124', 'cu128', 'cu130', 'cu132'] : ['cu128']).includes(cuda)) throw Error('Unsupported CUDA profile');
     if (this.installing()) throw Object.assign(Error('An environment operation is already running'), { status: 409 });
-    if (action === 'install' && this.isBusy()) throw Object.assign(Error('Stop training, generation and TensorBoard; unload persistent models first'), { status: 409 });
+    if (action !== 'check' && this.isBusy()) throw Object.assign(Error('Stop training, generation and TensorBoard; unload persistent models first'), { status: 409 });
     const main = pythonAt(environmentPath(this.root, 'main', this.getConfig()));
     if (!fs.existsSync(main)) throw Error('Run setup_env first to install the lightweight main environment');
     const task = { id: crypto.randomUUID(), environment: id, action, cuda, status: 'running', started: Date.now() };
@@ -213,7 +214,7 @@ class EnvironmentManager {
     const route = fn => async (req, res) => { try { await fn(req, res); } catch (e) { res.status(e.status || 400).json({ error: e.message }); } };
     app.get('/api/environments', route((req, res) => res.json(this.list())));
     app.post('/api/environments/cleanup', route((req, res) => { this.cleanup(req.body?.path, req.body?.confirm === true); res.json({ success: true }); }));
-    for (const action of ['check', 'install']) app.post(`/api/environments/:id/${action}`, route((req, res) => res.status(202).json(this.start(req.params.id, action, req.body || {}))));
+    for (const action of ['check', 'install', 'install-triton']) app.post(`/api/environments/:id/${action}`, route((req, res) => res.status(202).json(this.start(req.params.id, action, req.body || {}))));
     app.get('/api/environment-tasks/:id', route((req, res) => res.json(this.task(req.params.id, Number(req.query.after || 0)))));
     app.post('/api/environment-tasks/:id/stop', route(async (req, res) => res.json(await this.stop(req.params.id))));
     app.get('/api/environment-tasks/:id/log', route((req, res) => {

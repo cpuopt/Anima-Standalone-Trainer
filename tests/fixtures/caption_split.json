@@ -1,0 +1,192 @@
+[
+  {
+    "name": "fox girl example 1",
+    "input": "1girl, solo, fox ears, fox tail, white hair, red hair, two-tone hair, short hair with long locks, hair between eyes, red eyes, slit pupils, looking at viewer, blush, closed mouth, cleavage, bare shoulders, off shoulder, white shirt, oversized shirt, open shirt, long sleeves, sleeves past wrists, red ribbon, leaning forward, arm support, thighs, multicolored tail, simple background, pink background, A fox girl with white and red hair leans forward, her bare shoulders exposed as an oversized white shirt hangs open. She rests one hand on a surface while her long tail curves behind her against a plain background. Her red eyes meet the viewer directly as she stands with her legs partially visible.",
+    "expected": {
+      "tags": "1girl, solo, fox ears, fox tail, white hair, red hair, two-tone hair, short hair with long locks, hair between eyes, red eyes, slit pupils, looking at viewer, blush, closed mouth, cleavage, bare shoulders, off shoulder, white shirt, oversized shirt, open shirt, long sleeves, sleeves past wrists, red ribbon, leaning forward, arm support, thighs, multicolored tail, simple background, pink background",
+      "natural_language": "A fox girl with white and red hair leans forward, her bare shoulders exposed as an oversized white shirt hangs open. She rests one hand on a surface while her long tail curves behind her against a plain background. Her red eyes meet the viewer directly as she stands with her legs partially visible.",
+      "method": "mixed",
+      "separator": ", "
+    }
+  },
+  {
+    "name": "fox girl example 2",
+    "input": "1girl, solo, fox ears, fox tail, white hair, long hair, side braid, hair ribbon, black ribbon, yellow eyes, open mouth, blush, looking at viewer, blue bikini top, open jacket, hooded jacket, blue jacket, off shoulder, bare shoulders, long sleeves, thigh strap, black thighhighs, black boots, lace-up boots, holding polearm, outstretched arm, water, water drop, white flower, lily (flower), petals, grey background, dynamic pose, A fox-eared girl with white hair and yellow eyes sits mid-air, holding a sword as water swirls around her. She wears a blue bikini top under an open black jacket, black thigh-highs, and boots, with white lilies floating nearby. The composition centers her in a dynamic, full-body shot against a plain grey background.",
+    "expected": {
+      "tags": "1girl, solo, fox ears, fox tail, white hair, long hair, side braid, hair ribbon, black ribbon, yellow eyes, open mouth, blush, looking at viewer, blue bikini top, open jacket, hooded jacket, blue jacket, off shoulder, bare shoulders, long sleeves, thigh strap, black thighhighs, black boots, lace-up boots, holding polearm, outstretched arm, water, water drop, white flower, lily (flower), petals, grey background, dynamic pose",
+      "natural_language": "A fox-eared girl with white hair and yellow eyes sits mid-air, holding a sword as water swirls around her. She wears a blue bikini top under an open black jacket, black thigh-highs, and boots, with white lilies floating nearby. The composition centers her in a dynamic, full-body shot against a plain grey background.",
+      "method": "mixed",
+      "separator": ", "
+    }
+  },
+  {
+    "name": "two lines",
+    "input": "1girl, solo\nA fox girl with white and red hair leans forward, her bare shoulders exposed as an oversized white shirt hangs open. She rests one hand on a surface while her long tail curves behind her against a plain background. Her red eyes meet the viewer directly as she stands with her legs partially visible.",
+    "expected": {
+      "tags": "1girl, solo",
+      "natural_language": "A fox girl with white and red hair leans forward, her bare shoulders exposed as an oversized white shirt hangs open. She rests one hand on a surface while her long tail curves behind her against a plain background. Her red eyes meet the viewer directly as she stands with her legs partially visible.",
+      "method": "multiline",
+      "separator": "\n"
+    }
+  },
+  {
+    "name": "blank lines and whitespace",
+    "input": "solo\n  first line  \n\nlast line\n",
+    "expected": {
+      "tags": "solo",
+      "natural_language": "  first line  \n\nlast line",
+      "method": "multiline",
+      "separator": "\n"
+    }
+  },
+  {
+    "name": "empty first line",
+    "input": "\nThis is a description.",
+    "expected": {
+      "tags": "",
+      "natural_language": "This is a description.",
+      "method": "multiline",
+      "separator": "\n"
+    }
+  },
+  {
+    "name": "CRLF",
+    "input": "solo\r\nA description.\r\n\r\nLast line.\r\n",
+    "expected": {
+      "tags": "solo",
+      "natural_language": "A description.\r\n\r\nLast line.",
+      "method": "multiline",
+      "separator": "\r\n"
+    }
+  },
+  {
+    "name": "single final LF",
+    "input": "solo, red hair\n",
+    "expected": {
+      "tags": "solo, red hair",
+      "natural_language": "",
+      "method": "tags",
+      "separator": ""
+    }
+  },
+  {
+    "name": "single final CRLF",
+    "input": "solo, red hair\r\n",
+    "expected": {
+      "tags": "solo, red hair",
+      "natural_language": "",
+      "method": "tags",
+      "separator": ""
+    }
+  },
+  {
+    "name": "two final LF",
+    "input": "solo\n\n",
+    "expected": {
+      "tags": "solo",
+      "natural_language": "",
+      "method": "multiline",
+      "separator": "\n"
+    }
+  },
+  {
+    "name": "pure tags",
+    "input": "1girl, SOLO, short hair with long locks, looking at viewer",
+    "expected": {
+      "tags": "1girl, SOLO, short hair with long locks, looking at viewer",
+      "natural_language": "",
+      "method": "tags",
+      "separator": ""
+    }
+  },
+  {
+    "name": "decimal and internal dot",
+    "input": "score_9.5, artist.name, solo",
+    "expected": {
+      "tags": "score_9.5, artist.name, solo",
+      "natural_language": "",
+      "method": "tags",
+      "separator": ""
+    }
+  },
+  {
+    "name": "pure prose",
+    "input": "A fox girl with white and red hair leans forward, her bare shoulders exposed as an oversized white shirt hangs open. She rests one hand on a surface while her long tail curves behind her against a plain background. Her red eyes meet the viewer directly as she stands with her legs partially visible.",
+    "expected": {
+      "tags": "",
+      "natural_language": "A fox girl with white and red hair leans forward, her bare shoulders exposed as an oversized white shirt hangs open. She rests one hand on a surface while her long tail curves behind her against a plain background. Her red eyes meet the viewer directly as she stands with her legs partially visible.",
+      "method": "natural_language",
+      "separator": ""
+    }
+  },
+  {
+    "name": "ambiguous short sentence",
+    "input": "A girl, smiling.",
+    "expected": {
+      "tags": "",
+      "natural_language": "A girl, smiling.",
+      "method": "natural_language",
+      "separator": ""
+    }
+  },
+  {
+    "name": "no terminal prose",
+    "input": "A girl with white hair looks forward",
+    "expected": {
+      "tags": "",
+      "natural_language": "A girl with white hair looks forward",
+      "method": "natural_language",
+      "separator": ""
+    }
+  },
+  {
+    "name": "no terminal tags",
+    "input": "solo, red hair, looking at viewer",
+    "expected": {
+      "tags": "solo, red hair, looking at viewer",
+      "natural_language": "",
+      "method": "tags",
+      "separator": ""
+    }
+  },
+  {
+    "name": "chinese prose",
+    "input": "一个女孩站在窗边，望向远方。",
+    "expected": {
+      "tags": "",
+      "natural_language": "一个女孩站在窗边，望向远方。",
+      "method": "natural_language",
+      "separator": ""
+    }
+  },
+  {
+    "name": "empty",
+    "input": "",
+    "expected": {
+      "tags": "",
+      "natural_language": "",
+      "method": "tags",
+      "separator": ""
+    }
+  },
+  {
+    "name": "HTML remains text",
+    "input": "solo\n<script>alert(1)</script>",
+    "expected": {
+      "tags": "solo",
+      "natural_language": "<script>alert(1)</script>",
+      "method": "multiline",
+      "separator": "\n"
+    }
+  },
+  {
+    "name": "mixed prose missing final punctuation is conservative",
+    "input": "solo, A fox girl with white hair leans forward, her shoulders exposed",
+    "expected": {
+      "tags": "",
+      "natural_language": "solo, A fox girl with white hair leans forward, her shoulders exposed",
+      "method": "natural_language",
+      "separator": ""
+    }
+  }
+]

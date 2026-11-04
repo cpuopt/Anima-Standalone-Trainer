@@ -130,6 +130,7 @@ test('MOSS create, save, lock and reset routes keep architecture and avoid Anima
   const runningJobs=new Map();let handler;
   const helpers=source.slice(source.indexOf('function getArchForJob('),source.indexOf('// Build model_arguments'));
   const context={Moss:M,Krea2:require('../public/js/krea2'),TOML,fs,path,JOBS_DIR:f.root,TEMPLATES_DIR:f.root,runningJobs,
+    memoryTraceUpdateError:require('../lib/memory-trace-settings').memoryTraceUpdateError,
     ARCH_REGISTRY:require('../architectures.json'),sanitizeName:n=>n,getJobPath:n=>path.join(f.root,n),stripQuotes:s=>s,
     getGlobalConfig:()=>({}),validateLayerArgs:()=>{throw Error('Must not call Anima validator')},
     getDefaultConfig:()=>{throw Error('Must not use Anima defaults')},app:{post:(url,fn)=>handler=fn,put:(url,fn)=>handler=fn}};

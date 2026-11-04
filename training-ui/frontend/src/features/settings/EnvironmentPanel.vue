@@ -53,13 +53,17 @@ onMounted(()=>poll());onBeforeUnmount(()=>{stopped=true;clearTimeout(timer)})
     <p v-if="data.busy&&(!task||!['running','stopping'].includes(task.status))" class="text-sm">检测到命令行环境操作，暂时禁止启动新任务；该操作日志请在启动它的终端查看。</p>
     <div class="grid gap-3 md:grid-cols-2">
       <article v-for="env in data.environments" :key="env.id" class="rounded border p-3 space-y-2">
-        <h4 class="font-semibold">{{env.label}} · {{labels[env.status]||(env.installed?'待检测':'未安装')}}</h4>
+        <div class="flex items-center gap-2 flex-wrap">
+          <h4 class="font-semibold">{{env.label}} · {{labels[env.status]||(env.installed?'待检测':'未安装')}}</h4>
+          <button v-if="env.id==='anima-lumina'" class="btn" :disabled="pending||data.busy||data.trainingBusy||env.status!=='ready'" @click="start(env.id,'install-triton')">安装 triton-windows</button>
+        </div>
         <p class="text-xs break-all">{{env.path}}</p>
         <p v-if="env.checked_at" class="text-xs text-muted-foreground">上次检测：{{new Date(env.checked_at*1000).toLocaleString()}}；可点击检测刷新结果</p>
         <p v-if="env.python" class="text-sm">Python {{env.python}} · CUDA {{env.cuda===null?'不适用':env.cuda?'可用':'不可用'}} <span v-if="env.link_mode">· {{env.link_mode}}</span></p>
         <dl class="text-xs grid grid-cols-2 gap-x-3"><template v-for="(version,name) in env.versions" :key="String(name)"><dt>{{name}}</dt><dd>{{version}}</dd></template></dl>
         <div v-if="env.id!=='main'" class="text-xs space-y-1" aria-label="Triton 检测">
-          <p>Triton：{{env.triton ? (tritonLabels[env.triton.status]||'未知状态') : '待检测（请点击检测刷新）'}}<span v-if="env.triton?.version"> · {{env.triton.version}}</span></p>
+          <p>Triton：{{env.triton?.gpu_compile_verified ? 'GPU 编译验证通过' : env.triton ? (tritonLabels[env.triton.status]||'未知状态') : '待检测（请点击检测刷新）'}}<span v-if="env.triton?.version"> · {{env.triton.version}}</span></p>
+          <p v-if="env.id==='anima-lumina'" class="text-muted-foreground">可选安装，需 Windows 和验证通过的环境。安装后自动测试 GPU 编译；不会自动开启训练的 Torch Compile。</p>
           <p v-for="(version,name) in env.triton?.distributions" :key="String(name)">{{name}} {{version}}</p>
           <p class="text-muted-foreground">Torch Compile 默认 inductor 的 GPU 加速依赖 Triton；可导入不代表完整训练可编译。缺失不影响关闭 Compile 的普通训练。</p>
           <pre v-if="env.triton?.error" class="whitespace-pre-wrap break-all">{{env.triton.error}}</pre>
