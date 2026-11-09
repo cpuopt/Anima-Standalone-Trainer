@@ -14,6 +14,12 @@ const phase = ref('input'), progress = ref(0), currentFile = ref(''), summary = 
 const importId = ref(''), bindingId = ref(''), browsePath = ref(''), page = ref(0), query = ref(''), missing = ref(false)
 const listing = ref<any>(null), loading = ref(false), selected = ref<any>(null), caption = ref(''), captionError = ref(''), imageError = ref(false)
 const kind = ref('images'), captionLoading = ref(false)
+const parentDirectory = computed(() => {
+  const current = (browsePath.value || bindingPath.value).replace(/\\/g, '/').replace(/\/+$/, '')
+  if (!current || /^[A-Za-z]:$/.test(current)) return ''
+  const slash = current.lastIndexOf('/')
+  return slash < 0 ? '' : slash === 0 ? '/' : /^[A-Za-z]:$/.test(current.slice(0, slash)) ? current.slice(0, slash + 1) : current.slice(0, slash)
+})
 const captionParts = computed(() => splitCaption(caption.value))
 const processedCaption = computed(() => captionPreview(caption.value, props.captionConfig))
 const promptLegend = computed(() => processedCaption.value.filter(segment => segment.kind !== 'separator'))
@@ -192,7 +198,7 @@ if (props.mode === 'browse' && props.directory) void bind()
         <div v-else class="browse-body">
           <div class="manager-actions"><input v-model="bindingPath" class="input path-input" aria-label="预览服务器目录" placeholder="服务器绝对目录路径" /><button class="button" :disabled="!bindingPath.trim() || loading" @click="bind()">打开预览</button></div>
           <template v-if="bindingId && listing">
-            <div class="manager-actions"><button class="button" :disabled="!browsePath || loading" @click="navigate(browsePath.split('/').slice(0,-1).join('/'))">上一级</button><code class="current-path">{{ browsePath || '/' }}</code><button class="button" :disabled="loading" @click="load">刷新</button></div>
+            <div class="manager-actions"><button class="button" :disabled="!parentDirectory || loading" @click="navigate(parentDirectory)">上一级</button><code class="current-path">{{ browsePath || bindingPath }}</code><button class="button" :disabled="loading" @click="load">刷新</button></div>
             <div class="manager-actions"><select v-model="kind" class="input" aria-label="预览文件类型"><option value="images">图片</option><option value="captions">TXT 文件</option></select><input v-model="query" class="input" aria-label="搜索文件名" placeholder="搜索当前目录文件…" /><label v-if="kind === 'images'"><input v-model="missing" type="checkbox" /> 仅缺 Caption</label><span class="muted">图片 {{ listing.images }} · 缺 Caption {{ listing.missing }} · 孤立 TXT {{ listing.orphan }}</span></div>
             <div class="asset-layout" :aria-busy="loading">
               <div class="asset-catalog">

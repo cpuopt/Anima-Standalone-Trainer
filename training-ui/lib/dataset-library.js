@@ -9,7 +9,6 @@ const { spawn } = require('node:child_process');
 const { Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const { DATASET_IMAGE_EXTENSIONS } = require('./dataset-images');
-const { localRequest: isLocalRequest } = require('./ui-access');
 
 const LIMITS = Object.freeze({ files: 10000, fileBytes: 1024 ** 3, uploadBytes: 8 * 1024 ** 3,
     expandedBytes: 16 * 1024 ** 3, captionBytes: 1024 ** 2, pageSize: 60 });
@@ -99,7 +98,6 @@ class DatasetLibrary {
         this.root = path.resolve(root); this.staging = path.join(this.root, '.staging');
         this.isBusy = isBusy; this.toNativePath = toNativePath; this.limits = { ...LIMITS, ...limits };
         this.sessions = new Map(); this.bindings = new Map();
-        this.authorizationFile = path.join(this.root, '.authorized-roots.json');
         this.thumbnails = new Map(); this.thumbnailTasks = new Map(); this.thumbnailActive = 0; this.thumbnailQueue = [];
         this.timer = setInterval(() => { void this.expire().catch(() => {}); }, 60000); this.timer.unref();
     }
@@ -118,32 +116,6 @@ class DatasetLibrary {
             }
             this.initialized = true;
         }
-    }
-    async authorizedRoots() {
-        try {
-            const stat = await fsp.lstat(this.authorizationFile); if (stat.isSymbolicLink()) fail('授权文件不能是链接');
-            const data = JSON.parse(await fsp.readFile(this.authorizationFile, 'utf8'));
-            if (!Array.isArray(data) || data.some(p => typeof p !== 'string' || !path.isAbsolute(p))) fail('数据集目录授权文件格式异常');
-            return data;
-        } catch (e) { if (e.code === 'ENOENT') return []; throw e; }
-    }
-    async authorize(directory, remove = false) {
-        await this.initialize();
-        const roots = await this.authorizedRoots();
-        const native = this.toNativePath(String(directory || '').trim());
-        if (!path.isAbsolute(native)) fail('授权目录必须是绝对路径');
-        const canonical = remove ? native : await fsp.realpath(native);
-        if (!remove && !(await fsp.stat(canonical)).isDirectory()) fail('授权路径不是目录');
-        const next = roots.filter(p => p !== canonical); if (!remove) next.push(canonical);
-        const temporary = this.authorizationFile + '.' + crypto.randomUUID() + '.tmp';
-        await fsp.writeFile(temporary, JSON.stringify(next, null, 2), { flag: 'wx', mode: 0o600 });
-        try { await fsp.rename(temporary, this.authorizationFile); } finally { await fsp.unlink(temporary).catch(() => {}); }
-        return next;
-    }
-    async isAuthorized(root) {
-        if (inside(this.staging, root)) return false;
-        return inside(this.root, root) && !inside(this.staging, root) && root !== this.root ||
-            (await this.authorizedRoots()).some(authorized => inside(authorized, root));
     }
     get(id) {
         const s = this.sessions.get(id); if (!s) fail('导入会话已过期，请重新选择文件', 404);
@@ -293,12 +265,11 @@ class DatasetLibrary {
         for (const s of this.sessions.values()) if (Date.now() - s.touched > TTL) await this.remove(s);
         for (const [id, b] of this.bindings) if (Date.now() - b.touched > TTL) this.bindings.delete(id);
     }
-    async bind(directory, { local = true } = {}) {
+    async bind(directory) {
         const native = this.toNativePath(String(directory || '').trim().replace(/^"|"$/g, ''));
         if (!native || !path.isAbsolute(native)) fail('请输入服务器上的绝对目录路径');
         const root = await fsp.realpath(native);
         if (!(await fsp.stat(root)).isDirectory()) fail('路径不是目录');
-        if (!local && !await this.isAuthorized(root)) fail('该服务器目录未获授权，请在全局设置中授权根目录', 403);
         if (this.bindings.size >= 100) { await this.expire(); if (this.bindings.size >= 100) this.bindings.delete(this.bindings.keys().next().value); }
         const id = crypto.randomUUID(); this.bindings.set(id, { root, touched: Date.now() }); return { id, path: root };
     }
@@ -308,22 +279,15 @@ class DatasetLibrary {
     }
     async boundPath(id, relative = '') {
         const b = this.binding(id);
-        const target = relative ? path.join(b.root, ...relativePath(relative).split('/')) : b.root;
-        // Check each component: links inside the root are not accepted either.
-        let current = b.root;
-        for (const part of path.relative(b.root, target).split(path.sep).filter(Boolean)) {
-            current = path.join(current, part);
-            if ((await fsp.lstat(current)).isSymbolicLink()) fail('不允许预览链接文件', 403);
-        }
-        const real = await fsp.realpath(target);
-        if (!inside(b.root, real)) fail('预览路径超出数据集目录', 403);
-        return real;
+        if (typeof relative !== 'string') fail('预览路径必须是字符串');
+        // Browsing accepts parent paths, absolute paths and filesystem links.
+        return fsp.realpath(path.resolve(b.root, this.toNativePath(relative)));
     }
     async list(id, { directory = '', query = '', missing = false, page = 0, captionExtension = '.txt', kind = 'images' } = {}) {
         const folder = await this.boundPath(id, directory);
         const children = await fsp.readdir(folder, { withFileTypes: true });
         if (children.length > this.limits.files) fail('目录条目超过限制，请按子目录浏览');
-        const prefix = directory ? relativePath(directory) + '/' : '';
+        const prefix = directory ? directory.replace(/\\/g, '/').replace(/\/$/, '') + '/' : '';
         const files = children.filter(e => e.isFile()).map(e => ({ name: e.name, size: 0 }));
         const summary = this.summarize(files, captionExtension);
         const entries = kind === 'captions' ? files.filter(f => /\.txt$/i.test(f.name)).map(f => ({ ...f, caption: f.name, kind: 'text' })) : summary.entries.map(f => ({ ...f, kind: 'image' }));
@@ -367,16 +331,7 @@ class DatasetLibrary {
         app.post('/api/datasets/imports/:id/prepare', route((req, res) => res.status(202).json(this.startPrepare(this.get(req.params.id)))));
         app.post('/api/datasets/imports/:id/commit', route(async (req, res) => res.json(await this.commit(this.get(req.params.id)))));
         app.delete('/api/datasets/imports/:id', route(async (req, res) => { const s = this.sessions.get(req.params.id); if (s?.phase === 'committing') fail('正在原子发布，请稍候', 409); if (s) await this.remove(s); res.json({ ok: true }); }));
-        app.get('/api/datasets/authorized-roots', route(async (_req, res) => res.json({ roots: await this.authorizedRoots() })));
-        app.post('/api/datasets/authorized-roots', route(async (req, res) => res.json({ roots: await this.authorize(req.body?.path, req.body?.remove === true) })));
-        app.post('/api/datasets/bind', route(async (req, res) => res.json(await this.bind(req.body?.path, { local: isLocalRequest(req) }))));
-        app.use('/api/datasets/roots/:id', async (req, res, next) => {
-            try {
-                const b = this.binding(req.params.id);
-                if (!isLocalRequest(req) && !await this.isAuthorized(b.root)) fail('目录授权已撤销或路径未授权', 403);
-                next();
-            } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
-        });
+        app.post('/api/datasets/bind', route(async (req, res) => res.json(await this.bind(req.body?.path))));
         app.get('/api/datasets/roots/:id', route(async (req, res) => res.json(await this.list(req.params.id, { directory: req.query.directory, query: String(req.query.query || ''), missing: req.query.missing === 'true', page: req.query.page, captionExtension: req.query.captionExtension, kind: req.query.kind }))));
         app.get('/api/datasets/roots/:id/file', route(async (req, res) => {
             const target = await this.boundPath(req.params.id, req.query.path);

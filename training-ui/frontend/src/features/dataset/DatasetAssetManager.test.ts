@@ -70,6 +70,15 @@ describe('dataset asset manager', () => {
     return wrapper
   }
   const image = (name: string, caption: string | null = `${name}.txt`) => ({ name, path: name, caption, kind: 'image' })
+  it('can navigate above the initial binding and stops at the filesystem root', async () => {
+    const wrapper = await browse([])
+    expect(button(wrapper, '上一级').attributes('disabled')).toBeUndefined()
+    await button(wrapper, '上一级').trigger('click'); await flushPromises()
+    const url = mocks.api.mock.calls.at(-1)![0] as string
+    expect(new URL(url, 'http://studio').searchParams.get('directory')).toBe('/')
+    expect(button(wrapper, '上一级').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
   it('shows original, tags and verbatim multiline prose as safe text', async () => {
     const text = 'solo, red hair\r\n  <script>alert(1)</script>\r\n\r\nLast line.\r\n'
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(text))))

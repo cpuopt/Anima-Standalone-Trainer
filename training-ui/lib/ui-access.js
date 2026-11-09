@@ -1,11 +1,6 @@
 const crypto = require('node:crypto');
 const express = require('express');
 const COOKIE = 'anima_ui_session';
-function localRequest(req) {
-    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return false;
-    try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL('http://' + req.headers.host).hostname); }
-    catch { return false; }
-}
 class UiAccess {
     constructor({ now = Date.now, secureCookies = process.env.ANIMA_UI_SECURE_COOKIES === '1' } = {}) {
         this.now = now; this.secureCookies = secureCookies;
@@ -19,7 +14,7 @@ class UiAccess {
     }
     identity(req) {
         if (!this.sessions.has(this.sessionId(req))) return null;
-        return { local: localRequest(req) };
+        return { authenticated: true };
     }
     cookie(req, value) {
         return `${COOKIE}=${value}; Path=/; HttpOnly; SameSite=Strict${value ? '' : '; Max-Age=0'}${this.secureCookies || req.socket.encrypted ? '; Secure' : ''}`;
@@ -40,7 +35,7 @@ class UiAccess {
     }
     mount(app) {
         app.get('/login', (req, res) => this.identity(req) ? res.redirect(302, '/ui/') : this.page(res));
-        app.get('/api/access/status', (req, res) => res.set('Cache-Control', 'no-store').json({ authenticated: !!this.identity(req), local: localRequest(req), setupRequired: !this.passwordHash }));
+        app.get('/api/access/status', (req, res) => res.set('Cache-Control', 'no-store').json({ authenticated: !!this.identity(req), setupRequired: !this.passwordHash }));
         app.post(['/api/access/setup', '/api/access/login'], express.json({ limit: '2kb' }), express.urlencoded({ extended: false, limit: '2kb' }), (req, res) => {
             this.sweep();
             const ip = req.socket.remoteAddress, entry = this.attempts.get(ip) || { count: 0, until: this.now() + 15 * 60000 };
@@ -105,4 +100,4 @@ class UiAccess {
     }
     dispose() { clearInterval(this.timer); for (const s of this.sockets.keys()) s.close(1001, 'Server stopping'); }
 }
-module.exports = { UiAccess, localRequest };
+module.exports = { UiAccess };

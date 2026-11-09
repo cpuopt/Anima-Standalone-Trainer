@@ -146,7 +146,7 @@ test('startup cleans only generated staging directories older than 24h, not data
     await library.initialize(); await assert.rejects(fs.stat(old));
     for (const dir of [fresh, unrelated, published]) assert.equal((await fs.stat(dir)).isDirectory(), true);
 });
-test('authenticated HTTP endpoints accept remote origins, stream uploads, paginate, render image/TXT safely and deny escapes', async t => {
+test('authenticated HTTP endpoints accept remote origins, stream uploads, paginate, render image/TXT safely and allow paths outside the bound directory', async t => {
     const { base, library, temp } = await apiFixture(t, { limits: { pageSize: 1, captionBytes: 10 } });
     const post = (suffix, body, headers = {}) => fetch(base + suffix, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body || {}) });
     assert.equal((await post('/imports', {}, { Origin: 'https://client.example' })).status, 200);
@@ -169,10 +169,15 @@ test('authenticated HTTP endpoints accept remote origins, stream uploads, pagina
     assert.equal((await fetch(root + '/file?path=large.txt')).status, 400);
     const thumb = await fetch(root + '/file?path=a.png&thumbnail=true'); assert.equal(thumb.status, 200, await thumb.clone().text()); assert.match(thumb.headers.get('content-type'), /image\/webp/);
     const image = await fetch(root + '/file?path=a.png'); assert.deepEqual(Buffer.from(await image.arrayBuffer()), PNG);
-    assert.equal((await fetch(root + '/file?path=..%2Fsecret.txt')).status, 400);
-    assert.equal((await fetch(root + '?directory=..')).status, 400);
-    await fs.writeFile(path.join(temp, 'secret.txt'), 'secret');
+    const external = path.join(temp, 'secret.txt'); await fs.writeFile(external, 'outside');
+    const outside = path.relative(imported.directories[0].path, external).replace(/\\/g, '/');
+    for (const file of [outside, external]) {
+        const response = await fetch(root + '/file?' + new URLSearchParams({ path: file }));
+        assert.equal(response.status, 200); assert.equal(await response.text(), 'outside');
+    }
+    assert.equal((await fetch(root + '?directory=..')).status, 200);
     try { await fs.symlink(path.join(temp, 'secret.txt'), path.join(imported.directories[0].path, 'link.txt')); }
     catch (e) { if (!['EPERM', 'EACCES'].includes(e.code)) throw e; return; }
-    assert.equal((await fetch(root + '/file?path=link.txt')).status, 403);
+    const linked = await fetch(root + '/file?path=link.txt');
+    assert.equal(linked.status, 200); assert.equal(await linked.text(), 'outside');
 });

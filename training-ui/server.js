@@ -2172,7 +2172,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
     server.listen(port, () => {
         console.log(`Anima Training UI running at http://localhost:${port}`);
-        console.log('Local and remote access require a password set on first visit; authenticated users can manage environments, benchmarks and directory grants.');
+        console.log('Local and remote access require a password set on first visit; authenticated users can manage environments, benchmarks and dataset browsing.');
         try {
             if (!process.env.ANIMA_NO_BROWSER) openNative(`http://localhost:${port}`, true);
         } catch (e) {

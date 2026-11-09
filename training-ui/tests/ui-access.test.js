@@ -77,7 +77,7 @@ test('localhost also requires authentication and ignores forwarded headers', asy
     assert.equal((await request('/api/private', { headers: { 'X-Forwarded-For': '127.0.0.1', 'X-Forwarded-Host': 'localhost' } })).status, 401);
     assert.equal((await request('/api/private', { local: true, headers: { Origin: origin } })).status, 401);
     assert.equal((await request('/api/private', { local: true, headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 401);
-    const status = (await request('/api/access/status', { local: true })).json(); assert.equal(status.local, true); assert.equal(status.authenticated, false); assert.equal(status.setupRequired, true);
+    const status = (await request('/api/access/status', { local: true })).json(); assert.equal(status.authenticated, false); assert.equal(status.setupRequired, true);
 });
 test('login uses HttpOnly Strict cookies, process lifetime sessions, origin-independent writes and logout', async t => {
     const { request, origin, access, advance, login, password } = await fixture(t);
@@ -143,16 +143,14 @@ test('WebSocket upgrades require a session regardless of origin; logout closes e
     await request('/api/access/logout', { method: 'POST', cookie, headers:{Origin:origin} });
     assert.equal((await closed)[0], 4001);
 });
-test('LAN directory access allows authenticated remote authorization, revocation is immediate and imports remain available', async t => {
-    const { temp, request, login, origin } = await fixture(t), cookie = await login();
+test('authenticated remote users bind any readable dataset directory without grants', async t => {
+    const { temp, request, login } = await fixture(t), cookie = await login();
     const folder = path.join(temp, 'private'); fs.mkdirSync(folder); fs.writeFileSync(path.join(folder, 'a.txt'), 'hello');
-    const post = (url, body, local = false) => request(url, { method: 'POST', body, cookie, local, headers: local ? {} : { Origin: origin } });
-    assert.equal((await post('/api/datasets/bind', { path: folder })).status, 403);
-    assert.equal((await post('/api/datasets/authorized-roots', { path: folder })).status, 200);
-    const binding = (await post('/api/datasets/bind', { path: folder })).json();
+    const post = (url, body) => request(url, { method: 'POST', body, cookie });
+    const response = await post('/api/datasets/bind', { path: folder }); assert.equal(response.status, 200);
+    const binding = response.json();
     assert.equal((await request(`/api/datasets/roots/${binding.id}/file?path=a.txt`, { cookie })).text, 'hello');
-    assert.equal((await post('/api/datasets/authorized-roots', { path: folder, remove: true })).status, 200);
-    assert.equal((await request(`/api/datasets/roots/${binding.id}/file?path=a.txt`, { cookie })).status, 403);
+    assert.equal((await post('/api/datasets/authorized-roots', { path: folder })).status, 404);
     assert.equal((await post('/api/datasets/imports')).status, 200);
 });
 
