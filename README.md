@@ -81,7 +81,7 @@ Run the provided setup script for your operating system:
 
 ### Isolated Python environments (Windows / Linux)
 
-See [Environment management](docs/environment-management.md) for live installation logs, shared uv caching, migration, rollback, and local-only API access. Managed installations use final generation paths under `.runtime/environments`; the legacy directories below remain lookup fallbacks until migrated.
+See [Environment management](docs/environment-management.md) for live installation logs, shared uv caching, migration, rollback, and authenticated local and remote API access. Managed installations use final generation paths under `.runtime/environments`; the legacy directories below remain lookup fallbacks until migrated.
 
 | Models | Default directory | Windows installer | Linux installer |
 | --- | --- | --- | --- |

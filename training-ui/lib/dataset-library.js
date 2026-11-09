@@ -31,18 +31,6 @@ function inside(root, file) {
 }
 function allowed(file) { return DATASET_IMAGE_EXTENSIONS.has(path.extname(file).toLowerCase()) || /\.txt$/i.test(file); }
 function archiveType(file) { const ext = path.extname(file).toLowerCase(); return ext === '.zip' ? 'zip' : ext === '.7z' ? '7z' : null; }
-function localRequest(req) {
-    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return false;
-    try {
-        const host = new URL('http://' + req.headers.host);
-        if (!['localhost', '127.0.0.1', '[::1]'].includes(host.hostname)) return false;
-        if (req.headers.origin) {
-            const origin = new URL(req.headers.origin);
-            if (!['http:', 'https:'].includes(origin.protocol) || origin.host !== host.host) return false;
-        }
-        return true;
-    } catch { return false; }
-}
 function parseArchiveList(text, limits = LIMITS) {
     const entries = [], seen = new Set(); let total = 0;
     for (const block of text.trim().split(/\r?\n\r?\n/)) {
@@ -310,7 +298,7 @@ class DatasetLibrary {
         if (!native || !path.isAbsolute(native)) fail('请输入服务器上的绝对目录路径');
         const root = await fsp.realpath(native);
         if (!(await fsp.stat(root)).isDirectory()) fail('路径不是目录');
-        if (!local && !await this.isAuthorized(root)) fail('该服务器目录未获授权，请在训练机器 localhost 设置中授权根目录', 403);
+        if (!local && !await this.isAuthorized(root)) fail('该服务器目录未获授权，请在全局设置中授权根目录', 403);
         if (this.bindings.size >= 100) { await this.expire(); if (this.bindings.size >= 100) this.bindings.delete(this.bindings.keys().next().value); }
         const id = crypto.randomUUID(); this.bindings.set(id, { root, touched: Date.now() }); return { id, path: root };
     }
@@ -371,7 +359,7 @@ class DatasetLibrary {
         try { return await task; } finally { this.thumbnailTasks.delete(key); }
     }
     mount(app) {
-        app.use('/api/datasets', (req, res, next) => req.uiAccess || localRequest(req) ? next() : res.status(403).json({ error: '数据集文件管理需要已认证的同源访问' }));
+        app.use('/api/datasets', (req, res, next) => req.uiAccess ? next() : res.status(401).json({ error: '数据集文件管理需要登录' }));
         const route = fn => async (req, res) => { try { await fn(req, res); } catch (e) { if (!res.headersSent && !res.destroyed) res.status(e.status || 400).json({ error: e.message }); } };
         app.post('/api/datasets/imports', route(async (_req, res) => res.json(await this.create())));
         app.get('/api/datasets/imports/:id', route((req, res) => res.json(this.view(this.get(req.params.id)))));
@@ -379,9 +367,8 @@ class DatasetLibrary {
         app.post('/api/datasets/imports/:id/prepare', route((req, res) => res.status(202).json(this.startPrepare(this.get(req.params.id)))));
         app.post('/api/datasets/imports/:id/commit', route(async (req, res) => res.json(await this.commit(this.get(req.params.id)))));
         app.delete('/api/datasets/imports/:id', route(async (req, res) => { const s = this.sessions.get(req.params.id); if (s?.phase === 'committing') fail('正在原子发布，请稍候', 409); if (s) await this.remove(s); res.json({ ok: true }); }));
-        const localOnly = (req, res, next) => isLocalRequest(req) ? next() : res.status(403).json({ error: '目录授权仅限 localhost 管理' });
-        app.get('/api/datasets/authorized-roots', localOnly, route(async (_req, res) => res.json({ roots: await this.authorizedRoots() })));
-        app.post('/api/datasets/authorized-roots', localOnly, route(async (req, res) => res.json({ roots: await this.authorize(req.body?.path, req.body?.remove === true) })));
+        app.get('/api/datasets/authorized-roots', route(async (_req, res) => res.json({ roots: await this.authorizedRoots() })));
+        app.post('/api/datasets/authorized-roots', route(async (req, res) => res.json({ roots: await this.authorize(req.body?.path, req.body?.remove === true) })));
         app.post('/api/datasets/bind', route(async (req, res) => res.json(await this.bind(req.body?.path, { local: isLocalRequest(req) }))));
         app.use('/api/datasets/roots/:id', async (req, res, next) => {
             try {

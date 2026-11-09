@@ -15,9 +15,14 @@ it('localhost manages directory grants without password reveal or reset controls
   expect(mocks.api).not.toHaveBeenCalledWith('/api/access/code')
   wrapper.unmount()
 })
-it('remote UI cannot reveal access codes or manage directory grants', async () => {
-  mocks.api.mockResolvedValue({local:false})
+it('remote UI can load and manage directory grants', async () => {
+  mocks.api.mockImplementation((_url: string, options?: any) => Promise.resolve({ roots: options?.method === 'POST' ? ['/remote'] : ['/safe'] }))
   const wrapper = mount(AccessPanel); await flushPromises()
-  expect(wrapper.text()).not.toContain('显示访问码'); expect(wrapper.text()).toContain('退出登录')
-  expect(mocks.api).toHaveBeenCalledTimes(1); wrapper.unmount()
+  expect(wrapper.text()).toContain('/safe')
+  await wrapper.find('input[aria-label="授权根目录"]').setValue('/remote')
+  await wrapper.findAll('button').find(button => button.text() === '授权目录')!.trigger('click'); await flushPromises()
+  expect(mocks.api).toHaveBeenCalledWith('/api/datasets/authorized-roots', { method: 'POST', body: { path: '/remote', remove: false } })
+  expect(wrapper.text()).toContain('/remote')
+  expect(wrapper.text()).not.toContain('仅限 localhost')
+  wrapper.unmount()
 })

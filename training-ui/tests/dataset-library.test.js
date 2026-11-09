@@ -24,7 +24,10 @@ async function fixture(t, options = {}) {
 async function put(library, s, name, data = PNG) { await library.upload(s, Readable.from([data]), name); }
 async function ready(library, s) { library.startPrepare(s); await s.operation; assert.equal(s.phase, 'ready', s.error); }
 async function apiFixture(t, options) {
-    const f = await fixture(t, options), app = express(); app.use(express.json()); f.library.mount(app);
+    const f = await fixture(t, options), app = express(); app.use(express.json());
+    // Production authentication runs before DatasetLibrary; this fixture supplies its identity.
+    app.use((req, _res, next) => { req.uiAccess = { local: true }; next(); });
+    f.library.mount(app);
     const server = app.listen(0, '127.0.0.1'); await new Promise(r => server.on('listening', r));
     t.after(() => new Promise(r => server.close(r)));
     return { ...f, base: `http://127.0.0.1:${server.address().port}/api/datasets` };
@@ -143,15 +146,15 @@ test('startup cleans only generated staging directories older than 24h, not data
     await library.initialize(); await assert.rejects(fs.stat(old));
     for (const dir of [fresh, unrelated, published]) assert.equal((await fs.stat(dir)).isDirectory(), true);
 });
-test('HTTP endpoints gate origins, stream uploads, paginate, render image/TXT safely and deny escapes', async t => {
+test('authenticated HTTP endpoints accept remote origins, stream uploads, paginate, render image/TXT safely and deny escapes', async t => {
     const { base, library, temp } = await apiFixture(t, { limits: { pageSize: 1, captionBytes: 10 } });
     const post = (suffix, body, headers = {}) => fetch(base + suffix, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body || {}) });
-    assert.equal((await post('/imports', {}, { Origin: 'https://evil.example' })).status, 403);
+    assert.equal((await post('/imports', {}, { Origin: 'https://client.example' })).status, 200);
     const badHostStatus = await new Promise((resolve, reject) => {
         const request = require('node:http').request(base + '/imports', { method: 'POST', headers: { Host: 'evil.example' } }, response => { response.resume(); resolve(response.statusCode); });
         request.on('error', reject); request.end();
     });
-    assert.equal(badHostStatus, 403);
+    assert.equal(badHostStatus, 200);
     const session = await (await post('/imports')).json();
     for (const [name, body] of [['a.png', PNG], ['a.txt', '<b>x</b>'], ['b.jpg', PNG], ['large.txt', 'x'.repeat(11)]]) {
         const result = await fetch(`${base}/imports/${session.id}/file?path=${name}`, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body }); assert.equal(result.status, 200);

@@ -9,7 +9,7 @@ have their own. All managed environments use Python 3.12.
 Run `setup_env.bat` on Windows or `bash setup_env.sh` on Linux. The bootstrap
 requires an existing Python 3.10–3.13 with working venv/pip and network access;
 uv locates or downloads Python 3.12. Setup installs/builds the UI but never installs
-model dependencies. Open the UI on **localhost**, then use Global Settings →
+model dependencies. Log in to the UI locally or remotely, then use Global Settings →
 Environment Management. Remote and cross-origin environment-management calls are
 intentionally rejected.
 

@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { StringDecoder } = require('node:string_decoder');
-const { environmentPath, pythonAt, localRequest } = require('./environment-manager');
+const { environmentPath, pythonAt } = require('./environment-manager');
 const { killProcess } = require('./process-killer');
 const MODES = ['bf16', 'fp16', 'tf32', 'fp32', 'fp8', 'int8'];
 
@@ -68,10 +68,6 @@ class TensorBenchmark {
     return this.task;
   }
   mount(app) {
-    app.use('/api/benchmarks/tensor', (req, res, next) => {
-      if (!localRequest(req)) return res.status(403).json({ error: '性能测试仅允许本机同源访问' });
-      next();
-    });
     app.get('/api/benchmarks/tensor', (req, res) => res.json({ task: this.task, busy: this.busy(), blocked: !!this.isBusy() }));
     app.post('/api/benchmarks/tensor', (req, res) => {
       try { res.json(this.start(req.body || {})); }

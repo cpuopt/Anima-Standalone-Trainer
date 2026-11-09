@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const TOML = require('@iarna/toml');
-const { EnvironmentManager, environmentPath, pythonAt, localRequest } = require('../lib/environment-manager');
+const { EnvironmentManager, environmentPath, pythonAt } = require('../lib/environment-manager');
 
 function fixture(t, options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'environment manager '));
@@ -51,13 +51,6 @@ test('all backends keep independent paths and native executable layout', () => {
   assert.equal(environmentPath('/project', 'anima-lumina', {venv_path:'/legacy'}), '/legacy');
   assert.match(pythonAt('/env', 'win32'), /Scripts[\\/]python.exe$/);
   assert.match(pythonAt('/env', 'linux'), /bin[\\/]python$/);
-});
-test('management rejects remote, rebinding and cross-origin requests', () => {
-  const req = {socket:{remoteAddress:'127.0.0.1'}, headers:{host:'localhost:3000',origin:'http://localhost:3000'}};
-  assert.equal(localRequest(req), true);
-  assert.equal(localRequest({...req,socket:{remoteAddress:'192.168.1.1'}}),false);
-  assert.equal(localRequest({...req,headers:{host:'evil.example'}}),false);
-  assert.equal(localRequest({...req,headers:{host:'localhost:3000',origin:'https://evil.example'}}),false);
 });
 test('UI inventory works with every model absent and does not trust a stale ready cache', t => {
   const f=fixture(t);

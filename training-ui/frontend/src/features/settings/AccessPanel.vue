@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { api } from '@/services/api'
-const local = ref(false), ready = ref(false), roots = ref<string[]>([]), directory = ref(''), error = ref(''), notice = ref(''), busy = ref(false)
+const ready = ref(false), roots = ref<string[]>([]), directory = ref(''), error = ref(''), notice = ref(''), busy = ref(false)
 async function run(action: () => Promise<void>) {
   if (busy.value) return
   busy.value = true; error.value = ''; notice.value = ''
@@ -17,23 +17,21 @@ async function authorize(path: string, remove = false) {
 async function logout() { await api('/api/access/logout', { method: 'POST' }); window.location.assign('/login') }
 onMounted(async () => {
   try {
-    const status = await api('/api/access/status'); local.value = status.local
-    if (local.value) roots.value = (await api('/api/datasets/authorized-roots')).roots
+    roots.value = (await api('/api/datasets/authorized-roots')).roots
   } catch (e: any) { error.value = e.message } finally { ready.value = true }
 })
 </script>
 <template>
   <section class="rounded-lg border p-4 space-y-3" aria-label="局域网访问">
     <h3 class="font-semibold">局域网访问</h3>
-    <p class="text-sm text-muted-foreground">首次访问需设置密码，本地和远程统一登录。密码仅在本次服务进程内有效，登录不会自动过期；服务重启后重新设置。持有密码者拥有训练控制权限；仅用于可信局域网，非可信网络必须使用 HTTPS。环境安装等操作仍仅限 localhost。</p>
+    <p class="text-sm text-muted-foreground">首次访问需设置密码，本地和远程统一登录。密码仅在本次服务进程内有效，登录不会自动过期；服务重启后重新设置。持有密码者拥有训练控制权限；仅用于可信局域网，非可信网络必须使用 HTTPS。已登录的本地和远程用户均可管理环境、运行性能测试和管理目录授权。</p>
     <p v-if="error" role="alert" class="text-destructive">{{ error }}</p><p v-if="notice" role="status">{{ notice }}</p>
-    <template v-if="ready && local">
+    <template v-if="ready">
       <h4 class="font-semibold">允许远程预览的服务器目录</h4>
-      <p class="text-sm text-muted-foreground">上传后的管理目录自动可用。其他目录必须在此由本机授权；不要授权磁盘根目录、密钥或私密资料目录。</p>
+      <p class="text-sm text-muted-foreground">上传后的管理目录自动可用。其他目录必须先在此授权；不要授权磁盘根目录、密钥或私密资料目录。</p>
       <div class="flex gap-2"><input v-model="directory" aria-label="授权根目录" placeholder="服务器绝对目录路径" class="min-w-0 flex-1 rounded border p-2 bg-transparent" /><button class="btn" :disabled="busy || !directory.trim()" @click="authorize(directory)">授权目录</button></div>
       <ul class="space-y-2"><li v-for="root in roots" :key="root" class="flex items-center gap-2"><code class="min-w-0 flex-1 break-all">{{ root }}</code><button class="btn" :disabled="busy" @click="authorize(root, true)">撤销</button></li></ul>
     </template>
-    <template v-else-if="ready"><p class="text-sm text-muted-foreground">目录授权需在训练机器的 localhost 界面管理。</p></template>
     <button class="btn" @click="logout">退出登录</button>
   </section>
 </template>

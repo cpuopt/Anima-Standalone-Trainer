@@ -9,6 +9,8 @@ const WebSocket = require('ws');
 const { once } = require('node:events');
 const { UiAccess } = require('../lib/ui-access');
 const { DatasetLibrary } = require('../lib/dataset-library');
+const { EnvironmentManager } = require('../lib/environment-manager');
+const { TensorBenchmark } = require('../lib/tensor-benchmark');
 const { mountFrontend } = require('../lib/frontend');
 const { tensorboardProxy } = require('../lib/tensorboard-proxy');
 
@@ -20,6 +22,8 @@ async function fixture(t) {
     const app = express(); access.mount(app);
     app.use('/tensorboard/:jobKey', tensorboardProxy(() => null));
     app.use(express.json()); datasets.mount(app);
+    new EnvironmentManager({ root: temp, getConfig: () => ({}), isBusy: () => true }).mount(app);
+    new TensorBenchmark({ root: temp, getConfig: () => ({}), isBusy: () => true }).mount(app);
     const dist = path.join(temp, 'dist'), legacy = path.join(temp, 'legacy');
     fs.mkdirSync(dist); fs.mkdirSync(legacy);
     fs.writeFileSync(path.join(dist, 'index.html'), '<h1>private app</h1>');
@@ -71,19 +75,19 @@ test('localhost also requires authentication and ignores forwarded headers', asy
     const { request, origin } = await fixture(t);
     assert.equal((await request('/api/private', { local: true })).status, 401);
     assert.equal((await request('/api/private', { headers: { 'X-Forwarded-For': '127.0.0.1', 'X-Forwarded-Host': 'localhost' } })).status, 401);
-    assert.equal((await request('/api/private', { local: true, headers: { Origin: origin } })).status, 403);
-    assert.equal((await request('/api/private', { local: true, headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 403);
+    assert.equal((await request('/api/private', { local: true, headers: { Origin: origin } })).status, 401);
+    assert.equal((await request('/api/private', { local: true, headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 401);
     const status = (await request('/api/access/status', { local: true })).json(); assert.equal(status.local, true); assert.equal(status.authenticated, false); assert.equal(status.setupRequired, true);
 });
-test('login uses HttpOnly Strict cookies, process lifetime sessions, same-origin writes and logout', async t => {
+test('login uses HttpOnly Strict cookies, process lifetime sessions, origin-independent writes and logout', async t => {
     const { request, origin, access, advance, login, password } = await fixture(t);
     await login();
     const result = await request('/api/access/login', { method: 'POST', body: { password }, headers: { Origin: origin } });
     const setCookie = result.headers['set-cookie'][0], cookie = setCookie.split(';')[0];
     assert.match(setCookie, /HttpOnly/); assert.match(setCookie, /SameSite=Strict/); assert.doesNotMatch(setCookie, /Max-Age|Expires/i); assert.doesNotMatch(setCookie, /Secure/);
-    assert.equal((await request('/api/private', { method: 'POST', cookie, body: {} })).status, 403);
+    assert.equal((await request('/api/private', { method: 'POST', cookie, body: {} })).status, 200);
     assert.equal((await request('/api/private', { method: 'POST', cookie, body: {}, headers: { Origin: origin } })).status, 200);
-    assert.equal((await request('/api/private', { method: 'POST', cookie, body: {}, headers: { Origin: 'https://evil.example' } })).status, 403);
+    assert.equal((await request('/api/private', { method: 'POST', cookie, body: {}, headers: { Origin: 'https://client.example' } })).status, 200);
     access.secureCookies = true;
     assert.match((await request('/api/access/login', { method: 'POST', body: { password }, headers: { Origin: origin } })).headers['set-cookie'][0], /; Secure/);
     advance(365 * 24 * 60 * 60 * 1000); assert.equal((await request('/api/private', { cookie })).status, 200);
@@ -122,7 +126,7 @@ test('localhost can set a password and form login is throttled without expiring 
     assert.equal(form.status, 303); assert.equal(form.headers.location, '/ui/');
 });
 
-test('WebSocket upgrades require a session and same-origin; logout closes existing connections', async t => {
+test('WebSocket upgrades require a session regardless of origin; logout closes existing connections', async t => {
     const { port, host, origin, login, request } = await fixture(t);
     const connect = headers => new Promise(resolve => {
         const socket = new WebSocket(`ws://127.0.0.1:${port}/`, { headers, handshakeTimeout: 2000 });
@@ -130,23 +134,49 @@ test('WebSocket upgrades require a session and same-origin; logout closes existi
     });
     assert.equal(await connect({ Host: host, Origin: origin }), null);
     const cookie = await login();
-    assert.equal(await connect({ Host: host, Cookie: cookie, Origin: 'http://evil.example' }), null);
-    assert.equal(await connect({ Host: host, Cookie: cookie }), null);
+    for (const headers of [{ Host: host, Cookie: cookie, Origin: 'http://client.example' }, { Host: host, Cookie: cookie }]) {
+        const remote = await connect(headers); assert.ok(remote);
+        const closed = once(remote, 'close'); remote.close(); await closed;
+    }
     const socket = await connect({ Host: host, Cookie: cookie, Origin: origin }); assert.ok(socket);
     const closed = once(socket, 'close');
     await request('/api/access/logout', { method: 'POST', cookie, headers:{Origin:origin} });
     assert.equal((await closed)[0], 4001);
 });
-test('LAN directory access requires local authorization, revocation is immediate and imports remain available', async t => {
+test('LAN directory access allows authenticated remote authorization, revocation is immediate and imports remain available', async t => {
     const { temp, request, login, origin } = await fixture(t), cookie = await login();
     const folder = path.join(temp, 'private'); fs.mkdirSync(folder); fs.writeFileSync(path.join(folder, 'a.txt'), 'hello');
     const post = (url, body, local = false) => request(url, { method: 'POST', body, cookie, local, headers: local ? {} : { Origin: origin } });
     assert.equal((await post('/api/datasets/bind', { path: folder })).status, 403);
-    assert.equal((await post('/api/datasets/authorized-roots', { path: folder })).status, 403);
-    assert.equal((await post('/api/datasets/authorized-roots', { path: folder }, true)).status, 200);
+    assert.equal((await post('/api/datasets/authorized-roots', { path: folder })).status, 200);
     const binding = (await post('/api/datasets/bind', { path: folder })).json();
     assert.equal((await request(`/api/datasets/roots/${binding.id}/file?path=a.txt`, { cookie })).text, 'hello');
-    assert.equal((await post('/api/datasets/authorized-roots', { path: folder, remove: true }, true)).status, 200);
+    assert.equal((await post('/api/datasets/authorized-roots', { path: folder, remove: true })).status, 200);
     assert.equal((await request(`/api/datasets/roots/${binding.id}/file?path=a.txt`, { cookie })).status, 403);
     assert.equal((await post('/api/datasets/imports')).status, 200);
+});
+
+test('authenticated remote clients manage environments and benchmarks with arbitrary or absent Origin', async t => {
+    const { request, login } = await fixture(t);
+    const cookie = await login();
+    for (const headers of [{}, { Origin: 'https://client.example', 'Sec-Fetch-Site': 'cross-site' }]) {
+        for (const url of ['/api/environments', '/api/benchmarks/tensor']) {
+            assert.equal((await request(url, { headers })).status, 401);
+            assert.equal((await request(url, { cookie, headers })).status, 200);
+        }
+        assert.equal((await request('/api/environments/anima-lumina/install', { method: 'POST', cookie, headers, body: {} })).status, 409);
+        assert.equal((await request('/api/benchmarks/tensor', { method: 'POST', cookie, headers, body: {} })).status, 400);
+        assert.equal((await request('/api/benchmarks/tensor/stop', { method: 'POST', cookie, headers })).status, 200);
+        assert.equal((await request('/api/private', { method: 'POST', headers, body: {} })).status, 401);
+    }
+});
+test('remote password setup, login and logout do not require same-origin headers', async t => {
+    const { request, password } = await fixture(t);
+    const setup = await request('/api/access/setup', { method: 'POST', body: { password, confirmPassword: password } });
+    assert.equal(setup.status, 200);
+    const result = await request('/api/access/login', { method: 'POST', body: { password }, headers: { Origin: 'https://client.example' } });
+    assert.equal(result.status, 200);
+    const cookie = result.headers['set-cookie'][0].split(';')[0];
+    assert.equal((await request('/api/access/logout', { method: 'POST', cookie, headers: { Origin: 'https://client.example' } })).status, 200);
+    assert.equal((await request('/api/private', { cookie })).status, 401);
 });

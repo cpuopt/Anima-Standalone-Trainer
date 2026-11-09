@@ -184,7 +184,7 @@ function getGlobalConfig() {
     });
 }
 
-// Environment management has its own logs, process ownership and local-only API.
+// Environment management has its own logs and process ownership; UI session authentication applies.
 const { EnvironmentManager } = require('./lib/environment-manager');
 const { TensorBenchmark } = require('./lib/tensor-benchmark');
 const tensorBenchmark = new TensorBenchmark({ root: ROOT_DIR, getConfig: getGlobalConfig, nativePath: toNativePath,
@@ -2172,7 +2172,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
     server.listen(port, () => {
         console.log(`Anima Training UI running at http://localhost:${port}`);
-        console.log('LAN access requires a shared code. Manage it from localhost → Global Settings → LAN Access. Do not expose this service directly to the Internet.');
+        console.log('Local and remote access require a password set on first visit; authenticated users can manage environments, benchmarks and directory grants.');
         try {
             if (!process.env.ANIMA_NO_BROWSER) openNative(`http://localhost:${port}`, true);
         } catch (e) {

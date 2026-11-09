@@ -26,19 +26,6 @@ function atomicJSON(file, value) {
   const tmp = `${file}.${crypto.randomUUID()}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(value, null, 2)); fs.renameSync(tmp, file);
 }
-function localRequest(req) {
-  const ip = req.socket?.remoteAddress;
-  if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip)) return false;
-  try {
-    const host = new URL(`http://${req.headers.host}`);
-    if (!['localhost', '127.0.0.1', '[::1]'].includes(host.hostname)) return false;
-    if (req.headers.origin) {
-      const origin = new URL(req.headers.origin);
-      if (!['http:', 'https:'].includes(origin.protocol) || origin.host !== host.host) return false;
-    }
-    return true;
-  } catch { return false; }
-}
 
 class EnvironmentManager {
   constructor({ root, getConfig, isBusy = () => false, spawnProcess = spawn, kill = killProcess }) {
@@ -209,8 +196,6 @@ class EnvironmentManager {
     fs.rmSync(target, { recursive: true }); item.deleted = Date.now(); atomicJSON(file, state);
   }
   mount(app) {
-    const secure = (req, res, next) => localRequest(req) ? next() : res.status(403).json({ error: 'Environment management is available from localhost only' });
-    app.use(['/api/environments', '/api/environment-tasks'], secure);
     const route = fn => async (req, res) => { try { await fn(req, res); } catch (e) { res.status(e.status || 400).json({ error: e.message }); } };
     app.get('/api/environments', route((req, res) => res.json(this.list())));
     app.post('/api/environments/cleanup', route((req, res) => { this.cleanup(req.body?.path, req.body?.confirm === true); res.json({ success: true }); }));
@@ -223,4 +208,4 @@ class EnvironmentManager {
     }));
   }
 }
-module.exports = { EnvironmentManager, DEFINITIONS, environmentPath, pythonAt, localRequest };
+module.exports = { EnvironmentManager, DEFINITIONS, environmentPath, pythonAt };

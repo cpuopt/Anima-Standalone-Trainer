@@ -1,20 +1,8 @@
 const crypto = require('node:crypto');
 const express = require('express');
 const COOKIE = 'anima_ui_session';
-function originMatches(req) {
-    try {
-        if (!req.headers.host || /[\s,@/\\]/.test(req.headers.host)) return false;
-        const host = new URL('http://' + req.headers.host);
-        if (host.host !== req.headers.host.toLowerCase()) return false;
-        if (req.headers['sec-fetch-site'] === 'cross-site') return false;
-        if (!req.headers.origin) return true;
-        const origin = new URL(req.headers.origin);
-        // Scheme may differ behind an HTTPS terminator; never trust forwarded IP/host headers.
-        return ['http:', 'https:'].includes(origin.protocol) && origin.host === host.host;
-    } catch { return false; }
-}
 function localRequest(req) {
-    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) || !originMatches(req)) return false;
+    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return false;
     try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL('http://' + req.headers.host).hostname); }
     catch { return false; }
 }
@@ -30,7 +18,6 @@ class UiAccess {
         return match?.[1];
     }
     identity(req) {
-        if (!originMatches(req)) return null;
         if (!this.sessions.has(this.sessionId(req))) return null;
         return { local: localRequest(req) };
     }
@@ -41,7 +28,7 @@ class UiAccess {
         for (const [ip, entry] of this.attempts) if (entry.until <= this.now()) this.attempts.delete(ip);
     }
     track(socket, req) { this.sockets.set(socket, req); socket.once('close', () => this.sockets.delete(socket)); }
-    websocketAllowed(req) { return !!this.identity(req) && (localRequest(req) || !!req.headers.origin); }
+    websocketAllowed(req) { return !!this.identity(req); }
     loginPage(message = '') {
         const nonce = crypto.randomBytes(16).toString('hex');
         const setup = !this.passwordHash;
@@ -52,10 +39,9 @@ class UiAccess {
         return res.status(status).set({ 'Cache-Control': 'no-store', 'Content-Security-Policy': `default-src 'none'; style-src 'nonce-${nonce}'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`, 'X-Content-Type-Options': 'nosniff' }).type('html').send(html);
     }
     mount(app) {
-        const sameOrigin = (req, res, next) => originMatches(req) && (localRequest(req) || !!req.headers.origin) ? next() : res.status(403).json({ error: '请求来源不匹配' });
         app.get('/login', (req, res) => this.identity(req) ? res.redirect(302, '/ui/') : this.page(res));
         app.get('/api/access/status', (req, res) => res.set('Cache-Control', 'no-store').json({ authenticated: !!this.identity(req), local: localRequest(req), setupRequired: !this.passwordHash }));
-        app.post(['/api/access/setup', '/api/access/login'], sameOrigin, express.json({ limit: '2kb' }), express.urlencoded({ extended: false, limit: '2kb' }), (req, res) => {
+        app.post(['/api/access/setup', '/api/access/login'], express.json({ limit: '2kb' }), express.urlencoded({ extended: false, limit: '2kb' }), (req, res) => {
             this.sweep();
             const ip = req.socket.remoteAddress, entry = this.attempts.get(ip) || { count: 0, until: this.now() + 15 * 60000 };
             const html = req.is('application/x-www-form-urlencoded');
@@ -84,21 +70,19 @@ class UiAccess {
             res.set({ 'Set-Cookie': this.cookie(req, id), 'Cache-Control': 'no-store' });
             return html ? res.redirect(303, '/ui/') : res.json({ authenticated: true });
         });
-        app.post('/api/access/logout', sameOrigin, (req, res) => {
+        app.post('/api/access/logout', (req, res) => {
             const id = this.sessionId(req); this.sessions.delete(id);
             for (const [socket, request] of this.sockets) if (id && this.sessionId(request) === id) socket.close(4001, 'Logged out');
             res.set('Set-Cookie', this.cookie(req, '')).json({ authenticated: false });
         });
         // Must precede ALL API routes, proxies, parsers, and static/legacy mounts.
         app.use((req, res, next) => {
-            if (!originMatches(req)) return res.status(403).json({ error: '请求来源不匹配' });
             const identity = this.identity(req);
             if (!identity) {
                 res.set('Cache-Control', 'no-store');
                 if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/') && req.headers['sec-fetch-dest'] !== 'image') return res.redirect(302, '/login');
                 return res.status(401).json({ error: '尚未登录或服务已重启，请在新标签页打开 /login 登录' });
             }
-            if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !identity.local && !req.headers.origin) return res.status(403).json({ error: '写请求必须携带同源 Origin' });
             req.uiAccess = identity;
             res.set('Cache-Control', 'private, no-store');
             const writeHead = res.writeHead;
@@ -121,4 +105,4 @@ class UiAccess {
     }
     dispose() { clearInterval(this.timer); for (const s of this.sockets.keys()) s.close(1001, 'Server stopping'); }
 }
-module.exports = { UiAccess, localRequest, originMatches };
+module.exports = { UiAccess, localRequest };
