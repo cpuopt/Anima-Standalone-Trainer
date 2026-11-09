@@ -93,6 +93,21 @@ class CaptionTests(unittest.TestCase):
         self.subset.caption_suffix = 'suffix'
         self.assertEqual(self.run_caption('A girl with white hair looks forward.'), 'trigger A girl with white hair looks forward. suffix')
 
+    def test_region_affixes_with_and_without_shuffle(self):
+        self.subset.caption_prefix = 'trigger'
+        self.subset.caption_suffix = 'end'
+        self.subset.tags_suffix = 'tags end'
+        self.subset.natural_language_prefix = 'Describe:'
+        for shuffle in [False, True]:
+            self.subset.shuffle_caption = shuffle
+            self.assertEqual(self.run_caption('solo\r\nA girl looks forward.\r\nSecond line.\r\n'),
+                'trigger solo tags end\r\nDescribe: A girl looks forward.\r\nSecond line. end')
+            self.assertEqual(self.run_caption('solo'), 'trigger solo tags end end')
+            self.assertEqual(self.run_caption('A girl with white hair looks forward.'),
+                'trigger Describe: A girl with white hair looks forward. end')
+        self.subset.caption_dropout_rate = 1
+        self.assertEqual(self.run_caption('solo\nDescription.'), '')
+
     def test_reader_preserves_physical_lines_and_legacy_mode(self):
         with tempfile.TemporaryDirectory() as directory:
             image = str(Path(directory) / 'image.png')

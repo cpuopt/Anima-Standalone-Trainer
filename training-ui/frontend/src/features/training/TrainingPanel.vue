@@ -39,7 +39,8 @@ function checkpointChanged(event: Event) {
 
 <template>
   <MossTrainingPanel v-if="store.architecture === 'moss_image'"/>
-  <fieldset v-else class="panel" :disabled="store.locked">
+  <fieldset v-else class="panel page-columns" :disabled="store.locked">
+    <section class="layout-group">
     <h2>Optimization</h2>
     <div class="fields">
       <Field :object="t" field="learning_rate" label="Learning Rate" type="number" :step="'any'" :fallback="0.00005" />
@@ -55,6 +56,8 @@ function checkpointChanged(event: Event) {
     </div>
     <details><summary>Optimizer Args</summary><Field :object="t" field="optimizer_args" label="Optimizer Args (JSON array)" type="json" help="保留全部已有参数；切换优化器时仅共用 weight_decay，其他参数按优化器暂存，切回时恢复。" /></details>
 
+    </section>
+    <section class="layout-group">
     <h2>Training Schedule</h2>
     <div class="fields">
       <label class="field"><span class="field-label-row">Duration Unit<FieldHelp field="duration_unit" label="Duration Unit" /></span><select v-model="duration"><option value="epochs">Epochs</option><option value="steps">Steps</option></select></label>
@@ -70,6 +73,8 @@ function checkpointChanged(event: Event) {
       <Field v-if="!krea" :object="t" field="save_model_as" label="Save Format" type="select" :options="['safetensors','ckpt']" fallback="safetensors" />
     </div>
 
+    </section>
+    <section class="layout-group">
     <h2>Performance</h2>
     <div class="fields">
       <Field :object="t" field="mixed_precision" label="Mixed Precision" type="select" :options="krea ? ['bf16'] : ['bf16','fp16','no']" fallback="bf16" />
@@ -84,6 +89,8 @@ function checkpointChanged(event: Event) {
       <Field :object="t" field="blocks_to_swap" label="Blocks to Swap" type="number" :min="0" :max="26" :fallback="0" :disabled="fsdp || (!krea && offload !== 'none')" />
       <label class="field"><span class="field-label-row">Activation Offload<FieldHelp field="activation_offload" label="Activation Offload" /></span><select v-model="offload" :disabled="fsdp"><option value="none">None</option><option value="cpu">CPU Offload</option><option v-if="!krea" value="unsloth">Unsloth Offload</option></select><small class="muted">需要 Gradient Checkpointing；Anima 与手动 Block Swap 互斥。</small></label>
     </div>
+    </section>
+    <section class="layout-group">
     <h2>Caching &amp; Timesteps</h2>
     <p v-if="krea" class="muted">Krea 2 自动缓存 latents 与 text embeddings。训练 RAW，训练中预览使用 RAW；独立采样可在 Prompts 选择 RAW / Turbo。</p>
     <div class="fields">
@@ -94,13 +101,16 @@ function checkpointChanged(event: Event) {
       <Field :object="model" :field="krea ? 'timestep_sampling' : 'timestep_sample_method'" label="Timestep Sample Method" type="select" :options="krea ? Krea2.TIMESTEPS : ['logit_normal','uniform']" :fallback="krea ? 'krea2_shift' : 'logit_normal'" />
       <Field :object="model" field="discrete_flow_shift" label="Flow Shift" type="number" :step="0.1" :min="0" :fallback="krea ? 2.5 : 3" :disabled="krea && model.timestep_sampling === 'krea2_shift'" />
     </div>
+    </section>
     <template v-if="krea">
-      <h2>Krea 2</h2><div class="fields">
+      <section class="layout-group">
+    <h2>Krea 2</h2><div class="fields">
         <label class="field"><span><input v-model="fp8" type="checkbox" /> Dynamic Scaled FP8 <FieldHelp field="fp8_scaled" label="Dynamic Scaled FP8" /></span><small class="muted">使用原始 bf16 模型文件。</small></label>
         <label class="field"><span class="field-label-row">Attention<FieldHelp field="attention" label="Attention" /></span><select v-model="attention"><option value="sdpa">SDPA</option><option value="flash">FlashAttention</option><option value="xformers">xformers</option></select></label>
         <Field :object="t" field="split_attn" label="Split Attention" type="boolean" :fallback="false" />
         <Field :object="model" field="text_encoder_batch_size" label="Text Encoder Cache Batch" type="number" :min="1" :fallback="1" />
       </div>
-    </template>
+    </section>
+  </template>
   </fieldset>
 </template>

@@ -3,9 +3,10 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose } from 'reka-ui'
 import { api } from '@/services/api'
 import { splitCaption } from './caption-split'
+import { captionPreview, type CaptionConfig } from './caption-preview'
 import { droppedFiles, isArchive, selectDatasetFiles, uploadDatasetFile, type DatasetFile } from './dataset-files'
 
-const props = defineProps<{ directory: string; mode: 'import' | 'browse'; captionExtension?: string; disabled?: boolean }>()
+const props = defineProps<{ directory: string; mode: 'import' | 'browse'; captionExtension?: string; captionConfig?: CaptionConfig; disabled?: boolean }>()
 const emit = defineEmits<{ close: []; imported: [directories: string[]] }>()
 const tab = ref(props.mode), bindingPath = ref(props.directory), error = ref(''), info = ref('')
 const files = ref<DatasetFile[]>([]), skipped = ref(0), dragging = ref(false), scanning = ref(false)
@@ -14,6 +15,8 @@ const importId = ref(''), bindingId = ref(''), browsePath = ref(''), page = ref(
 const listing = ref<any>(null), loading = ref(false), selected = ref<any>(null), caption = ref(''), captionError = ref(''), imageError = ref(false)
 const kind = ref('images'), captionLoading = ref(false)
 const captionParts = computed(() => splitCaption(caption.value))
+const processedCaption = computed(() => captionPreview(caption.value, props.captionConfig))
+const promptLegend = computed(() => processedCaption.value.filter(segment => segment.kind !== 'separator'))
 const splitLabels = { multiline: '多行：首行 Tags', mixed: '单行：自动识别', tags: '纯 Tags', natural_language: '自然语言 / 保守保留' }
 
 const brokenThumbnails = ref(new Set<string>())
@@ -203,6 +206,10 @@ if (props.mode === 'browse' && props.directory) void bind()
                   <p class="muted caption-split-note">{{ splitLabels[captionParts.method] }}。以下为开启“打乱 Caption”时的切分结果，尚未随机打乱或 Dropout。</p>
                   <h4>Tags 部分</h4><pre class="caption-text caption-tags">{{ captionParts.tags || '（无 Tags）' }}</pre>
                   <h4>自然语言部分</h4><pre class="caption-text caption-natural-language">{{ captionParts.natural_language || '（无自然语言）' }}</pre>
+                  <h4>处理后完整提示词</h4>
+                  <p class="muted">按当前配置展示固定文本与分段；随机打乱、Dropout、通配符抽样及 Token Warmup 未应用。</p>
+                  <div class="prompt-legend"><span v-for="segment in promptLegend" :key="segment.kind" :class="`prompt-${segment.kind}`">{{ segment.label }}</span></div>
+                  <pre class="caption-text caption-processed"><template v-for="(segment, index) in processedCaption" :key="index"><span :class="`prompt-${segment.kind}`" :title="segment.label">{{ segment.text }}</span></template><template v-if="!processedCaption.length">（空提示词）</template></pre>
                 </template></template>
                 <p v-else class="muted">选择图片，同时查看原图与同名 TXT。</p>
               </aside>
@@ -222,5 +229,6 @@ if (props.mode === 'browse' && props.directory) void bind()
 .import-body,.browse-body{overflow:auto;min-height:0;display:flex;flex-direction:column;gap:1rem}.path-input{flex:1;min-width:12rem}.input{padding:.55rem .75rem;border:1px solid var(--border,#444);border-radius:6px;background:transparent;color:inherit}.bind-row label{display:block;margin-bottom:.5rem}.drop-area{border:2px dashed var(--border,#555);border-radius:10px;padding:2rem;text-align:center}.drop-area .manager-actions{justify-content:center}.drop-area.dragging{border-color:var(--primary,#91a8ff);background:#7899ff12}.picker-label{position:relative;cursor:pointer}.picker-label input{position:absolute;width:1px;height:1px;opacity:0}.picker-label:focus-within{outline:2px solid var(--primary,#91a8ff)}.inactive{opacity:.45;cursor:not-allowed}.import-summary{border:1px solid var(--border,#444);padding:1rem;border-radius:8px}.import-summary ul{max-height:9rem;overflow:auto;padding-left:1.5rem}.manager-error{color:var(--destructive,#f08080);overflow-wrap:anywhere}.import-summary progress{width:100%}.current-path{overflow-wrap:anywhere;flex:1}
 .asset-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(250px,1fr);gap:1rem;min-height:0}.asset-catalog{min-width:0}.folder-list{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem}.image-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.65rem}.image-card{background:transparent;color:inherit;border:1px solid var(--border,#444);border-radius:8px;padding:.5rem;display:flex;flex-direction:column;gap:.35rem;text-align:left;cursor:pointer;min-width:0}.image-card.selected{border-color:var(--primary,#91a8ff);background:#7899ff12}.image-card img,.thumbnail-fallback{width:100%;height:105px;object-fit:contain;border-radius:4px;background:#8881}.thumbnail-fallback{display:grid;place-items:center;font-size:.75rem}.asset-name{display:block;overflow-wrap:anywhere;font-size:.85rem}.pagination{justify-content:center;margin-top:1rem}.asset-preview{border:1px solid var(--border,#444);border-radius:8px;padding:1rem;min-width:0;align-self:start;position:sticky;top:0}.large-preview{display:block;width:100%;max-height:40vh;object-fit:contain;margin:.75rem 0}.caption-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:25vh;overflow:auto;font-family:inherit;font-size:.85rem}.asset-preview h4{margin:1rem 0 .5rem}
 .manager-actions>.input{width:auto;min-width:0}.manager-actions>.input:not(select){flex:1}.manager-actions input[type=checkbox]{width:auto}.large-preview{max-height:22vh}
+.prompt-legend{display:flex;flex-wrap:wrap;gap:.4rem 1rem;font-size:.8rem}.prompt-prefix{color:#b18cff}.prompt-suffix{color:#f086c1}.prompt-tags-suffix{color:#edae51}.prompt-natural-prefix{color:#5bcbbc}.prompt-tags{color:#8bb9ef}.prompt-natural{color:var(--foreground,#eceef2)}
 @media(max-width:760px){.dataset-dialog{inset:2vh 2vw;padding:.8rem}.asset-layout{grid-template-columns:1fr}.asset-preview{position:static}.drop-area{padding:1rem}}
 </style>

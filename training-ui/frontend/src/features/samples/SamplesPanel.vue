@@ -150,7 +150,7 @@ onUnmounted(() => { generation++; controller?.abort(); metadataController?.abort
     <p class="muted">点击查看；Ctrl/⌘ 多选，Shift 范围选择；空白处拖动框选。拖动图片调整顺序，方向键导航，Enter 查看，Esc 关闭。</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="!images.length && !loading" class="muted">{{ filter ? '没有匹配的样例。' : '暂无样例图片。' }}</p>
-    <div class="gallery" @mousedown="boxStart">
+    <div class="gallery sample-gallery-columns" @mousedown="boxStart">
       <section v-for="group in visibleGroups" :key="group.key" class="sample-group">
         <h3>{{ group.key === 'default' ? '未分组' : `Prompt ${Number(group.key)+1}` }}</h3>
         <div class="sample-grid" @dragover.prevent @drop="drop($event,group.key)">

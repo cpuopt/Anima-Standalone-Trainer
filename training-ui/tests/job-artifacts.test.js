@@ -19,12 +19,17 @@ async function fixture(t) {
     }
     const app = express(), access = new UiAccess({file:path.join(root, 'code')}); access.mount(app); library.mount(app);
     const server = app.listen(0, '127.0.0.1'); await new Promise(r=>server.on('listening',r));
-    const base = `http://127.0.0.1:${server.address().port}/api/jobs/${encodeURIComponent('任务 #1')}/artifacts`;
+    const url = `http://127.0.0.1:${server.address().port}`;
+    const setup = await fetch(url+'/api/access/setup', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:'fixture-password',confirmPassword:'fixture-password'})});
+    assert.equal(setup.status,200);
+    const cookie = setup.headers.get('set-cookie').split(';')[0];
+    const base = url+`/api/jobs/${encodeURIComponent('任务 #1')}/artifacts`;
+    const authenticatedFetch = (url, options={}) => fetch(url, {...options,headers:{Cookie:cookie,...options.headers}});
     t.after(async()=>{
         access.dispose(); await new Promise(r=>server.close(r));
         assert.equal(path.dirname(root),os.tmpdir()); assert.match(path.basename(root),/^trainer-artifacts-/); await fs.rm(root,{recursive:true,force:true});
     });
-    return {root, jobs, job, library, write, base, server};
+    return {root, jobs, job, library, write, base, server, fetch: authenticatedFetch};
 }
 function safetensors(metadata={ss_epoch:'3',ss_steps:'60'}) {
     const header = Buffer.from(JSON.stringify({__metadata__:metadata,weight:{dtype:'F32',shape:[1],data_offsets:[0,4]}}));
@@ -46,7 +51,7 @@ test('lists all saved epochs, final models and training/manual samples; excludes
     const filtered=await library.list('任务 #1',{query:'000002'}); assert.equal(filtered.total,1);
 });
 test('HTTP preview reads only bounded safetensors headers; download bytes and Unicode disposition are correct',async t=>{
-    const {write,base}=await fixture(t); const data=safetensors(); await write('output/模型-000003.safetensors',data);
+    const {write,base,fetch}=await fixture(t); const data=safetensors(); await write('output/模型-000003.safetensors',data);
     const listing=await(await fetch(base)).json(), item=listing.items[0]; const q=new URLSearchParams({path:item.path,version:item.version});
     const preview=await(await fetch(base+'/preview?'+q)).json(); assert.equal(preview.tensorCount,1); assert.equal(preview.metadata.ss_epoch,'3'); assert.deepEqual(preview.tensors[0].shape,[1]);
     const download=await fetch(base+'/file?'+q+'&download=true'); assert.equal(download.status,200); assert.match(download.headers.get('content-disposition'),/attachment/); assert.match(download.headers.get('content-disposition'),/filename\*/); assert.equal(Number(download.headers.get('content-length')),data.length); assert.deepEqual(Buffer.from(await download.arrayBuffer()),data);
@@ -56,7 +61,7 @@ test('HTTP preview reads only bounded safetensors headers; download bytes and Un
     const ckpt=await(await fetch(base+'/preview?path=output%2Fcheckpoint.ckpt')).json(); assert.equal(ckpt.tensorCount,null); assert.match(ckpt.note,/不加载/);
 });
 test('fresh, zero-byte, changed, malformed and oversized headers fail safely',async t=>{
-    const {write,base}=await fixture(t);
+    const {write,base,fetch}=await fixture(t);
     await write('output/fresh.safetensors',safetensors(),false); await write('output/empty.safetensors','');
     for(const file of ['fresh','empty']) assert.equal((await fetch(base+`/file?path=output%2F${file}.safetensors`)).status,409);
     await write('output/stable.safetensors',safetensors());
@@ -66,7 +71,7 @@ test('fresh, zero-byte, changed, malformed and oversized headers fail safely',as
     }
 });
 test('missing jobs, traversal, symlink roots/files and non-artifact paths cannot be read',async t=>{
-    const {write,base,library,root,job}=await fixture(t); await write('output/model.pt'); await write('secret.txt','private');
+    const {write,base,library,root,job,fetch}=await fixture(t); await write('output/model.pt'); await write('secret.txt','private');
     for(const p of ['../secret.txt','output/../secret.txt','output/a:secret.pt','samples/m.pt','/output/model.pt','output\\model.pt']) {
         assert.notEqual((await fetch(base+'/file?'+new URLSearchParams({path:p}))).status,200);
     }

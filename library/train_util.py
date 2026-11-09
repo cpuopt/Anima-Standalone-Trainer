@@ -439,6 +439,8 @@ class BaseSubset:
         validation_split: Optional[float] = 0.0,
         resize_interpolation: Optional[str] = None,
         epoch_sample_rate: float = 1.0,
+        natural_language_prefix: Optional[str] = None,
+        tags_suffix: Optional[str] = None,
     ) -> None:
         self.image_dir = image_dir
         self.alpha_mask = alpha_mask if alpha_mask is not None else False
@@ -458,6 +460,8 @@ class BaseSubset:
         self.caption_tag_dropout_rate = caption_tag_dropout_rate
         self.caption_prefix = caption_prefix
         self.caption_suffix = caption_suffix
+        self.natural_language_prefix = natural_language_prefix
+        self.tags_suffix = tags_suffix
 
         self.token_warmup_min = token_warmup_min  # step=0におけるタグの数
         self.token_warmup_step = token_warmup_step  # N（N<1ならN*max_train_steps）ステップ目でタグの数が最大になる
@@ -508,6 +512,8 @@ class DreamBoothSubset(BaseSubset):
         validation_split: Optional[float] = 0.0,
         resize_interpolation: Optional[str] = None,
         epoch_sample_rate: float = 1.0,
+        natural_language_prefix: Optional[str] = None,
+        tags_suffix: Optional[str] = None,
     ) -> None:
         assert image_dir is not None, "image_dir must be specified / image_dirは指定が必須です"
 
@@ -537,6 +543,8 @@ class DreamBoothSubset(BaseSubset):
             validation_split=validation_split,
             resize_interpolation=resize_interpolation,
             epoch_sample_rate=epoch_sample_rate,
+            natural_language_prefix=natural_language_prefix,
+            tags_suffix=tags_suffix,
         )
 
         self.is_reg = is_reg
@@ -581,6 +589,8 @@ class FineTuningSubset(BaseSubset):
         validation_split: Optional[float] = 0.0,
         resize_interpolation: Optional[str] = None,
         epoch_sample_rate: float = 1.0,
+        natural_language_prefix: Optional[str] = None,
+        tags_suffix: Optional[str] = None,
     ) -> None:
         assert metadata_file is not None, "metadata_file must be specified / metadata_fileは指定が必須です"
 
@@ -610,6 +620,8 @@ class FineTuningSubset(BaseSubset):
             validation_split=validation_split,
             resize_interpolation=resize_interpolation,
             epoch_sample_rate=epoch_sample_rate,
+            natural_language_prefix=natural_language_prefix,
+            tags_suffix=tags_suffix,
         )
 
         self.metadata_file = metadata_file
@@ -650,6 +662,8 @@ class ControlNetSubset(BaseSubset):
         validation_split: Optional[float] = 0.0,
         resize_interpolation: Optional[str] = None,
         epoch_sample_rate: float = 1.0,
+        natural_language_prefix: Optional[str] = None,
+        tags_suffix: Optional[str] = None,
     ) -> None:
         assert image_dir is not None, "image_dir must be specified / image_dirは指定が必須です"
 
@@ -679,6 +693,8 @@ class ControlNetSubset(BaseSubset):
             validation_split=validation_split,
             resize_interpolation=resize_interpolation,
             epoch_sample_rate=epoch_sample_rate,
+            natural_language_prefix=natural_language_prefix,
+            tags_suffix=tags_suffix,
         )
 
         self.conditioning_data_dir = conditioning_data_dir
@@ -851,12 +867,13 @@ class BaseDataset(torch.utils.data.Dataset):
     def process_caption(self, subset: BaseSubset, caption):
         from library.caption_split import split_caption
 
-        protected = split_caption(caption) if subset.shuffle_caption else None
+        split_regions = subset.shuffle_caption or getattr(subset, "natural_language_prefix", None) or getattr(subset, "tags_suffix", None)
+        protected = split_caption(caption) if split_regions else None
         if protected is not None:
             caption = protected["tags"]
         # caption に prefix/suffix を付ける
         if subset.caption_prefix:
-            caption = subset.caption_prefix + " " + caption
+            caption = subset.caption_prefix + (" " if caption or protected is None else "") + caption
         if subset.caption_suffix and protected is None:
             caption = caption + " " + subset.caption_suffix
 
@@ -954,12 +971,19 @@ class BaseDataset(torch.utils.data.Dataset):
                 caption = caption.replace(subset.secondary_separator, subset.caption_separator)
 
             if protected is not None:
+                tags_suffix = getattr(subset, "tags_suffix", None)
+                if protected["tags"] and tags_suffix:
+                    caption += (" " if caption else "") + tags_suffix
+                natural_language = protected["natural_language"]
+                natural_prefix = getattr(subset, "natural_language_prefix", None)
+                if natural_language and natural_prefix:
+                    natural_language = natural_prefix + " " + natural_language
                 separator = protected["separator"]
                 if protected["method"] == "mixed" and not caption:
                     separator = ""
                 elif protected["method"] == "natural_language" and caption:
                     separator = " "
-                caption += separator + protected["natural_language"]
+                caption += separator + natural_language
                 if subset.caption_suffix:
                     caption += " " + subset.caption_suffix
 
@@ -2165,7 +2189,7 @@ class DreamBoothDataset(BaseDataset):
 
             logger.info(tr("found_images", path=subset.image_dir, count=len(img_paths)))
 
-            if use_cached_info_for_subset and not subset.shuffle_caption:
+            if use_cached_info_for_subset and not (subset.shuffle_caption or subset.natural_language_prefix or subset.tags_suffix):
                 captions = [meta["caption"] for meta in metas.values()]
                 missing_captions = [img_path for img_path, caption in zip(img_paths, captions) if caption is None or caption == ""]
             else:
@@ -2178,7 +2202,7 @@ class DreamBoothDataset(BaseDataset):
                 missing_captions = []
                 
                 def _process_caption(i, path):
-                    return i, path, read_caption(path, subset.caption_extension, subset.enable_wildcard, subset.shuffle_caption)
+                    return i, path, read_caption(path, subset.caption_extension, subset.enable_wildcard, bool(subset.shuffle_caption or subset.natural_language_prefix or subset.tags_suffix))
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=optimal_workers) as executor:
                     futures = [executor.submit(_process_caption, i, img_path) for i, img_path in enumerate(img_paths)]
@@ -2546,6 +2570,8 @@ class ControlNetDataset(BaseDataset):
                 subset.token_warmup_step,
                 resize_interpolation=subset.resize_interpolation,
                 epoch_sample_rate=subset.epoch_sample_rate,
+                natural_language_prefix=subset.natural_language_prefix,
+                tags_suffix=subset.tags_suffix,
             )
             db_subsets.append(db_subset)
 

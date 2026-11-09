@@ -29,6 +29,16 @@ describe('dataset draft preservation', () => {
     expect(state.dataset.custom).toBe('top')
     wrapper.unmount()
   })
+  it('exposes caption affixes and passes the selected subset configuration to preview', async () => {
+    const subset = state.dataset.datasets[0].subsets[0]
+    Object.assign(subset, { image_dir: '/data', caption_prefix: 'trigger', caption_suffix: 'end', natural_language_prefix: 'Describe:', tags_suffix: 'tags end' })
+    const wrapper = shallowMount(DatasetPanel)
+    const fields = wrapper.findAllComponents({ name: 'ConfigField' }).map(field => field.props('field'))
+    for (const key of ['caption_prefix', 'caption_suffix', 'natural_language_prefix', 'tags_suffix']) expect(fields).toContain(key)
+    await wrapper.findAll('button').find(button => button.text() === '浏览 / 预览')!.trigger('click')
+    expect(wrapper.findComponent({ name: 'DatasetAssetManager' }).props('captionConfig')).toMatchObject(subset)
+    wrapper.unmount()
+  })
   it('binds all imported image directories, inherits subset settings and asks to save', async () => {
     const wrapper = shallowMount(DatasetPanel)
     await wrapper.findAll('button').find(button => button.text() === '导入数据集')!.trigger('click')

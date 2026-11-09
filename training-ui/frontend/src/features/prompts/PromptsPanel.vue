@@ -58,7 +58,7 @@ async function generate(){
 async function unload(){if(!store.name)return;try{const r=await api(jobUrl(store.name,'/unload'),{method:'POST'});message.value=r.error||r.message||'模型已卸载'}catch(e:any){message.value=e.message}}
 </script>
 <template>
-  <section class="space-y-6">
+  <section class="page-columns prompts-layout">
     <div class="rounded-lg border p-4 space-y-3"><h2 class="font-semibold">训练中采样</h2><label class="flex items-center gap-2"><input type="checkbox" :checked="samplingEnabled && !samplingUnsupported" :disabled="samplingLocked" @change="toggleSampling"/>启用训练中采样</label><p v-if="samplingUnsupported" class="text-sm text-muted-foreground">TP/SP 多 GPU 训练不支持训练中采样。</p><Field v-if="samplingEnabled && !samplingUnsupported" :object="training" :field="samplingSteps?'sample_every_n_steps':'sample_every_n_epochs'" :label="samplingSteps?'每 N steps 采样':'每 N epochs 采样'" type="number" :min="1" :step="1" :fallback="samplingSteps?100:1" :disabled="samplingLocked"/></div>
     <div class="rounded-lg border p-4 space-y-4">
       <h2 class="font-semibold">独立采样</h2>

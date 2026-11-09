@@ -123,7 +123,7 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
 </script>
 
 <template>
-  <section class="panel dataset-panel" v-if="store.name">
+  <section class="dataset-panel" v-if="store.name">
     <h2>数据集</h2>
     <p class="muted">每个 Dataset 保留独立分辨率、批量和全部子集。未编辑的扩展字段保持原值。</p>
     <section v-if="!['krea2','moss_image'].includes(store.architecture)" class="lbai total-lbai">
@@ -133,7 +133,8 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
       <span>{{ comparison(totalEstimate) }}</span>
       <small class="muted">合计所有 Dataset 的训练程度；每项按其非正则化图片数 × repeats × 采样比例 × epochs × 有效学习率 × rank/32，再除以该项 batch size × 梯度累积。多分辨率训练中同一路径在不同 Dataset 会分别贡献训练量。</small>
     </section>
-    <fieldset :disabled="store.locked" class="dataset-edit-fields">
+    <fieldset :disabled="store.locked" class="dataset-edit-fields page-columns">
+    <section class="layout-group">
     <div class="fields">
       <template v-for="[field, label, type, fallback] in generalFields" :key="field">
         <ConfigField v-if="!['krea2','moss_image'].includes(store.architecture) || ['enable_bucket','bucket_no_upscale'].includes(field) || moss && ['min_bucket_reso','max_bucket_reso','bucket_reso_steps'].includes(field)" :object="general" :field="field" :label="label" :type="type" :fallback="fallback" @change="setGeneral(field,$event)" />
@@ -145,7 +146,8 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
     </div>
     <ConfigField v-if="moss" :object="general" field="enable_multiline_caption" label="保留多行 Caption" type="boolean" :fallback="true" @change="setGeneral('enable_multiline_caption',$event)"/>
     <button class="button" @click="addDataset">添加 Dataset</button>
-    <article v-for="(dataset, di) in datasets" :key="di" class="dataset-card">
+    </section>
+    <article v-for="(dataset, di) in datasets" :key="di" class="dataset-card layout-group">
       <header><h3>Dataset {{ di + 1 }}</h3><button class="button" :disabled="datasets.length <= 1" @click="deleteDataset(di)">删除 Dataset</button></header>
       <div class="fields">
         <ConfigField :object="dataset" field="resolution" label="分辨率 [宽, 高] 或单值" type="json" :fallback="[1024,1024]" />
@@ -168,6 +170,9 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
           <div class="fields" v-if="!['krea2','moss_image'].includes(store.architecture)">
             <ConfigField v-for="[field,label,fallback] in subsetNumbers" :key="field" :object="subset" :field="field" :label="label" type="number" :fallback="fallback" :step="field.includes('rate') ? 0.01 : 1" :min="0" :max="field.includes('rate') ? 1 : undefined" />
             <ConfigField :object="subset" field="caption_prefix" label="Caption 前缀" />
+            <ConfigField :object="subset" field="caption_suffix" label="Caption 后缀" />
+            <ConfigField :object="subset" field="natural_language_prefix" label="自然语言部分前缀" />
+            <ConfigField :object="subset" field="tags_suffix" label="tags部分后缀" />
             <ConfigField v-for="[field,label] in [['shuffle_caption','打乱 Caption'],['flip_aug','水平翻转'],['is_reg','正则化数据集'],['alpha_mask','Alpha Mask']]" :key="field" :object="subset" :field="field" :label="label" type="boolean" />
           </div>
         </div>
@@ -178,7 +183,7 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
     <section v-if="store.locked" aria-label="数据集只读预览">
       <template v-for="(dataset, di) in datasets" :key="di"><button v-for="(subset, si) in subsets(dataset)" :key="si" class="button" :disabled="!subset.image_dir" @click="manageAssets(dataset, subset, 'browse')">预览 Dataset {{ di + 1 }} / 子集 {{ si + 1 }}</button></template>
     </section>
-    <DatasetAssetManager v-if="assetTarget" :key="assetTarget.job || ''" :directory="assetTarget.subset.image_dir || ''" :mode="assetTarget.mode" :caption-extension="assetTarget.dataset.caption_extension || '.txt'" :disabled="store.locked || store.running" @close="assetTarget = null" @imported="applyImported" />
+    <DatasetAssetManager v-if="assetTarget" :key="assetTarget.job || ''" :directory="assetTarget.subset.image_dir || ''" :mode="assetTarget.mode" :caption-extension="assetTarget.dataset.caption_extension || '.txt'" :caption-config="{ ...general, ...assetTarget.dataset, ...assetTarget.subset }" :disabled="store.locked || store.running" @close="assetTarget = null" @imported="applyImported" />
   </section>
 </template>
 
@@ -187,4 +192,5 @@ const subsetNumbers = [ ['epoch_sample_rate', '每轮图片采样比例', 1], ['
 header { display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;justify-content:space-between }
 .lbai { display:flex;flex-wrap:wrap;gap:.75rem;padding:1rem 0;align-items:center }.lbai small { flex-basis:100% } meter { width:12rem }
 .dataset-edit-fields{border:0;padding:0;margin:0;min-width:0}
+.dataset-card.layout-group{margin:0}
 </style>

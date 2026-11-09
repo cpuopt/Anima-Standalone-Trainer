@@ -73,11 +73,14 @@ const preview = computed(() => {
 const previewSupported = computed(() => (krea.value ? modules.value.includes(moduleName.value) : store.architecture === 'anima' && layered.value))
 </script>
 <template>
-  <fieldset class="panel" :disabled="store.locked">
+  <fieldset class="panel page-columns" :disabled="store.locked">
+    <section class="layout-group">
     <h2>Training Type</h2>
     <label class="field"><span class="field-label-row">Training Type<FieldHelp field="training_type" label="Training Type" /></span><select v-model="trainingType" :disabled="isolated"><option value="lora">Adapter (LoRA / LoHa / LoKR)</option><option v-if="!isolated" value="full_finetune">Full Finetune</option></select></label>
+    </section>
     <template v-if="trainingType === 'lora'">
-      <h2>Adapter Configuration</h2>
+      <section class="layout-group">
+    <h2>Adapter Configuration</h2>
       <div class="fields">
         <label class="field"><span class="field-label-row">Network Module<FieldHelp field="network_module" label="Network Module" /></span><select v-model="selectedModule"><option v-for="name in modules" :key="name">{{ name }}</option><option v-if="moduleName && !modules.includes(moduleName)" :value="moduleName">{{ moduleName }}</option></select></label>
         <Field :object="n" field="network_dim" label="Network Dim (Rank)" type="number" :min="1" :fallback="16" :disabled="rankDisabled" :help="full ? 'Full Matrix 下 Rank 不生效。' : rankDisabled ? 'Block 层采用高级分层设置；此 Rank 值保留。' : '更高 Rank 增加容量与显存。'" />
@@ -105,11 +108,16 @@ const previewSupported = computed(() => (krea.value ? modules.value.includes(mod
         <p class="muted">单层结构示例，非整网统计；不计 Alpha 缓冲与底模 bias。Alpha / Dropout 不影响参数量。筛选目标层或加载已有权重可能改变实际结构。</p>
       </details>
       <Field :object="n" field="network_weights" label="Network Weights (Adapter checkpoint)" help="使用同类型 adapter 初始化；完整训练状态使用下方 Resume。" />
-    </template>
-    <template v-else><h2>Full Finetune Options</h2><Field :object="t" field="freeze_llm_adapter" label="Freeze LLM Adapter" type="boolean" :fallback="true" help="建议冻结预训练 LLM adapter，避免文本理解退化及 DDP graph 问题。" /></template>
+    </section>
+  </template>
+    <template v-else><section class="layout-group">
+    <h2>Full Finetune Options</h2><Field :object="t" field="freeze_llm_adapter" label="Freeze LLM Adapter" type="boolean" :fallback="true" help="建议冻结预训练 LLM adapter，避免文本理解退化及 DDP graph 问题。" /></section>
+  </template>
+    <section class="layout-group">
     <h2>Resume Training</h2>
     <Field :object="n" field="auto_resume_last_state" label="Auto-resume from last saved state" type="boolean" :fallback="false" @change="autoResume" />
     <Field :object="n" field="resume" label="Resume State Folder" :disabled="!!n.auto_resume_last_state" help="恢复 optimizer、scheduler 与训练步数；启用自动恢复时忽略手动目录。" />
+  </section>
   </fieldset>
 </template>
 <style scoped>

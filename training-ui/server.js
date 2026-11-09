@@ -23,7 +23,7 @@ const WebSocket = require('ws');
 const app = express();
 const server = http.createServer(app);
 const { UiAccess } = require('./lib/ui-access');
-const uiAccess = new UiAccess({ file: path.join(__dirname, '..', '.runtime', 'ui-access-code') });
+const uiAccess = new UiAccess();
 uiAccess.mount(app);
 const wss = new WebSocket.Server({ server, verifyClient: ({ req }) => uiAccess.websocketAllowed(req) });
 wss.on('connection', (socket, request) => uiAccess.track(socket, request));

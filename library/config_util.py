@@ -69,6 +69,8 @@ class BaseSubsetParams:
     random_crop: bool = False
     caption_prefix: Optional[str] = None
     caption_suffix: Optional[str] = None
+    natural_language_prefix: Optional[str] = None
+    tags_suffix: Optional[str] = None
     caption_dropout_rate: float = 0.0
     caption_dropout_every_n_epochs: int = 0
     caption_tag_dropout_rate: float = 0.0
@@ -200,6 +202,8 @@ class ConfigSanitizer:
         "token_warmup_step": Any(float, int),
         "caption_prefix": str,
         "caption_suffix": str,
+        "natural_language_prefix": str,
+        "tags_suffix": str,
         "custom_attributes": dict,
         "resize_interpolation": str,
         "epoch_sample_rate": voluptuous.All(Any(float, int), voluptuous.Range(min=0.0, max=1.0)),
