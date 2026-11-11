@@ -70,3 +70,4 @@ venv-moss/
 
 # Managed environments, cache and task logs
 .runtime/
+/.codex-backups
