@@ -11,7 +11,7 @@ export type PromptSegment = { kind: string; label: string; text: string }
 export function captionPreview(raw: string, config: CaptionConfig = {}): PromptSegment[] {
   const segments: PromptSegment[] = []
   const add = (kind: string, label: string, text: string | undefined) => { if (text) segments.push({ kind, label, text }) }
-  const split = config.shuffle_caption || config.natural_language_prefix || config.tags_suffix
+  const split = /[\r\n]/.test(raw) || config.shuffle_caption || config.natural_language_prefix || config.tags_suffix
   const parts = splitCaption(raw)
   const normalize = (text: string) => {
     if (config.shuffle_caption || config.token_warmup_step || config.caption_tag_dropout_rate) {
@@ -21,7 +21,7 @@ export function captionPreview(raw: string, config: CaptionConfig = {}): PromptS
   }
   add('prefix', 'Caption 前缀', config.caption_prefix)
   if (config.caption_prefix && (!split || parts.tags)) add('separator', '分隔', ' ')
-  add('tags', split ? 'Tags 部分' : 'Caption 正文', normalize(split ? parts.tags : raw.split('\n')[0]!))
+  add('tags', split ? 'Tags 部分' : 'Caption 正文', normalize(split ? parts.tags : raw))
   if (split && parts.tags && config.tags_suffix) {
     if (segments.some(s => s.text)) add('separator', '分隔', ' ')
     add('tags-suffix', 'tags部分后缀', config.tags_suffix)

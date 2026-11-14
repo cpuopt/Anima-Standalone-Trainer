@@ -1,6 +1,7 @@
 """Shared parser contract and real training method tests without GPU dependencies."""
 import ast
 import json
+from itertools import product
 import math
 import os
 from pathlib import Path
@@ -86,7 +87,7 @@ class CaptionTests(unittest.TestCase):
         with patch('random.choice', side_effect=lambda values: values[0]):
             self.assertEqual(self.run_caption('{solo|pair}\nDescription {must|stay}.'), 'solo\nDescription {must|stay}.')
             self.subset.shuffle_caption = False
-            self.assertEqual(self.run_caption('solo\npair'), 'solo')
+            self.assertEqual(self.run_caption('solo\npair'), 'solo\npair')
 
     def test_prefix_suffix_and_pure_prose(self):
         self.subset.caption_prefix = 'trigger'
@@ -108,14 +109,59 @@ class CaptionTests(unittest.TestCase):
         self.subset.caption_dropout_rate = 1
         self.assertEqual(self.run_caption('solo\nDescription.'), '')
 
-    def test_reader_preserves_physical_lines_and_legacy_mode(self):
+    def test_reader_preserves_physical_lines(self):
         with tempfile.TemporaryDirectory() as directory:
             image = str(Path(directory) / 'image.png')
             text = '\r\nFirst description.\r\n\r\n  Last description.\r\n'
             Path(directory, 'image.txt').write_bytes(text.encode())
-            self.assertEqual(self.read(image, '.txt', False, True), text)
-            self.assertEqual(self.read(image, '.txt', True, True), text)
-            self.assertEqual(self.read(image, '.txt', False, False), '')
+            self.assertEqual(self.read(image, '.txt'), text)
+
+    def test_multiline_file_with_all_caption_mode_combinations(self):
+        # Exercise the actual reader + processor, including the previously
+        # truncating no-shuffle/no-region-affix path and wildcard line choice.
+        with tempfile.TemporaryDirectory() as directory:
+            image = str(Path(directory) / 'image.png')
+            for newline, shuffle, wildcard, region_affixes in product(
+                ['\n', '\r\n', '\r'], [False, True], [False, True], [False, True]
+            ):
+                with self.subTest(newline=repr(newline), shuffle=shuffle,
+                                  wildcard=wildcard, region_affixes=region_affixes):
+                    self.subset.shuffle_caption = shuffle
+                    self.subset.enable_wildcard = wildcard
+                    self.subset.tags_suffix = 'tag end' if region_affixes else None
+                    self.subset.natural_language_prefix = 'Describe:' if region_affixes else None
+                    self.subset.caption_prefix = 'trigger'
+                    self.subset.caption_suffix = 'end'
+                    prose = newline.join(['A girl looks forward, smiling.', '', '  Description {must|stay}.'])
+                    text = 'solo' + newline + prose + newline
+                    Path(directory, 'image.txt').write_bytes(text.encode('utf-8'))
+                    expected = ('trigger solo' + (' tag end' if region_affixes else '') + newline
+                                + ('Describe: ' if region_affixes else '') + prose + ' end')
+                    self.assertEqual(self.run_caption(self.read(image, '.txt')), expected)
+
+    def test_tag_dropout_and_warmup_preserve_prose_without_shuffle(self):
+        self.subset.shuffle_caption = False
+        self.subset.keep_tokens = 1
+        self.subset.caption_tag_dropout_rate = 1
+        text = 'trigger, solo, red hair\nDescription, unchanged.\nMore description.'
+        self.assertEqual(self.run_caption(text), 'trigger\nDescription, unchanged.\nMore description.')
+        self.subset.caption_tag_dropout_rate = 0
+        self.subset.token_warmup_step = 10
+        self.assertEqual(self.run_caption(text), 'trigger, solo\nDescription, unchanged.\nMore description.')
+        self.subset.caption_dropout_rate = 1
+        self.assertEqual(self.run_caption(text), '')
+
+    def test_multiline_without_augmentation_and_single_line_regression(self):
+        self.subset.shuffle_caption = False
+        for text in ['solo\nA description.\nAnother line.', '\nDescription only.',
+                     'A girl looks forward.\nShe smiles.', 'solo, red hair',
+                     'A girl with white hair looks forward.']:
+            with self.subTest(text=text):
+                self.assertEqual(self.run_caption(text), text)
+        self.subset.enable_wildcard = True
+        with patch('random.choice', side_effect=lambda values: values[-1]):
+            self.assertEqual(self.run_caption('{solo|pair}\nDescription.'), 'pair\nDescription.')
+            self.assertEqual(self.run_caption('{solo|pair}'), 'pair')
 
     def test_epoch_dropout_and_cache_restriction_remain(self):
         self.subset.caption_dropout_every_n_epochs = 1

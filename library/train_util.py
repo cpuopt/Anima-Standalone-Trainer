@@ -867,7 +867,12 @@ class BaseDataset(torch.utils.data.Dataset):
     def process_caption(self, subset: BaseSubset, caption):
         from library.caption_split import split_caption
 
-        split_regions = subset.shuffle_caption or getattr(subset, "natural_language_prefix", None) or getattr(subset, "tags_suffix", None)
+        # Physical lines are one caption: first line tags, remaining lines prose,
+        # regardless of augmentation settings (including wildcard mode).
+        split_regions = (
+            "\n" in caption or "\r" in caption or subset.shuffle_caption
+            or getattr(subset, "natural_language_prefix", None) or getattr(subset, "tags_suffix", None)
+        )
         protected = split_caption(caption) if split_regions else None
         if protected is not None:
             caption = protected["tags"]
@@ -890,10 +895,6 @@ class BaseDataset(torch.utils.data.Dataset):
         else:
             # process wildcards
             if subset.enable_wildcard:
-                # if caption is multiline, random choice one line
-                if protected is None and "\n" in caption:
-                    caption = random.choice(caption.split("\n"))
-
                 # wildcard is like '{aaa|bbb|ccc...}'
                 # escape the curly braces like {{ or }}
                 replacer1 = "⦅"
@@ -912,9 +913,6 @@ class BaseDataset(torch.utils.data.Dataset):
 
                 # unescape the curly braces
                 caption = caption.replace(replacer1, "{").replace(replacer2, "}")
-            elif protected is None:
-                # if caption is multiline, use the first line
-                caption = caption.split("\n")[0]
 
             if subset.shuffle_caption or subset.token_warmup_step > 0 or subset.caption_tag_dropout_rate > 0:
                 fixed_tokens = []
@@ -2072,7 +2070,7 @@ class DreamBoothDataset(BaseDataset):
             self.bucket_reso_steps = None  # この情報は使われない
             self.bucket_no_upscale = False
 
-        def read_caption(img_path, caption_extension, enable_wildcard, shuffle_caption):
+        def read_caption(img_path, caption_extension):
             # captionの候補ファイル名を作る
             base_name = os.path.splitext(img_path)[0]
             base_name_face_det = base_name
@@ -2091,12 +2089,9 @@ class DreamBoothDataset(BaseDataset):
                             logger.error(f"illegal char in file (not UTF-8) / ファイルにUTF-8以外の文字があります: {cap_path}")
                             raise e
                         assert len(lines) > 0, f"caption file is empty / キャプションファイルが空です: {cap_path}"
-                        if shuffle_caption:
-                            caption = "".join(lines)
-                        elif enable_wildcard:
-                            caption = "\n".join([line.strip() for line in lines if line.strip() != ""])  # 空行を除く、改行で連結
-                        else:
-                            caption = lines[0].strip()
+                        # Preserve all physical lines, including empty lines and
+                        # their line endings, independently of caption options.
+                        caption = "".join(lines)
                     break
             return caption
 
@@ -2202,7 +2197,7 @@ class DreamBoothDataset(BaseDataset):
                 missing_captions = []
                 
                 def _process_caption(i, path):
-                    return i, path, read_caption(path, subset.caption_extension, subset.enable_wildcard, bool(subset.shuffle_caption or subset.natural_language_prefix or subset.tags_suffix))
+                    return i, path, read_caption(path, subset.caption_extension)
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=optimal_workers) as executor:
                     futures = [executor.submit(_process_caption, i, img_path) for i, img_path in enumerate(img_paths)]
