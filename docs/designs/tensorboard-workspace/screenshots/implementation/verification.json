@@ -1,0 +1,35 @@
+{
+  "checks": [
+    {
+      "width": 1600,
+      "height": 1000,
+      "overflow": false
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "overflow": false
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "overflow": false
+    },
+    {
+      "width": 375,
+      "height": 812,
+      "overflow": false
+    }
+  ],
+  "errors": [],
+  "frameLoads": 2,
+  "passed": [
+    "collapse preserves native state",
+    "status does not reload iframe",
+    "explicit reload",
+    "failed stop retains iframe",
+    "stop does not affect training",
+    "no injected iframe scripts or styles"
+  ],
+  "fixture": true
+}

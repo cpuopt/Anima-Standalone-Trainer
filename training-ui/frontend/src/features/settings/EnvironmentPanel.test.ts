@@ -5,7 +5,7 @@ vi.mock('@/services/api',()=>({api:mocks.api}))
 import EnvironmentPanel from './EnvironmentPanel.vue'
 beforeEach(()=>{vi.useFakeTimers();mocks.api.mockReset();vi.spyOn(window,'confirm').mockReturnValue(true)})
 afterEach(()=>{vi.useRealTimers();vi.restoreAllMocks()})
-const listing={environments:[{id:'main',label:'主环境',installed:true,path:'/main',status:'ready',versions:{uv:'0.12.18'}},{id:'krea2',label:'Krea 2',installed:false,path:'/krea'}],history:[],busy:false}
+const listing={platform:'win32',environments:[{id:'main',label:'主环境',installed:true,path:'/main',status:'ready',versions:{uv:'0.12.18'}},{id:'krea2',label:'Krea 2',installed:false,path:'/krea'}],history:[],busy:false}
 it('installs optional Triton from the ready Anima card',async()=>{
   const state={...listing,environments:[{id:'anima-lumina',label:'Anima / Lumina',installed:true,status:'ready'}]}
   mocks.api.mockImplementation((url:string)=>Promise.resolve(url.endsWith('/install-triton')?{id:'triton-task',status:'running'}:state))
@@ -58,5 +58,13 @@ it.each([
   if(triton&&'error' in triton)expect(probe.text()).toContain(triton.error)
   if(triton&&'version' in triton)expect(probe.text()).toContain('triton-windows 3.3.0.post19')
   expect(w.text()).toContain('验证通过')
+  w.unmount()
+})
+
+it.each(['linux', 'darwin', undefined])('hides Windows-only Triton installation on server platform %s', async platform => {
+  mocks.api.mockResolvedValue({ ...listing, platform, environments: [{ id: 'anima-lumina', label: 'Anima / Lumina', status: 'ready' }] })
+  const w = mount(EnvironmentPanel); await flushPromises()
+  expect(w.findAll('button').some(b => b.text() === '安装 triton-windows')).toBe(false)
+  if (platform === 'linux') expect(w.text()).toContain('Linux 使用 triton 包')
   w.unmount()
 })

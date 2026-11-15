@@ -32,4 +32,43 @@ describe('sample gallery request isolation', () => {
     expect(wrapper.text()).not.toContain('old.png')
     wrapper.unmount()
   })
+  it('filters Prompt tabs without losing the All view, and resets the filter on task changes', async () => {
+    mocks.api.mockResolvedValue([
+      {path:'/a.png',name:'task_e000001_00_20261115120000.png',mtime:1},
+      {path:'/b.png',name:'task_e000002_00_20261115120000.png',mtime:2},
+      {path:'/c.png',name:'task_e000001_01_20261115120000.png',mtime:3},
+    ])
+    const wrapper = mount(SamplesPanel)
+    await flushPromises()
+    const prompt = wrapper.findAll('.sample-filters button').find(button => button.text().startsWith('Prompt 1'))!
+    await prompt.trigger('click')
+    expect(wrapper.find('.gallery').classes()).toContain('single-prompt')
+    expect(wrapper.findAll('.sample-card')).toHaveLength(2)
+    await wrapper.find('input[type=search]').setValue('E02')
+    expect(wrapper.findAll('.sample-card')).toHaveLength(1)
+    expect(wrapper.find('.sample-card').attributes('data-sample-path')).toBe('/b.png')
+    await wrapper.find('input[type=search]').setValue('')
+    await wrapper.find('select').setValue('oldest')
+    expect(wrapper.findAll('.sample-card')[0]!.attributes('data-sample-path')).toBe('/a.png')
+    await wrapper.find('.sample-filters button').trigger('click')
+    expect(wrapper.findAll('.sample-card')).toHaveLength(3)
+    expect(wrapper.find('.gallery').classes()).not.toContain('single-prompt')
+    await prompt.trigger('click')
+    state.name = 'next'
+    await flushPromises()
+    expect(wrapper.findAll('.sample-card')).toHaveLength(3)
+    wrapper.unmount()
+  })
+  it('supports touch-friendly multiselect without opening the viewer', async () => {
+    mocks.api.mockResolvedValue([{path:'/a.png',name:'a.png',mtime:1}])
+    const wrapper = mount(SamplesPanel,{attachTo:document.body})
+    await flushPromises()
+    await wrapper.findAll('.samples-toolbar button').find(b => b.text() === '多选')!.trigger('click')
+    await wrapper.find('.sample-card').trigger('click')
+    expect(wrapper.find('.sample-card').classes()).toContain('selected')
+    expect(document.querySelector('.sample-lightbox')).toBeNull()
+    await wrapper.find('.sample-card').trigger('click')
+    expect(wrapper.find('.sample-card').classes()).not.toContain('selected')
+    wrapper.unmount()
+  })
 })

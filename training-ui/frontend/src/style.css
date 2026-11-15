@@ -51,23 +51,19 @@ main { min-width:0; }.toolbar { min-height:115px; padding:25px 32px; border-bott
 .tabs { display:flex; gap:3px; padding:0 25px; border-bottom:1px solid var(--border); overflow:auto; }.tabs button { white-space:nowrap; padding:15px 13px; border-bottom:2px solid transparent; color:var(--muted-foreground); font-size:12px; }.tabs button.active { color:var(--primary); border-bottom-color:var(--primary); }.tabs button:hover { color:var(--foreground); }
 .workspace { padding:26px 32px 60px; margin:auto; }.panel { min-width:0; background:color-mix(in srgb,var(--card) 95%,transparent); padding:21px; border:1px solid var(--border); border-radius:10px; margin-bottom:20px; }.fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr)); gap:18px; }.field { display:flex; flex-direction:column; gap:6px; min-width:0; }.field label { font-size:12px; color:var(--muted-foreground); }.field small { font-size:11px; }.field-check { flex-direction:row; flex-wrap:wrap; align-items:center; min-height:36px; }.field-check label { color:var(--foreground); }.field-check small { width:100%; }.muted { color:var(--muted-foreground); }.button,.btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:1px solid var(--border); border-radius:6px; padding:7px 12px; font-size:12px; background:var(--secondary); }.button:hover,.btn:hover { background:var(--accent); }.error { color:#ed8e9c; }.banner { margin:16px 32px 0; padding:10px 14px; border:1px solid var(--border); border-radius:7px; display:flex; justify-content:space-between; gap:12px; overflow-wrap:anywhere; }.banner.error { background:#9f183017; border-color:#9f4555; }.notice { color:#75bc9c; background:#30805015; }.welcome { min-height:420px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:var(--muted-foreground); }.welcome-mark { width:60px; height:64px; font-size:28px; margin-bottom:24px; }.welcome h2 { color:var(--foreground); font-size:23px; }.welcome p { margin-bottom:24px; }
 .panel>h2:not(:first-child) { margin-top:26px; }.panel>details { margin-top:18px; }.panel>.field { margin-top:16px; }
-.page-columns,.console-layout { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:start; min-width:0; }
+.page-columns { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:start; min-width:0; }
 .panel.page-columns { padding:0; border:0; background:none; }
-.page-columns>* , .console-layout>* { min-width:0; margin-block:0; }
+.page-columns>* { min-width:0; margin-block:0; }
 .layout-group { padding:21px; border:1px solid var(--border); border-radius:10px; background:color-mix(in srgb,var(--card) 95%,transparent); min-width:0; }
 .layout-group>.field,.layout-group>details { margin-top:16px; }
 .layout-group>.fields + .fields { margin-top:18px; }
 .layout-span,.prompts-layout>:not(.rounded-lg):not(article) { grid-column:1/-1; }
-.console-log-toolbar { flex-wrap:wrap; }
-.console-log-output { margin:0; height:65vh; min-height:320px; overflow-wrap:anywhere; }
-.console-gpu-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr)); gap:12px; }
 /* Each page column needs 600px. 245px sidebar + 64px workspace padding +
    2 * 600px columns + 24px gap + up to 16px scrollbar = 1549px. */
+.workspace.samples-workspace { padding:12px 14px 28px; }
+.workspace.console-workspace { padding:12px 14px 16px; }
 @media (min-width:1550px) {
-  .page-columns,.console-layout { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .console-layout { grid-template-columns:minmax(600px,1fr) minmax(600px,1.25fr); }
-  .console-hardware { max-height:calc(100dvh - 230px); overflow:auto; }
-  .console-log-output { height:calc(100dvh - 285px); min-height:420px; }
+  .page-columns { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .workspace .page-columns .layer-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .workspace .page-columns .layer-row>span { grid-column:1/-1; }
   .sample-gallery-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; align-items:start; }

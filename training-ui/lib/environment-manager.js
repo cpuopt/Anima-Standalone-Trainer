@@ -65,7 +65,7 @@ class EnvironmentManager {
   list() {
     const cfg = this.getConfig(); let state = { active: {}, history: [] };
     try { state = JSON.parse(fs.readFileSync(path.join(this.base, 'environment-state.json'), 'utf8')); } catch {}
-    return { environments: Object.entries(DEFINITIONS).map(([id, def]) => {
+    return { platform: process.platform, environments: Object.entries(DEFINITIONS).map(([id, def]) => {
       const directory = environmentPath(this.root, id, cfg);
       const report = [...this.tasks.values()].reverse().find(t => t.environment === id && t.report?.path === directory)?.report;
       const cached = state.active?.[id];

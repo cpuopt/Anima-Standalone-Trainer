@@ -114,7 +114,7 @@ onBeforeUnmount(() => { store.dispose(); window.removeEventListener('ui-access-e
       <div v-if="accessExpired" class="banner error" role="alert">登录已失效或服务已重启，未保存的编辑仍保留。<a href="/login" target="_blank" rel="noopener">在新标签页重新登录</a><button @click="accessExpired = false">关闭提示</button></div>
       <div v-if="store.notice" class="banner notice" role="status">{{ store.notice }}</div>
       <nav class="tabs" aria-label="配置页面"><button v-for="item in tabs" :key="item.id" :class="{ active: tab === item.id }" :disabled="!store.name && item.id !== 'settings'" @click="tab = item.id">{{ item.label }}</button></nav>
-      <div class="workspace">
+      <div class="workspace" :class="{'samples-workspace':tab === 'samples','console-workspace':tab === 'console'}">
         <p v-if="store.loading" role="status" class="muted">正在读取任务…</p>
         <PersistentPanels v-else-if="store.name || tab === 'settings'" :key="store.name ?? 'global'" :tabs="tabs" :active="tab" />
         <section v-else class="welcome"><div class="welcome-mark">A</div><h2>开始一次新的训练</h2><p>选择已有任务，或在左侧创建 Anima / Krea 2 / MOSS 任务。</p><button class="button" @click="tab='settings'">配置模型与运行环境</button></section>

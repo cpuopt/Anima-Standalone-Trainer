@@ -1,0 +1,53 @@
+[
+  {
+    "direction": 1,
+    "passed": true,
+    "checks": [
+      "wheel zoom",
+      "pan",
+      "fit",
+      "1:1",
+      "metadata independent wheel",
+      "escape",
+      "search",
+      "multiselect",
+      "horizontal and vertical images",
+      "390/375/844/768 responsive",
+      "no console errors"
+    ]
+  },
+  {
+    "direction": 2,
+    "passed": true,
+    "checks": [
+      "wheel zoom",
+      "pan",
+      "fit",
+      "1:1",
+      "metadata independent wheel",
+      "escape",
+      "search",
+      "multiselect",
+      "horizontal and vertical images",
+      "390/375/844/768 responsive",
+      "no console errors"
+    ]
+  },
+  {
+    "direction": 3,
+    "passed": true,
+    "checks": [
+      "wheel zoom",
+      "pan",
+      "fit",
+      "1:1",
+      "metadata independent wheel",
+      "escape",
+      "search",
+      "multiselect",
+      "horizontal and vertical images",
+      "390/375/844/768 responsive",
+      "no console errors"
+    ]
+  }
+]

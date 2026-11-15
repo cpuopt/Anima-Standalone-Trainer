@@ -1,0 +1,50 @@
+[
+  {
+    "direction": 1,
+    "passed": true,
+    "checks": [
+      "search",
+      "log-level filters",
+      "clear and restore",
+      "trace-lock",
+      "disconnect stale data",
+      "one/two GPUs",
+      "no snapshot",
+      "desktop/wide/phone/landscape",
+      "no horizontal overflow",
+      "no script errors"
+    ]
+  },
+  {
+    "direction": 2,
+    "passed": true,
+    "checks": [
+      "search",
+      "log-level filters",
+      "clear and restore",
+      "trace-lock",
+      "disconnect stale data",
+      "one/two GPUs",
+      "no snapshot",
+      "desktop/wide/phone/landscape",
+      "no horizontal overflow",
+      "no script errors"
+    ]
+  },
+  {
+    "direction": 3,
+    "passed": true,
+    "checks": [
+      "search",
+      "log-level filters",
+      "clear and restore",
+      "trace-lock",
+      "disconnect stale data",
+      "one/two GPUs",
+      "no snapshot",
+      "desktop/wide/phone/landscape",
+      "no horizontal overflow",
+      "no script errors"
+    ]
+  }
+]

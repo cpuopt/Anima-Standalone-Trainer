@@ -5,6 +5,7 @@ import time
 from typing import Dict, List, Optional, Union
 import torch
 import torch.nn as nn
+from accelerate import init_empty_weights
 from safetensors.torch import load_file, save_file
 from accelerate.utils import set_module_tensor_to_device  # kept for potential future use
 
@@ -102,9 +103,11 @@ def load_anima_dit(
         )
     )
 
-    # Build model normally on CPU — buffers get proper values from __init__
+    # Skip allocating/initializing billions of throwaway CPU parameters. Keep
+    # buffers real: RoPE ranges/seq and adapter inv_freq may not be in the file.
     with LoadingStage(logger, "Anima DiT", "load_build"):
-        dit = anima_models.MiniTrainDIT(**dit_config)
+        with init_empty_weights(include_buffers=False):
+            dit = anima_models.MiniTrainDIT(**dit_config)
 
     # Merge LLM adapter weights into state_dict if loaded separately
     if use_llm_adapter and llm_adapter_state_dict is not None:
@@ -113,7 +116,12 @@ def load_anima_dit(
 
     # Load checkpoint: strict=False keeps buffers not in checkpoint (e.g. pos_embedder.seq)
     with LoadingStage(logger, "Anima DiT", "load_assign"):
-        missing, unexpected = dit.load_state_dict(state_dict, strict=False)
+        missing, unexpected = dit.load_state_dict(state_dict, strict=False, assign=True)
+    # An incomplete checkpoint cannot materialize an empty parameter. Report the
+    # actual missing weights before dtype/device conversion produces a meta error.
+    uninitialized = [name for name, p in dit.named_parameters() if p.is_meta]
+    if uninitialized:
+        raise ValueError(f"Anima DiT checkpoint is missing model parameters: {uninitialized[:10]}")
     if missing:
         # Filter out expected missing buffers (initialized in __init__, not saved in checkpoint)
         unexpected_missing = [k for k in missing if not any(

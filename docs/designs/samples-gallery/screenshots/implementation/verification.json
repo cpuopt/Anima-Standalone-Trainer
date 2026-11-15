@@ -1,0 +1,95 @@
+{
+  "checks": [
+    {
+      "width": 1440,
+      "height": 900,
+      "prompt": 1,
+      "passed": true
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "prompt": 2,
+      "passed": true
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "prompt": 3,
+      "passed": true
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "prompt": 1,
+      "passed": true
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "prompt": 2,
+      "passed": true
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "prompt": 3,
+      "passed": true
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "prompt": 1,
+      "passed": true
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "prompt": 2,
+      "passed": true
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "prompt": 3,
+      "passed": true
+    },
+    {
+      "width": 2560,
+      "height": 1080,
+      "prompt": 1,
+      "passed": true
+    },
+    {
+      "width": 2560,
+      "height": 1080,
+      "prompt": 2,
+      "passed": true
+    },
+    {
+      "width": 2560,
+      "height": 1080,
+      "prompt": 3,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "prompt": 1,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "prompt": 2,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "prompt": 3,
+      "passed": true
+    }
+  ],
+  "errors": []
+}

@@ -3,6 +3,8 @@
 
 # Anima Standalone Trainer
 
+The independent Android dataset editor design is documented in [Caption Pocket](docs/designs/android-dataset-editor.md).
+
 The dataset page supports folder/image/TXT uploads, automatic ZIP/7z extraction, and image-caption previews. LAN access now requires a shared access code; manage codes and directory grants from localhost Settings. See [dataset import and LAN access guide](training-ui/DATASETS.md).
 
 The **Training Outputs / 训练产出** tab previews and downloads saved epoch/step model files and training sample images. See [training outputs guide](training-ui/ARTIFACTS.md).

@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "errors": [],
+  "checks": [
+    "1500-row display bound",
+    "all log export",
+    "search/severity/multiline error",
+    "paused window/live append",
+    "event jump",
+    "hardware collapse",
+    "narrow monitor/flexible logs",
+    "5 responsive sizes",
+    "mobile dialog/scroll restoration",
+    "empty snapshot",
+    "two GPUs",
+    "recording runtime lock"
+  ]
+}
