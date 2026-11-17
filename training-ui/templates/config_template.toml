@@ -13,6 +13,8 @@ optimizer_type = "AdamW8bit"
 optimizer_args = [ "weight_decay=0.01",]
 lr_scheduler = "cosine"
 lr_warmup_steps = 0
+lr_warmup_unit = "steps" # "epochs" uses lr_warmup_epochs instead
+lr_warmup_epochs = 1.0 # linear increase on each optimizer update during these epochs
 mixed_precision = "bf16"
 save_precision = "bf16"
 gradient_checkpointing = true

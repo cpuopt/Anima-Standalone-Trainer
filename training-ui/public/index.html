@@ -142,8 +142,17 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group">
+                                <label data-anima-only>LR Warmup Unit</label>
+                                <select id="cfg-lr-warmup-unit" data-anima-only><option value="steps">Steps</option><option value="epochs">Epochs</option></select>
+                            </div>
+                            <div class="form-group" id="cfg-lr-warmup-steps-group">
                                 <label>LR Warmup Steps</label>
                                 <input type="number" id="cfg-lr-warmup" value="100" min="0">
+                            </div>
+                            <div class="form-group" id="cfg-lr-warmup-epochs-group" data-anima-only style="display:none">
+                                <label>LR Warmup Epochs</label>
+                                <input type="number" id="cfg-lr-warmup-epochs" value="1" min="0" step="any">
+                                <small>在指定轮数内，按优化器更新步线性增加学习率。</small>
                             </div>
                             <div class="form-group">
                                 <label>Weight Decay</label>

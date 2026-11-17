@@ -129,6 +129,11 @@ export async function validateConfig(config: Config): Promise<void> {
   }
   for (const key of ['max_train_epochs','max_train_steps','save_every_n_epochs','save_every_n_steps','sample_every_n_epochs','sample_every_n_steps','gradient_accumulation_steps']) finite(t[key], key, 1, true)
   for (const key of ['max_data_loader_n_workers','blocks_to_swap','lr_warmup_steps']) finite(t[key], key, 0, true)
+  if (t.lr_warmup_unit !== undefined && !['steps','epochs'].includes(t.lr_warmup_unit)) throw Error('LR Warmup Unit 必须为 steps 或 epochs')
+  if (t.lr_warmup_unit === 'epochs') {
+    finite(t.lr_warmup_epochs, 'LR Warmup Epochs', 0)
+    if (/ScheduleFree$/i.test(t.optimizer_type || '')) throw Error('Epoch warmup 不支持 ScheduleFree 优化器，请使用 Steps 模式')
+  }
   for (const key of ['learning_rate','text_encoder_lr']) finite(t[key], key, Number.EPSILON)
   if (t.persistent_data_loader_workers && t.max_data_loader_n_workers === 0) throw Error('Persistent workers 需要 DataLoader Workers > 0')
   if ((t.cpu_offload_checkpointing || t.unsloth_offload_checkpointing) && !t.gradient_checkpointing) throw Error('Activation Offload 需要 Gradient Checkpointing')

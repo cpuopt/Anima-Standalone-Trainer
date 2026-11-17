@@ -648,11 +648,12 @@ class AnimaTrainer:
         train_dataset_group.set_max_train_steps(args.max_train_steps)
 
         # lr scheduler
+        updates_per_epoch = math.ceil(len(train_dataloader) / accelerator.num_processes / args.gradient_accumulation_steps)
         if args.blockwise_fused_optimizers:
-            lr_schedulers = [train_util.get_scheduler_fix(args, opt, accelerator.num_processes) for opt in optimizers]
+            lr_schedulers = [train_util.get_scheduler_fix(args, opt, accelerator.num_processes, updates_per_epoch) for opt in optimizers]
             lr_scheduler = lr_schedulers[0]  # avoid error in following code
         else:
-            lr_scheduler = train_util.get_scheduler_fix(args, optimizer, accelerator.num_processes)
+            lr_scheduler = train_util.get_scheduler_fix(args, optimizer, accelerator.num_processes, updates_per_epoch)
 
         # full fp16/bf16 training
         if args.full_fp16:

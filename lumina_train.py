@@ -468,18 +468,19 @@ def train(args):
 
     # データセット側にも学習ステップを送信
     train_dataset_group.set_max_train_steps(args.max_train_steps)
+    updates_per_epoch = math.ceil(len(train_dataloader) / accelerator.num_processes / args.gradient_accumulation_steps)
 
     # lr schedulerを用意する
     if args.blockwise_fused_optimizers:
         # prepare lr schedulers for each optimizer
         lr_schedulers = [
-            train_util.get_scheduler_fix(args, optimizer, accelerator.num_processes)
+            train_util.get_scheduler_fix(args, optimizer, accelerator.num_processes, updates_per_epoch)
             for optimizer in optimizers
         ]
         lr_scheduler = lr_schedulers[0]  # avoid error in the following code
     else:
         lr_scheduler = train_util.get_scheduler_fix(
-            args, optimizer, accelerator.num_processes
+            args, optimizer, accelerator.num_processes, updates_per_epoch
         )
 
     # 実験的機能：勾配も含めたfp16/bf16学習を行う　モデル全体をfp16/bf16にする

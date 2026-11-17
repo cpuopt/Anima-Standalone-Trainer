@@ -354,6 +354,9 @@ function populateConfig(config) {
   $("cfg-optimizer").value = t.optimizer_type || "AdamW8bit";
   $("cfg-lr-scheduler").value = t.lr_scheduler || "cosine";
   $("cfg-lr-warmup").value = t.lr_warmup_steps ?? 100;
+  $("cfg-lr-warmup-unit").value = t.lr_warmup_unit ?? "steps";
+  $("cfg-lr-warmup-epochs").value = t.lr_warmup_epochs ?? 1;
+  updateWarmupUnit();
   $("cfg-lr-scheduler-cycles").value = t.lr_scheduler_num_cycles ?? 1;
   $("cfg-lr-min-ratio").value = t.lr_scheduler_min_lr_ratio ?? 0;
   $("cfg-seed").value = t.seed ?? 42;
@@ -739,6 +742,12 @@ function updateOptimizerOptions() {
     optimizer.includes("Prodigy") || optimizer.includes("DAdapt");
   $("group-decouple").classList.toggle("hidden", !isProdigy);
 }
+function updateWarmupUnit() {
+  const epochs = $("cfg-lr-warmup-unit").value === "epochs";
+  $("cfg-lr-warmup-steps-group").style.display = epochs ? "none" : "";
+  $("cfg-lr-warmup-epochs-group").style.display = epochs ? "" : "none";
+}
+
 function updateLrSchedulerOptions() {
   const scheduler = $("cfg-lr-scheduler").value;
   $("group-lr-scheduler-cycles").classList.toggle(
@@ -836,6 +845,8 @@ function gatherConfig() {
           ? safeFloat($("cfg-lr-min-ratio").value)
           : undefined,
       lr_warmup_steps: safeInt($("cfg-lr-warmup").value),
+      lr_warmup_unit: $("cfg-lr-warmup-unit").value,
+      lr_warmup_epochs: safeFloat($("cfg-lr-warmup-epochs").value),
       // Hardware
       mixed_precision: $("cfg-mixed-precision").value,
       save_precision: $("cfg-save-precision").value || undefined,
@@ -4177,6 +4188,7 @@ async function init() {
   // Optimizer custom bindings
   $("cfg-optimizer").addEventListener("change", updateOptimizerOptions);
   $("cfg-lr-scheduler").addEventListener("change", updateLrSchedulerOptions);
+  $("cfg-lr-warmup-unit").addEventListener("change", updateWarmupUnit);
   // Activation offload <-> blocks to swap mutual exclusivity
   $("cfg-activation-offload").addEventListener(
     "change",

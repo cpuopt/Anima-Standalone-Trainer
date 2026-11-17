@@ -47,7 +47,9 @@ function checkpointChanged(event: Event) {
       <Field v-if="!krea" :object="t" field="text_encoder_lr" label="Text Encoder LR" type="number" :step="'any'" :fallback="0.00005" />
       <label class="field"><span class="field-label-row">Optimizer<FieldHelp field="optimizer_type" label="Optimizer" /></span><select v-model="optimizer"><option v-for="name in (krea ? Krea2.OPTIMIZERS : optimizers)" :key="name">{{ name }}</option></select></label>
       <Field :object="t" field="lr_scheduler" label="LR Scheduler" type="select" :options="schedulers" fallback="cosine" />
-      <Field :object="t" field="lr_warmup_steps" label="LR Warmup Steps" type="number" :min="0" :fallback="100" />
+      <Field v-if="!krea" :object="t" field="lr_warmup_unit" label="LR Warmup Unit" type="select" :options="[{value:'steps',label:'Steps'},{value:'epochs',label:'Epochs'}]" fallback="steps" />
+      <Field v-if="!krea && t.lr_warmup_unit === 'epochs'" :object="t" field="lr_warmup_epochs" label="LR Warmup Epochs" type="number" :min="0" step="any" :fallback="1" />
+      <Field v-else :object="t" field="lr_warmup_steps" label="LR Warmup Steps" type="number" :min="0" :fallback="100" />
       <label class="field"><span class="field-label-row">Weight Decay<FieldHelp field="weight_decay" label="Weight Decay" /></span><input v-model="weightDecay" type="number" min="0" step="any" /></label>
       <Field :object="t" field="seed" label="Seed" type="number" :fallback="42" />
       <Field v-if="t.lr_scheduler === 'cosine_with_restarts'" :object="t" field="lr_scheduler_num_cycles" label="Restart Cycles" type="number" :min="1" :fallback="1" />

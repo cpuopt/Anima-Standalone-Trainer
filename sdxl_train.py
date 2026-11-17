@@ -450,14 +450,15 @@ def train(args):
 
     # ãƒ‡ãƒ¼ã‚¿ã‚»ãƒƒãƒˆå´ã«ã‚‚å­¦ç¿’ã‚¹ãƒ†ãƒƒãƒ—ã‚’é€ä¿¡
     train_dataset_group.set_max_train_steps(args.max_train_steps)
+    updates_per_epoch = math.ceil(len(train_dataloader) / accelerator.num_processes / args.gradient_accumulation_steps)
 
     # lr schedulerã‚’ç”¨æ„ã™ã‚‹
     if args.fused_optimizer_groups:
         # prepare lr schedulers for each optimizer
-        lr_schedulers = [train_util.get_scheduler_fix(args, optimizer, accelerator.num_processes) for optimizer in optimizers]
+        lr_schedulers = [train_util.get_scheduler_fix(args, optimizer, accelerator.num_processes, updates_per_epoch) for optimizer in optimizers]
         lr_scheduler = lr_schedulers[0]  # avoid error in the following code
     else:
-        lr_scheduler = train_util.get_scheduler_fix(args, optimizer, accelerator.num_processes)
+        lr_scheduler = train_util.get_scheduler_fix(args, optimizer, accelerator.num_processes, updates_per_epoch)
 
     # å®Ÿé¨“çš„æ©Ÿèƒ½ï¼šå‹¾é…ã‚‚å«ã‚ãŸfp16/bf16å­¦ç¿’ã‚’è¡Œã†ã€€ãƒ¢ãƒ‡ãƒ«å…¨ä½“ã‚’fp16/bf16ã«ã™ã‚‹
     if args.full_fp16:

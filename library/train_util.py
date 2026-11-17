@@ -3986,6 +3986,13 @@ def add_optimizer_arguments(parser: argparse.ArgumentParser):
         " / 学習率のスケジューラをウォームアップするステップ数（デフォルト0）、または学習ステップの比率（1未満のfloat値の場合）",
     )
     parser.add_argument(
+        "--lr_warmup_unit", choices=["steps", "epochs"], default="steps", help="LR warmup duration unit"
+    )
+    parser.add_argument(
+        "--lr_warmup_epochs", type=float, default=1.0,
+        help="Epochs of per-update linear LR warmup; used with --lr_warmup_unit epochs",
+    )
+    parser.add_argument(
         "--lr_decay_steps",
         type=int_or_float,
         default=0,
@@ -5527,19 +5534,26 @@ def get_dummy_scheduler(optimizer: Optimizer) -> Any:
 # Add some checking and features to the original function.
 
 
-def get_scheduler_fix(args, optimizer: Optimizer, num_processes: int):
+def get_scheduler_fix(args, optimizer: Optimizer, num_processes: int, updates_per_epoch=None):
     """
     Unified API to get any scheduler from its name.
     """
+    from library.lr_warmup import resolve_warmup_steps
+
+    if getattr(args, "lr_warmup_unit", "steps") == "epochs" and is_schedulefree_optimizer(optimizer, args):
+        raise ValueError("Epoch warmup is not supported by ScheduleFree optimizers; use step mode")
+
     # if schedulefree optimizer, return dummy scheduler
     if is_schedulefree_optimizer(optimizer, args):
         return get_dummy_scheduler(optimizer)
 
     name = args.lr_scheduler
     num_training_steps = args.max_train_steps * num_processes  # * args.gradient_accumulation_steps
-    num_warmup_steps: Optional[int] = (
-        int(args.lr_warmup_steps * num_training_steps) if isinstance(args.lr_warmup_steps, float) else args.lr_warmup_steps
-    )
+    num_warmup_steps: Optional[int] = resolve_warmup_steps(args, num_processes, updates_per_epoch)
+    if getattr(args, "lr_warmup_unit", "steps") == "epochs":
+        logger.info(f"LR warmup: {args.lr_warmup_epochs} epochs = {num_warmup_steps // num_processes} optimizer updates")
+        if name == "constant" and num_warmup_steps > 0:
+            name = "constant_with_warmup"
     num_decay_steps: Optional[int] = (
         int(args.lr_decay_steps * num_training_steps) if isinstance(args.lr_decay_steps, float) else args.lr_decay_steps
     )
