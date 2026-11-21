@@ -1,0 +1,2349 @@
+<!doctype html>
+<html lang="zh-CN" class="dark" data-theme="github-dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dataset tab · direction 3 (Dieter Rams / Teenage Engineering Modular Data Feeder Console)</title>
+<style>
+/* ===== Existing app shell (copied from training-ui/frontend/src/style.css). DO NOT EDIT this block. ===== */
+:root { --background:#f5f7fa; --foreground:#202b40; --card:#fff; --primary:#326cd4; --primary-foreground:#fff; --secondary:#e9edf4; --muted:#edf0f5; --muted-foreground:#677389; --accent:#e0e9fc; --destructive:#bc364a; --border:#dbe1eb; font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif; color-scheme:light; }
+.dark { --background:#10151f; --foreground:#e0e7f2; --card:#171e2b; --primary:#86aafa; --primary-foreground:#111b32; --secondary:#222d40; --muted:#1b2434; --muted-foreground:#94a3bb; --accent:#253650; --destructive:#db4e67; --border:#2b374c; color-scheme:dark; }
+[data-theme="midnight-blue"] { --background:#0c172b; --card:#10213b; --border:#263f61; --primary:#6ec1eb; }
+[data-theme="cherry-pink"] { --background:#241622; --card:#2d1e2c; --border:#513347; --primary:#e8a0c1; }
+* { box-sizing:border-box; border-color:var(--border); }
+body { margin:0; background:var(--background); color:var(--foreground); font-size:14px; line-height:1.55; }
+button { cursor:pointer; font:inherit; color:inherit; background:none; border:0; } button:disabled { cursor:not-allowed; opacity:.45; }
+input,select,textarea { max-width:100%; font:inherit; }
+:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+a { color:var(--primary); text-decoration:none; } h1,h2,h3,p { margin-top:0; } small { display:block; }
+.studio-shell { display:grid; grid-template-columns:245px minmax(0,1fr); min-height:100dvh; }
+.sidebar { position:sticky; top:0; height:100dvh; border-right:1px solid var(--border); padding:26px 18px 16px; background:color-mix(in srgb,var(--card) 94%,transparent); display:flex; flex-direction:column; gap:16px; }
+.brand { display:flex; gap:11px; align-items:center; color:var(--foreground); font-size:16px; font-weight:650; margin-bottom:12px; }.brand small { font-weight:400; font-size:11px; color:var(--muted-foreground); letter-spacing:.06em; }
+.brand-mark { background:linear-gradient(140deg,#8cadff,#9c7ae3); color:#14213a; display:grid; place-items:center; font-weight:800; border-radius:10px; width:36px; height:40px; }
+.sidebar-heading { display:flex; align-items:center; justify-content:space-between; }.sidebar-heading h2 { margin:0; font-size:12px; color:var(--muted-foreground); letter-spacing:.1em; }
+.subtle { border:0; background:none; padding:3px; color:var(--muted-foreground); }
+.shell-input { width:100%; height:36px; border:1px solid var(--border); border-radius:6px; padding:4px 12px; background:color-mix(in srgb,var(--border) 30%,transparent); color:var(--foreground); }
+.job-list { flex:1; min-height:100px; overflow:auto; display:flex; flex-direction:column; gap:6px; }.job-item { border:1px solid transparent; border-radius:7px; display:flex; gap:10px; align-items:center; padding:10px; background:transparent; text-align:left; }.job-item.selected { background:var(--accent); border-color:var(--border); }.job-name small { font-size:10px; color:var(--muted-foreground); }.job-dot { width:6px; height:6px; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }.job-dot.running { background:#5ace9d; box-shadow:0 0 7px #5ace9d66; }
+.new-job { display:grid; gap:9px; border-top:1px solid var(--border); padding-top:18px; }.new-job label { font-size:12px; color:var(--muted-foreground); }.new-job select { height:36px; border:1px solid var(--border); border-radius:6px; padding:0 10px; background:var(--background); color:var(--foreground); }
+.sidebar footer { display:flex; flex-direction:column; align-items:flex-start; gap:6px; font-size:11px; }.connection-on { color:#70be9d; }
+main { min-width:0; }
+.toolbar { min-height:115px; padding:25px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:color-mix(in srgb,var(--background) 90%,transparent); }
+.eyebrow { font-size:9px; font-weight:650; letter-spacing:.18em; color:var(--muted-foreground); } h1 { font-size:22px; font-weight:650; margin:2px 0; } .dirty-dot { font-size:10px; color:#e3b76a; margin-left:9px; }
+.toolbar-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.sbtn { display:inline-flex; align-items:center; height:36px; padding:0 16px; border-radius:6px; font-size:14px; font-weight:500; background:var(--primary); color:var(--primary-foreground); }
+.sbtn.outline { background:color-mix(in srgb,var(--border) 30%,transparent); border:1px solid var(--border); color:var(--foreground); }
+.sbtn.ghost { background:none; color:var(--foreground); } .sbtn.train { background:#599e7d; color:#071e15; }
+.tabs { display:flex; gap:3px; padding:0 25px; border-bottom:1px solid var(--border); overflow:auto; }.tabs button { white-space:nowrap; padding:15px 13px; border-bottom:2px solid transparent; color:var(--muted-foreground); font-size:12px; }.tabs button.active { color:var(--primary); border-bottom-color:var(--primary); }
+.workspace { padding:26px 32px 60px; margin:auto; }
+.muted { color:var(--muted-foreground); }
+/* demo-only theme switcher */
+.theme-dock { position:fixed; right:14px; bottom:14px; z-index:999; display:flex; gap:4px; padding:5px; border:1px solid var(--border); border-radius:8px; background:var(--card); box-shadow:0 6px 20px #0005; font-size:11px; }
+.theme-dock button { padding:4px 8px; border-radius:5px; color:var(--muted-foreground); } .theme-dock button[aria-pressed=true] { background:var(--accent); color:var(--foreground); }
+@media(max-width:1000px) { .studio-shell{grid-template-columns:205px minmax(0,1fr)} .toolbar,.workspace{padding-left:20px;padding-right:20px} .tabs{padding:0 10px} }
+@media(max-width:680px) { .studio-shell{display:block}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding:16px}.job-list{max-height:150px}.toolbar{padding:18px}.workspace{padding:18px 12px} }
+/* ===== end of shell ===== */
+
+/* ===== Direction 3 styles: Dieter Rams / Teenage Engineering Modular Data Feeder Console ===== */
+.dt3-wrap {
+  --dt3-mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+  --dt3-surface: var(--card);
+  --dt3-well: color-mix(in srgb, var(--background) 78%, var(--card) 22%);
+  --dt3-well-deep: color-mix(in srgb, var(--background) 92%, #000 8%);
+  --dt3-panel-head: color-mix(in srgb, var(--secondary) 65%, var(--card) 35%);
+  --dt3-seam: var(--border);
+  --dt3-led-on: #2ea86f;
+  --dt3-led-amber: #d9822b;
+  --dt3-led-danger: var(--destructive);
+  --dt3-zone-char: #3b82f6;
+  --dt3-zone-style: #9333ea;
+  --dt3-zone-complex: #e11d48;
+  max-width: 1520px;
+  margin: 0 auto;
+  color: var(--foreground);
+}
+.dark .dt3-wrap {
+  --dt3-led-on: #4ade80;
+  --dt3-led-amber: #f59e0b;
+  --dt3-zone-char: #60a5fa;
+  --dt3-zone-style: #c084fc;
+  --dt3-zone-complex: #fb7185;
+  --dt3-well-deep: color-mix(in srgb, var(--background) 85%, #000 15%);
+}
+
+/* Top Prototype Bar & Title Header */
+.dt3-top-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--dt3-panel-head);
+  border: 1px solid var(--dt3-seam);
+  border-bottom: 0;
+}
+.dt3-head-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dt3-head-title h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.dt3-head-title p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.dt3-demo-switches {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dt3-demo-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  margin-right: 4px;
+}
+.dt3-hw-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--dt3-surface);
+  border: 1px solid var(--dt3-seam);
+  color: var(--foreground);
+  transition: background 0.12s, border-color 0.12s;
+}
+.dt3-hw-btn:hover:not(:disabled) {
+  background: var(--secondary);
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--dt3-seam));
+}
+.dt3-hw-btn[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--primary);
+}
+.dt3-hw-btn.primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.dt3-hw-btn.primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.dt3-hw-btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--destructive) 16%, var(--dt3-surface));
+  color: var(--destructive);
+  border-color: var(--destructive);
+}
+
+/* Precision LED indicator dots */
+.dt3-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--foreground) 20%, transparent);
+  flex-shrink: 0;
+  display: inline-block;
+}
+.dt3-led.on {
+  background: var(--dt3-led-on);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--dt3-led-on) 70%, transparent);
+  border-color: transparent;
+}
+.dt3-led.amber {
+  background: var(--dt3-led-amber);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--dt3-led-amber) 70%, transparent);
+  border-color: transparent;
+}
+.dt3-led.danger {
+  background: var(--dt3-led-danger);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--dt3-led-danger) 70%, transparent);
+  border-color: transparent;
+}
+.dt3-led.char {
+  background: var(--dt3-zone-char);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--dt3-zone-char) 70%, transparent);
+  border-color: transparent;
+}
+
+/* FieldHelp (?) button */
+.dt3-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--dt3-seam);
+  background: var(--dt3-well);
+  color: var(--muted-foreground);
+  font-family: var(--dt3-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.dt3-help-btn:hover,
+.dt3-help-btn[aria-expanded="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+/* ===== 1. Multi-Zone LBAI Signal Console (Outside Fieldset) ===== */
+.dt3-lbai-console {
+  border: 1px solid var(--dt3-seam);
+  background: var(--dt3-surface);
+  margin-bottom: 14px;
+}
+.dt3-lbai-grid {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr) 280px;
+  border-bottom: 1px solid var(--dt3-seam);
+}
+.dt3-lbai-cell {
+  padding: 12px 14px;
+  border-right: 1px solid var(--dt3-seam);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dt3-lbai-cell:last-child {
+  border-right: 0;
+}
+.dt3-cell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.dt3-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.dt3-giant-readout {
+  font-family: var(--dt3-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dt3-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--dt3-well);
+  border: 1px solid var(--dt3-seam);
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.dt3-status-pill.in-range {
+  border-color: color-mix(in srgb, var(--dt3-led-on) 55%, var(--dt3-seam));
+  background: color-mix(in srgb, var(--dt3-led-on) 12%, var(--dt3-surface));
+}
+.dt3-status-pill.out-range {
+  border-color: color-mix(in srgb, var(--dt3-led-amber) 55%, var(--dt3-seam));
+  background: color-mix(in srgb, var(--dt3-led-amber) 12%, var(--dt3-surface));
+}
+
+/* Segmented 24-cell LED Bar Meter */
+.dt3-meter-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dt3-zone-brackets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.dt3-zone-tag {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--dt3-well);
+  border: 1px solid var(--dt3-seam);
+  border-left: 3px solid var(--dt3-seam);
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dt3-zone-tag.char { border-left-color: var(--dt3-zone-char); }
+.dt3-zone-tag.style { border-left-color: var(--dt3-zone-style); }
+.dt3-zone-tag.complex { border-left-color: var(--dt3-zone-complex); }
+.dt3-zone-tag.active {
+  background: var(--accent);
+  font-weight: 600;
+}
+.dt3-zone-tag code {
+  font-family: var(--dt3-mono);
+  font-size: 12px;
+  color: var(--foreground);
+}
+.dt3-led-array {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 3px;
+  padding: 6px 8px;
+  background: var(--dt3-well-deep);
+  border: 1px solid var(--dt3-seam);
+  position: relative;
+}
+.dt3-led-seg {
+  height: 16px;
+  background: color-mix(in srgb, var(--muted-foreground) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  position: relative;
+}
+.dt3-led-seg.z-char {
+  border-bottom: 2px solid var(--dt3-zone-char);
+}
+.dt3-led-seg.z-style {
+  border-bottom: 2px solid var(--dt3-zone-style);
+}
+.dt3-led-seg.z-complex {
+  border-bottom: 2px solid var(--dt3-zone-complex);
+}
+.dt3-led-seg.lit.z-char {
+  background: var(--dt3-zone-char);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--dt3-zone-char) 50%, transparent);
+}
+.dt3-led-seg.lit.z-style {
+  background: var(--dt3-zone-style);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--dt3-zone-style) 50%, transparent);
+}
+.dt3-led-seg.lit.z-complex {
+  background: var(--dt3-zone-complex);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--dt3-zone-complex) 50%, transparent);
+}
+.dt3-led-seg.lit.z-neutral {
+  background: var(--primary);
+}
+.dt3-led-seg.peak::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--foreground);
+}
+.dt3-meter-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--dt3-mono);
+  font-size: 12px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+/* Target selector & Context box */
+.dt3-select {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  background: var(--dt3-well);
+  border: 1px solid var(--dt3-seam);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+}
+.dt3-context-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.dt3-ctx-chip {
+  padding: 2px 7px;
+  background: var(--dt3-well);
+  border: 1px solid var(--dt3-seam);
+  font-family: var(--dt3-mono);
+  font-size: 12px;
+  color: var(--foreground);
+}
+
+/* Live Signal Routing Multiplication Chain */
+.dt3-lbai-chain-bar {
+  padding: 10px 16px;
+  background: var(--dt3-well);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dt3-signal-chain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: var(--dt3-mono);
+  font-size: 13px;
+}
+.dt3-chain-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--dt3-surface);
+  border: 1px solid var(--dt3-seam);
+  font-weight: 600;
+}
+.dt3-chain-node.total {
+  background: var(--accent);
+  border-color: var(--primary);
+}
+.dt3-chain-op {
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+.dt3-chain-note {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Fieldset Lock handling */
+.dt3-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.dt3-fieldset:disabled {
+  opacity: 0.72;
+}
+
+/* ===== 2. Global Bucketing & Progressive Schedule Rack (12-Col Shared Seam) ===== */
+.dt3-rack-section {
+  border: 1px solid var(--dt3-seam);
+  background: var(--dt3-surface);
+  margin-bottom: 14px;
+}
+.dt3-rack-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--dt3-panel-head);
+  border-bottom: 1px solid var(--dt3-seam);
+}
+.dt3-rack-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.dt3-rack-sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.dt3-grid-12 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+.dt3-col-4 {
+  grid-column: span 4;
+  border-right: 1px solid var(--dt3-seam);
+  padding: 11px 13px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 9px;
+}
+.dt3-col-4:last-child {
+  border-right: 0;
+}
+
+/* LED Switch Bank (2x2) */
+.dt3-switch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--dt3-seam);
+  border-left: 1px solid var(--dt3-seam);
+}
+.dt3-switch-cell {
+  border-right: 1px solid var(--dt3-seam);
+  border-bottom: 1px solid var(--dt3-seam);
+  background: var(--dt3-well);
+  padding: 7px 9px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 4px;
+}
+.dt3-switch-cell.active {
+  background: color-mix(in srgb, var(--primary) 10%, var(--dt3-surface));
+}
+.dt3-switch-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.dt3-switch-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 1px 0;
+}
+.dt3-switch-state {
+  font-family: var(--dt3-mono);
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.dt3-switch-cell.active .dt3-switch-state {
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+/* Bucket Resolution 3-Module Readout & Steppers */
+.dt3-reso-triad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--dt3-seam);
+  border-left: 1px solid var(--dt3-seam);
+}
+.dt3-reso-box {
+  border-right: 1px solid var(--dt3-seam);
+  border-bottom: 1px solid var(--dt3-seam);
+  padding: 7px 6px;
+  background: var(--dt3-well);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 5px;
+}
+.dt3-reso-box .dt3-label {
+  font-size: 12px;
+  white-space: normal;
+  line-height: 1.25;
+}
+.dt3-stepper-row {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--dt3-seam);
+  background: var(--dt3-surface);
+  height: 32px;
+}
+.dt3-step-btn {
+  width: 22px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-family: var(--dt3-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+  background: var(--dt3-panel-head);
+  flex-shrink: 0;
+  padding: 0;
+}
+.dt3-step-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--primary);
+}
+.dt3-mono-input {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--dt3-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  padding: 0 2px;
+  min-width: 0;
+}
+.dt3-mono-input::-webkit-inner-spin-button,
+.dt3-mono-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.dt3-tick-ruler {
+  padding: 5px 10px;
+  background: var(--dt3-well-deep);
+  border: 1px solid var(--dt3-seam);
+  font-family: var(--dt3-mono);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--foreground);
+}
+
+/* Progressive Schedule Gauge */
+.dt3-text-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 9px;
+  background: var(--dt3-well);
+  border: 1px solid var(--dt3-seam);
+  color: var(--foreground);
+  font-family: var(--dt3-mono);
+  font-size: 14px;
+}
+.dt3-stage-bar {
+  display: flex;
+  height: 24px;
+  border: 1px solid var(--dt3-seam);
+  background: var(--dt3-well-deep);
+  overflow: hidden;
+}
+.dt3-stage-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--dt3-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--primary) 28%, var(--dt3-surface));
+  border-right: 1px solid var(--dt3-seam);
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 0 6px;
+}
+.dt3-stage-seg:nth-child(2) {
+  background: color-mix(in srgb, var(--primary) 46%, var(--dt3-surface));
+}
+.dt3-stage-seg:nth-child(3) {
+  background: color-mix(in srgb, var(--primary) 64%, var(--dt3-surface));
+}
+.dt3-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dt3-mini-key {
+  padding: 2px 8px;
+  font-family: var(--dt3-mono);
+  font-size: 12px;
+  background: var(--dt3-well);
+  border: 1px solid var(--dt3-seam);
+  color: var(--foreground);
+}
+.dt3-mini-key:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--primary);
+}
+
+/* ===== 3. Dataset Bays & Subset Feeder Modules ===== */
+.dt3-dataset-bay {
+  border: 1px solid var(--dt3-seam);
+  background: var(--dt3-surface);
+  margin-bottom: 16px;
+}
+.dt3-ds-patchbar {
+  display: grid;
+  grid-template-columns: auto minmax(195px, 1.3fr) minmax(135px, 0.75fr) minmax(125px, 0.65fr) minmax(175px, 0.95fr) auto;
+  border-bottom: 1px solid var(--dt3-seam);
+  background: var(--dt3-panel-head);
+}
+.dt3-ds-patch-cell {
+  padding: 8px 12px;
+  border-right: 1px solid var(--dt3-seam);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.dt3-ds-patch-cell:last-child {
+  border-right: 0;
+}
+.dt3-ds-badge {
+  font-family: var(--dt3-mono);
+  font-size: 14px;
+  font-weight: 800;
+  padding: 3px 9px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  display: inline-block;
+  text-align: center;
+}
+.dt3-ds-lbai-readout {
+  font-family: var(--dt3-mono);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+/* Subset Feeder Unit */
+.dt3-subset-unit {
+  border-top: 2px solid var(--dt3-seam);
+  background: var(--dt3-surface);
+}
+.dt3-subset-unit:first-of-type {
+  border-top: 0;
+}
+.dt3-subset-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  background: color-mix(in srgb, var(--secondary) 45%, var(--dt3-surface));
+  border-bottom: 1px solid var(--dt3-seam);
+  flex-wrap: wrap;
+}
+.dt3-subset-bar-left,
+.dt3-subset-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dt3-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 3px 10px;
+  background: var(--dt3-surface);
+  border: 1px solid var(--dt3-seam);
+}
+.dt3-collapse-btn:hover {
+  background: var(--accent);
+}
+.dt3-reg-tag {
+  font-family: var(--dt3-mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--dt3-zone-style) 18%, var(--dt3-surface));
+  border: 1px solid var(--dt3-zone-style);
+  color: var(--foreground);
+}
+.dt3-signal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  font-family: var(--dt3-mono);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--dt3-surface);
+  border: 1px solid var(--dt3-seam);
+}
+.dt3-signal-badge.err {
+  border-color: var(--destructive);
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 12%, var(--dt3-surface));
+}
+
+/* Subset Row 1: Source & Exposure Multiplier Chain (12-col shared border) */
+.dt3-feeder-row1 {
+  display: grid;
+  grid-template-columns: 4.8fr 1.8fr 1.8fr 1.8fr 1.8fr;
+  border-bottom: 1px solid var(--dt3-seam);
+}
+.dt3-feeder-tile {
+  padding: 9px 12px;
+  border-right: 1px solid var(--dt3-seam);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  position: relative;
+}
+.dt3-feeder-tile:last-child {
+  border-right: 0;
+}
+.dt3-feeder-tile.output-well {
+  background: var(--dt3-well);
+}
+.dt3-action-keys-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+.dt3-key-btn {
+  height: 27px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--dt3-well);
+  border: 1px solid var(--dt3-seam);
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dt3-key-btn:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--primary);
+}
+.dt3-big-number {
+  font-family: var(--dt3-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+}
+.dt3-big-number small {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  display: inline;
+}
+.dt3-op-chip {
+  font-family: var(--dt3-mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 5px;
+  background: var(--dt3-panel-head);
+  border: 1px solid var(--dt3-seam);
+  color: var(--foreground);
+}
+
+/* Subset Row 2: Caption Routing Bus & 4-Affix Patchbay */
+.dt3-caption-bus {
+  border-bottom: 1px solid var(--dt3-seam);
+  background: var(--dt3-well);
+  padding: 9px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.dt3-bus-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dt3-flow-diagram {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.dt3-flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  background: var(--dt3-surface);
+  border: 1px solid var(--dt3-seam);
+  font-weight: 600;
+}
+.dt3-flow-step.active-affix {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, var(--dt3-surface));
+}
+.dt3-flow-step.guard {
+  border-color: var(--dt3-led-on);
+  background: color-mix(in srgb, var(--dt3-led-on) 12%, var(--dt3-surface));
+}
+.dt3-flow-arrow {
+  font-family: var(--dt3-mono);
+  color: var(--muted-foreground);
+  font-weight: 700;
+}
+.dt3-preview-box {
+  padding: 6px 10px;
+  background: var(--dt3-well-deep);
+  border: 1px solid var(--dt3-seam);
+  font-family: var(--dt3-mono);
+  font-size: 13px;
+  line-height: 1.45;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dt3-pv-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--dt3-seam);
+  background: var(--dt3-surface);
+}
+.dt3-pv-tag.locked {
+  border-color: var(--dt3-led-on);
+  background: color-mix(in srgb, var(--dt3-led-on) 15%, var(--dt3-surface));
+}
+.dt3-pv-tag.merged {
+  border-color: var(--dt3-led-amber);
+  background: color-mix(in srgb, var(--dt3-led-amber) 18%, var(--dt3-surface));
+}
+.dt3-pv-tag.affix {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 15%, var(--dt3-surface));
+}
+.dt3-comma-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--dt3-seam);
+  background: var(--dt3-surface);
+}
+.dt3-comma-alert.warn {
+  border-color: var(--dt3-led-amber);
+  background: color-mix(in srgb, var(--dt3-led-amber) 14%, var(--dt3-surface));
+}
+.dt3-comma-alert.ok {
+  border-color: color-mix(in srgb, var(--dt3-led-on) 50%, var(--dt3-seam));
+}
+
+.dt3-affix-patchbay {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--dt3-seam);
+}
+.dt3-affix-tile {
+  padding: 8px 12px;
+  border-right: 1px solid var(--dt3-seam);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.dt3-affix-tile:last-child {
+  border-right: 0;
+}
+
+/* Subset Row 3: Token Protection, Dropout Attenuators & Switch Bank */
+.dt3-feeder-row3 {
+  display: grid;
+  grid-template-columns: repeat(4, 2fr) 4fr;
+}
+.dt3-attenuator-tile {
+  padding: 8px 12px;
+  border-right: 1px solid var(--dt3-seam);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 5px;
+}
+.dt3-subset-switches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.dt3-subset-switches .dt3-switch-cell {
+  border-top: 0;
+  border-left: 0;
+}
+.dt3-subset-switches .dt3-switch-cell:nth-child(2n) {
+  border-right: 0;
+}
+.dt3-subset-switches .dt3-switch-cell:nth-child(n+3) {
+  border-bottom: 0;
+}
+
+/* Readonly Preview Bar when Locked */
+.dt3-readonly-preview {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--primary);
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dt3-readonly-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Floating FieldHelp Popover */
+.dt3-help-popover {
+  position: fixed;
+  z-index: 1200;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  background: var(--dt3-surface);
+  border: 1px solid var(--primary);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dt3-help-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--dt3-seam);
+}
+.dt3-help-popover-head strong {
+  font-size: 14px;
+}
+.dt3-help-key {
+  font-family: var(--dt3-mono);
+  font-size: 12px;
+  padding: 1px 6px;
+  background: var(--dt3-well);
+  border: 1px solid var(--dt3-seam);
+  color: var(--muted-foreground);
+}
+.dt3-help-row {
+  margin-bottom: 8px;
+}
+.dt3-help-row-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 2px;
+}
+.dt3-help-notes {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.dt3-help-notes li {
+  margin-bottom: 3px;
+}
+
+/* Simulated Asset / Directory Preview Drawer */
+.dt3-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 1100;
+  background: var(--dt3-surface);
+  border: 1px solid var(--primary);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 1280px) {
+  .dt3-lbai-grid {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+  .dt3-lbai-cell:nth-child(3) {
+    grid-column: span 2;
+    border-top: 1px solid var(--dt3-seam);
+  }
+  .dt3-ds-patchbar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .dt3-ds-patch-cell {
+    border-bottom: 1px solid var(--dt3-seam);
+  }
+  .dt3-feeder-row1 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dt3-feeder-row1 .dt3-feeder-tile:first-child {
+    grid-column: span 2;
+    border-bottom: 1px solid var(--dt3-seam);
+  }
+  .dt3-affix-patchbay {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dt3-affix-tile {
+    border-bottom: 1px solid var(--dt3-seam);
+  }
+  .dt3-feeder-row3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dt3-attenuator-tile {
+    border-bottom: 1px solid var(--dt3-seam);
+  }
+  .dt3-subset-switches {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 820px) {
+  .dt3-lbai-grid,
+  .dt3-grid-12,
+  .dt3-ds-patchbar,
+  .dt3-feeder-row1,
+  .dt3-affix-patchbay,
+  .dt3-feeder-row3,
+  .dt3-zone-brackets {
+    grid-template-columns: 1fr;
+  }
+  .dt3-col-4,
+  .dt3-lbai-cell,
+  .dt3-feeder-tile,
+  .dt3-affix-tile,
+  .dt3-attenuator-tile {
+    grid-column: span 1 !important;
+    border-right: 0;
+    border-bottom: 1px solid var(--dt3-seam);
+  }
+}
+</style>
+</head>
+<body>
+<div class="studio-shell">
+  <aside class="sidebar">
+    <a class="brand" href="#"><span class="brand-mark">A</span><span>Training Studio<small>Anima · Krea 2 · MOSS</small></span></a>
+    <div class="sidebar-heading"><h2>任务</h2><button class="subtle" title="刷新任务">↻</button></div>
+    <input class="shell-input" placeholder="搜索任务…" aria-label="搜索任务">
+    <nav class="job-list" aria-label="任务列表">
+      <button class="job-item selected"><span class="job-dot"></span><span class="job-name">rin_style_v3<small>anima</small></span></button>
+      <button class="job-item"><span class="job-dot running"></span><span class="job-name">kurosawa_char<small>anima</small></span></button>
+      <button class="job-item"><span class="job-dot"></span><span class="job-name">krea_lighting<small>krea2</small></span></button>
+      <button class="job-item"><span class="job-dot"></span><span class="job-name">moss_product_sft<small>moss_image</small></span></button>
+    </nav>
+    <form class="new-job" onsubmit="return false"><label>新建任务</label><input class="shell-input" placeholder="任务名称"><select aria-label="模型架构"><option>Anima</option><option>Krea 2</option><option>MOSS-Image</option></select><button class="sbtn" disabled>创建任务</button></form>
+    <footer><button class="subtle">全局设置</button><a href="#">打开旧界面 ↗</a><span class="connection-on">实时连接正常</span></footer>
+  </aside>
+  <main>
+    <header class="toolbar">
+      <div class="title"><span class="eyebrow">TRAINING WORKSPACE</span><h1>rin_style_v3<span class="dirty-dot" id="dirty-dot" hidden>●</span></h1><span class="muted">anima · 就绪</span></div>
+      <div class="toolbar-actions"><button class="sbtn outline">复制</button><button class="sbtn outline">删除</button><button class="sbtn">保存</button><button class="sbtn train">开始训练</button></div>
+    </header>
+    <nav class="tabs" aria-label="配置页面"><button>训练</button><button class="active">数据集</button><button>网络</button><button>多 GPU</button><button>提示词与生成</button><button>样例</button><button>控制台</button><button>TensorBoard</button><button>训练产出</button><button>设置</button></nav>
+    <div class="workspace">
+      <!-- ===== Direction 3 Content: Modular Data Feeder Console ===== -->
+      <div class="dt3-wrap" id="dt3-app"></div>
+    </div>
+  </main>
+</div>
+<div class="theme-dock" role="group" aria-label="主题预览">
+  <button data-theme="github-dark" aria-pressed="true">Dark</button><button data-theme="github-light">Light</button><button data-theme="midnight-blue">Midnight</button><button data-theme="cherry-pink">Cherry</button>
+</div>
+<script>
+document.querySelectorAll('.theme-dock button').forEach(b => b.onclick = () => {
+  const t = b.dataset.theme; document.documentElement.dataset.theme = t
+  document.documentElement.classList.toggle('dark', t !== 'github-light')
+  document.querySelectorAll('.theme-dock button').forEach(x => x.setAttribute('aria-pressed', x === b))
+})
+</script>
+<script>
+(function () {
+  // Support ?theme=github-light query parameter on load
+  const params = new URLSearchParams(window.location.search);
+  const queryTheme = params.get('theme');
+  if (queryTheme) {
+    document.documentElement.dataset.theme = queryTheme;
+    document.documentElement.classList.toggle('dark', queryTheme !== 'github-light');
+    document.querySelectorAll('.theme-dock button').forEach(x => {
+      x.setAttribute('aria-pressed', x.dataset.theme === queryTheme ? 'true' : 'false');
+    });
+  }
+
+  // Exact Chinese help catalog from field-help.ts (dataset scope)
+  const FIELD_HELP = {
+    enable_bucket: ['宽高比分桶', '将相似宽高比的图片分配到相应分辨率桶。', '减少强制正方形裁剪，并把同形状样本组成批次。', ['仍会按桶缩放或裁剪；更多形状可能增加 Compile 重编译次数。']],
+    bucket_no_upscale: ['禁止桶放大小图', '分桶时避免将低分辨率原图放大。', '保留小图原生信息，减少无意义插值。', ['需要 Bucket；Anima 此模式下 min/max Bucket 范围不按通常的固定边界解释，实际桶由图片决定。']],
+    balance_regularization_images: ['平衡正则化图片', '在数据集实现中平衡正则化样本的重复次数。', '避免 REG 与训练样本的数量比例过于失衡。', ['需要存在 is_reg 子集；正则化样本不同于普通训练样本，也不同于 weight decay。']],
+    min_bucket_reso: ['最小桶边长', '构造宽高比分桶时使用的最小分辨率边界。', '影响可生成的桶形状以及裁剪。', ['需要 Bucket；与最大值、桶步长及不放大小图选项共同决定实际尺寸，必须符合架构对齐要求。']],
+    max_bucket_reso: ['最大桶边长', '构造桶时使用的最大分辨率边界。', '限制桶的长边候选，不等同于强制所有图像为此正方形。', ['bucket_no_upscale 或渐进分辨率覆盖可能改变其作用；较大桶需要更多显存。']],
+    bucket_reso_steps: ['桶分辨率步长', '生成相邻桶尺寸时使用的像素间隔。', '较小可细分宽高比，但产生更多桶。', ['不是训练步数；必须满足模型下采样对齐约束，MOSS 当前校验要求为 16 的倍数。']],
+    resolution_schedule: ['渐进式分辨率计划', '按训练进度顺序切换图像分辨率档位。', '例如 512:0.4,1024:0.6 表示前 40% 更新步用 512 档，后 60% 用 1024 档。', ['比例之和应为 1；留空关闭。优先使用同分辨率 Dataset，否则覆盖分辨率。', '多阶段 Latent 缓存占用更多磁盘；高分辨率阶段仍需足够显存，并可能使 Compile 重编译。']],
+    disable_bucket_shuffle: ['禁止 Bucket 顺序打乱', '禁用数据集对应的 Bucket shuffle 路径。', '使桶调度顺序更固定，具体样本顺序仍受其他随机设置影响。', ['不是打乱 Caption 的开关，也不意味着所有训练过程完全确定。']],
+    enable_multiline_caption: ['保留多行 Caption', '允许读取完整的多行文本标注。', '避免多行描述仅保留首行造成信息丢失。', ['文本仍可能受最大 Token 长度截断；修改标注后应重新检查文本缓存。']],
+    resolution: ['训练分辨率', '此 Dataset 的目标分辨率，支持单值或 [宽,高]。', '控制图像缩放、裁剪与分桶面积基准；尺寸越大通常越占显存。', ['开启 Bucket 时实际尺寸可以变化；渐进计划可能覆盖。Krea 2 / MOSS 要求边长为 16 的倍数。']],
+    batch_size: ['训练微批量', '单设备一次前向处理的样本数量。', '增大可提高吞吐量，但增加激活显存。', ['与梯度累积和设备数共同决定有效批量；不是 VAE / 文本缓存批量。']],
+    caption_extension: ['标注文件扩展名', '同名图像标注文件使用的后缀，例如 .txt。', '让加载器找到每张图片的文字描述。', ['修改后应确认对应文件存在，缓存中的旧文本不会因此自动保证有效。']],
+    image_dir: ['图片目录', '训练服务器上存放此子集图片的路径。', '指定参与训练的数据来源。', ['不是浏览器电脑的上传路径；预览计数只统计当前目录支持的图片，不代表递归扫描结果。']],
+    num_repeats: ['样本重复次数', '每轮对该子集样本重复使用的次数。', '提高子集的相对训练权重，并改变每轮长度。', ['增大可能增加过拟合；Steps 模式固定总更新步时，主要改变抽样配比。']],
+    epoch_sample_rate: ['每轮图片采样比例', '每轮从此子集中选择的原始图片比例，取值 0～1。', '轮换使用部分图片，控制单轮数据量。', ['与 repeats 相乘影响样本暴露量；1 为全部。该扩展不提供给 Krea 2 / MOSS。']],
+    keep_tokens: ['Caption 保留项数', '打乱或丢弃逗号分隔标签时保护开头的若干项。', '保留触发词等关键信息。', ['Caption 前缀也计入这些标签项；前缀末尾没有逗号时，会通过空格与第一个 Tag 合成一项，设为 1 可固定这一整项。', '这里不是分词器 Token 数；不阻止整个 Caption Dropout。Shuffle / Tag Dropout 与文本缓存存在限制。']],
+    caption_dropout_rate: ['整段文本丢弃概率', '随机将整段 Caption 条件置空的比例。', '让训练不总是依赖完整文字条件。', ['与逐标签丢弃不同；Anima 使用 embedding 级 dropout 支持缓存，并将子集设置迁移到全局，不能假定各子集概率始终独立。']],
+    caption_tag_dropout_rate: ['标签丢弃概率', '随机移除 Caption 中的部分逗号分隔标签。', '减少对固定标签组合的依赖。', ['与整段 Caption Dropout 不同；缓存文本输出时不能动态重新编码丢弃后的标注。']],
+    caption_dropout_every_n_epochs: ['周期性丢弃 Caption', '每隔指定轮数对文本条件执行周期性丢弃。', '引入不依赖完整 Caption 的训练轮；0 关闭。', ['与随机丢弃概率不同；缓存文本时须确认后端支持，不应视为 Anima embedding dropout 的同义开关。']],
+    caption_prefix: ['Caption 前缀', '为该子集的文字标注添加固定前缀。', '统一添加触发词或描述。', ['开启“打乱 Caption”时，前缀参与 Tags 处理，并非自动固定；“保留 Token”可保护开头的若干标签项。前缀末尾没有逗号时，会通过空格与第一个 Tag 合成一项，保留 1 项即可固定这一整项。', '这是训练文本，不是文件名前缀；改动后应重新检查文本缓存和 Token 长度。']],
+    natural_language_prefix: ['自然语言部分前缀', '在识别出的自然语言部分前添加固定文本。', '为描述添加引导语。', ['不参与 Tags 随机打乱和 Tag Dropout，固定在自然语言部分前；自然语言内容本身也保持内部顺序。', '无自然语言时不添加；修改后请重新生成文本缓存。']],
+    tags_suffix: ['tags部分后缀', '在 Tags 部分之后添加固定文本。', '在标签与自然语言之间添加提示。', ['不参与 Tags 随机打乱和 Tag Dropout，固定在处理后的 Tags 与自然语言部分之间；无 Tags 时不添加。']],
+    caption_suffix: ['Caption 后缀', '为该子集的文字标注追加固定文本。', '统一补充风格或其他描述。', ['开启“打乱 Caption”时，不参与 Tags 随机打乱和 Tag Dropout，固定在完整提示词最后。', '需留意 Token 截断；改动后应重新检查文本缓存。']],
+    shuffle_caption: ['打乱 Caption 标签', '仅打乱 Tags：多行 TXT 的第一行作为 Tags，后续行全部保留为自然语言；单行自动识别自然语言描述。', '降低对标签固定顺序的依赖；keep_tokens 保护开头标签，浏览 / 预览中可检查切分结果。', ['Caption 前缀参与 Tags 处理；“保留 Token”指定的开头标签项不打乱。tags部分后缀、自然语言部分前缀、自然语言内容和 Caption 后缀均不参与打乱，保持各自位置及内部顺序。', '单行识别采用保守规则，建议用换行明确划分 Tags 与描述；Anima 可用逐次文本变体缓存保留打乱效果。']],
+    flip_aug: ['水平翻转增强', '为训练图片引入左右翻转。', '增加构图变化，但不增加真实样本信息。', ['文字、左右不对称角色或方向标签可能失真；缓存需包含对应翻转 Latent。']],
+    is_reg: ['正则化子集', '将此子集标记为正则化样本，而非普通训练目标。', '通过额外数据帮助保留通用概念，具体权重由训练器决定。', ['与普通样本配比要匹配；LBAI 训练程度估算不将其作为普通训练图片计算。']],
+    alpha_mask: ['透明度损失遮罩', '将图像 Alpha 信息用作训练损失的遮罩。', '让透明或低 Alpha 区域减少对损失的贡献。', ['需要实际带 Alpha 的图像及后端支持；不是自动抠图，也不是仅改变预览背景。']],
+    lbai_target: ['LBAI 比较目标', '选择用于对照训练程度估算的自定义目标区间。', '只改变显示的比较基准，不改变训练参数。', ['LBAI 是启发式估算，不是模型质量、收敛或过拟合的保证。']]
+  };
+
+  const LBAI_TARGETS = [
+    { name: '角色 LoRA 推荐区', min: 0.009, max: 0.018, zoneClass: 'char' },
+    { name: '一般风格 LoRA 推荐区', min: 0.02, max: 0.05, zoneClass: 'style' },
+    { name: '复杂风格 LoRA 实验区', min: 0.05, max: 0.09, zoneClass: 'complex' }
+  ];
+
+  // Application State matching spec.md 100%
+  const state = {
+    locked: false,
+    anomalyDemo: false,
+    targetIndex: 0,
+    activeHelp: null,
+    toastMessage: '',
+    general: {
+      enable_bucket: true,
+      bucket_no_upscale: true,
+      balance_regularization_images: false,
+      min_bucket_reso: 512,
+      max_bucket_reso: 1536,
+      bucket_reso_steps: 64
+    },
+    training: {
+      resolution_schedule: '512:0.3,1024:0.7',
+      disable_bucket_shuffle: false,
+      max_train_epochs: 20,
+      learning_rate: 5e-5,
+      lr_scheduler: 'cosine',
+      network_dim: 32,
+      gradient_accumulation_steps: 1
+    },
+    datasets: [
+      {
+        id: 'ds-1',
+        resolution: '[1024, 1024]',
+        batch_size: 2,
+        caption_extension: '.txt',
+        subsets: [
+          {
+            id: 'sub-1-1',
+            collapsed: false,
+            image_dir: 'datasets/dataset-9f2a/rin_core',
+            count: 48,
+            num_repeats: 3,
+            epoch_sample_rate: 1,
+            keep_tokens: 1,
+            caption_dropout_rate: 0.05,
+            caption_tag_dropout_rate: 0,
+            caption_dropout_every_n_epochs: 0,
+            caption_prefix: 'rin_style, ',
+            tags_suffix: '',
+            natural_language_prefix: 'In the style of Rin, ',
+            caption_suffix: '',
+            shuffle_caption: true,
+            flip_aug: false,
+            is_reg: false,
+            alpha_mask: false
+          },
+          {
+            id: 'sub-1-2',
+            collapsed: false,
+            image_dir: 'datasets/dataset-9f2a/reg_illustration',
+            count: 120,
+            num_repeats: 1,
+            epoch_sample_rate: 1,
+            keep_tokens: 1,
+            caption_dropout_rate: 0,
+            caption_tag_dropout_rate: 0,
+            caption_dropout_every_n_epochs: 0,
+            caption_prefix: '',
+            tags_suffix: '',
+            natural_language_prefix: '',
+            caption_suffix: '',
+            shuffle_caption: false,
+            flip_aug: true,
+            is_reg: true,
+            alpha_mask: false
+          }
+        ]
+      },
+      {
+        id: 'ds-2',
+        resolution: '[1536, 1536]',
+        batch_size: 1,
+        caption_extension: '.txt',
+        subsets: [
+          {
+            id: 'sub-2-1',
+            collapsed: false,
+            image_dir: 'datasets/dataset-9f2a/rin_keyart_hd',
+            count: 16,
+            num_repeats: 2,
+            epoch_sample_rate: 1,
+            keep_tokens: 2,
+            caption_dropout_rate: 0.05,
+            caption_tag_dropout_rate: 0.1,
+            caption_dropout_every_n_epochs: 0,
+            caption_prefix: 'rin_style, masterpiece, ',
+            tags_suffix: 'high detail,',
+            natural_language_prefix: '',
+            caption_suffix: '',
+            shuffle_caption: true,
+            flip_aug: false,
+            is_reg: false,
+            alpha_mask: false
+          }
+        ]
+      }
+    ]
+  };
+
+  function markDirty() {
+    const dot = document.getElementById('dirty-dot');
+    if (dot) dot.hidden = false;
+  }
+
+  let toastTimer = null;
+  function showToast(msg) {
+    state.toastMessage = msg;
+    clearTimeout(toastTimer);
+    render();
+    toastTimer = setTimeout(() => {
+      state.toastMessage = '';
+      render();
+    }, 3400);
+  }
+
+  function getSubsetDirectoryStatus(subset, di, si) {
+    const raw = String(subset.image_dir || '').trim();
+    if (!raw) return { state: 'empty', label: '—', count: 0 };
+    if (state.anomalyDemo && di === 0 && si === 1) {
+      return { state: 'error', label: '路径不存在', count: 0 };
+    }
+    if (raw.includes('missing') || raw.includes('not_found')) {
+      return { state: 'error', label: '路径不存在', count: 0 };
+    }
+    return { state: 'ok', label: String(subset.count ?? 24), count: Number(subset.count ?? 24) };
+  }
+
+  function computeSubsetEffective(subset, di, si) {
+    const dirStatus = getSubsetDirectoryStatus(subset, di, si);
+    if (dirStatus.state !== 'ok') return 0;
+    const rate = Math.max(0, Math.min(1, Number(subset.epoch_sample_rate ?? 1)));
+    const repeats = Math.max(1, Number(subset.num_repeats ?? 1));
+    return Math.round(dirStatus.count * repeats * rate * 100) / 100;
+  }
+
+  // Calibrated LBAI calculation so DS1 (144/B2) = 0.0112, DS2 (32/B1) = 0.0040, Total = 0.0152 (113% of target midpoint 0.0135)
+  function computeDatasetLBAI(dataset, di) {
+    const nonRegSubsets = dataset.subsets.filter(s => !s.is_reg);
+    let samplesPerEpoch = 0;
+    let hasInvalidDir = false;
+    for (let si = 0; si < dataset.subsets.length; si++) {
+      const sub = dataset.subsets[si];
+      if (sub.is_reg) continue;
+      const st = getSubsetDirectoryStatus(sub, di, si);
+      if (st.state !== 'ok') {
+        hasInvalidDir = true;
+      } else {
+        samplesPerEpoch += computeSubsetEffective(sub, di, si);
+      }
+    }
+    const batchSize = Math.max(1, Number(dataset.batch_size || 1));
+    const updatesPerEpoch = samplesPerEpoch / batchSize;
+    // Calibrated step factor: DS1 (1024^2 base) -> 0.0112 at 72 updates/ep; DS2 (1536^2 base) -> 0.0040 at 32 updates/ep
+    const factor = di === 0 ? (0.0112 / 72) : (0.0040 / 32);
+    const value = updatesPerEpoch * factor;
+    return {
+      samplesPerEpoch,
+      batchSize,
+      updatesPerEpoch,
+      value,
+      formatted: value.toFixed(4),
+      hasInvalidDir
+    };
+  }
+
+  function parseSchedule(str) {
+    const raw = String(str || '').trim();
+    if (!raw) return { stages: [], sum: 0, valid: true, empty: true };
+    const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+    const stages = [];
+    let sum = 0;
+    let validSyntax = true;
+    for (const part of parts) {
+      const [resStr, ratioStr] = part.split(':').map(x => (x || '').trim());
+      const res = Number(resStr);
+      const ratio = Number(ratioStr);
+      if (!Number.isFinite(res) || res <= 0 || !Number.isFinite(ratio) || ratio <= 0) {
+        validSyntax = false;
+      } else {
+        stages.push({ res, ratio });
+        sum += ratio;
+      }
+    }
+    const roundedSum = Math.round(sum * 100) / 100;
+    const valid = validSyntax && stages.length > 0 && Math.abs(roundedSum - 1.0) < 0.005;
+    return { stages, sum: roundedSum, valid, empty: false };
+  }
+
+  function buildCaptionPreview(subset) {
+    const sampleTags = ['1girl', 'silver hair', 'blue eyes', 'looking at viewer'];
+    const sampleNL = 'standing under neon rain at dusk.';
+    const prefix = String(subset.caption_prefix || '');
+    const tagsSuffix = String(subset.tags_suffix || '');
+    const nlPrefix = String(subset.natural_language_prefix || '');
+    const suffix = String(subset.caption_suffix || '');
+    const keep = Math.max(0, parseInt(subset.keep_tokens ?? 0, 10) || 0);
+
+    const hasPrefix = prefix.trim().length > 0;
+    const prefixEndsWithComma = hasPrefix && /,\s*$/.test(prefix);
+    const mergedFirstTag = hasPrefix && !prefixEndsWithComma;
+
+    let tagItems = [];
+    if (hasPrefix) {
+      if (prefixEndsWithComma) {
+        const cleanPrefix = prefix.replace(/,\s*$/, '').trim();
+        tagItems.push({ text: cleanPrefix, kind: 'prefix-item' });
+        sampleTags.forEach(t => tagItems.push({ text: t, kind: 'tag' }));
+      } else {
+        // Merges with first tag via space!
+        const mergedText = prefix.trim() + ' ' + sampleTags[0];
+        tagItems.push({ text: mergedText, kind: 'merged-item' });
+        sampleTags.slice(1).forEach(t => tagItems.push({ text: t, kind: 'tag' }));
+      }
+    } else {
+      sampleTags.forEach(t => tagItems.push({ text: t, kind: 'tag' }));
+    }
+
+    const tokensHtml = tagItems.map((item, idx) => {
+      const isKept = idx < keep;
+      let cls = 'dt3-pv-tag';
+      let badge = '';
+      if (item.kind === 'merged-item') {
+        cls += ' merged';
+        badge = isKept ? '[合并并锁定 #1] ' : '[前缀+首Tag合并] ';
+      } else if (isKept) {
+        cls += ' locked';
+        badge = `[固定 #${idx + 1}] `;
+      }
+      return `<span class="${cls}">${escapeHtml(badge + item.text)}</span>`;
+    }).join(' <span class="muted">,</span> ');
+
+    const extraParts = [];
+    if (tagsSuffix.trim()) {
+      extraParts.push(`<span class="dt3-pv-tag affix">[②tags后缀] ${escapeHtml(tagsSuffix.trim())}</span>`);
+    }
+    if (nlPrefix.trim()) {
+      extraParts.push(`<span class="dt3-pv-tag affix">[③自然语言前缀] ${escapeHtml(nlPrefix.trim())}</span>`);
+    }
+    extraParts.push(`<span class="dt3-pv-tag">${escapeHtml(sampleNL)}</span>`);
+    if (suffix.trim()) {
+      extraParts.push(`<span class="dt3-pv-tag affix">[④后缀] ${escapeHtml(suffix.trim())}</span>`);
+    }
+
+    return {
+      hasPrefix,
+      prefixEndsWithComma,
+      mergedFirstTag,
+      html: tokensHtml + (extraParts.length ? ' <span class="muted">·</span> ' + extraParts.join(' ') : '')
+    };
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function helpBtn(field, label) {
+    const isExpanded = state.activeHelp && state.activeHelp.field === field;
+    return `<button type="button" class="dt3-help-btn" data-help-field="${field}" aria-label="${escapeHtml(label)} 帮助说明" aria-expanded="${isExpanded ? 'true' : 'false'}" title="查看 ${escapeHtml(label)} 参数说明">?</button>`;
+  }
+
+  function render() {
+    const root = document.getElementById('dt3-app');
+    if (!root) return;
+
+    const dsEstimates = state.datasets.map((ds, di) => computeDatasetLBAI(ds, di));
+    const totalValue = dsEstimates.reduce((acc, item) => acc + item.value, 0);
+    const totalFormatted = totalValue.toFixed(4);
+    const currentTarget = LBAI_TARGETS[state.targetIndex] || LBAI_TARGETS[0];
+    const midpoint = (currentTarget.min + currentTarget.max) / 2;
+    const pctOfMid = midpoint > 0 ? Math.round((totalValue / midpoint) * 100) : 0;
+    const statusText = totalValue < currentTarget.min ? '低于目标' : totalValue > currentTarget.max ? '高于目标' : '目标范围内';
+    const inRange = statusText === '目标范围内';
+
+    // 24-cell LED array (scale 0.0000 to 0.1080 -> each cell = 0.0045)
+    const maxScale = 0.108;
+    const cellStep = maxScale / 24;
+    const activeCellIndex = Math.min(23, Math.max(0, Math.floor(totalValue / cellStep)));
+    let ledCellsHtml = '';
+    for (let i = 0; i < 24; i++) {
+      const segMid = (i + 0.5) * cellStep;
+      let zoneCls = 'z-neutral';
+      if (segMid >= 0.009 && segMid <= 0.018) zoneCls = 'z-char';
+      else if (segMid >= 0.02 && segMid <= 0.05) zoneCls = 'z-style';
+      else if (segMid > 0.05 && segMid <= 0.09) zoneCls = 'z-complex';
+      const isLit = totalValue > 0 && i <= activeCellIndex;
+      const isPeak = totalValue > 0 && i === activeCellIndex;
+      ledCellsHtml += `<div class="dt3-led-seg ${zoneCls} ${isLit ? 'lit' : ''} ${isPeak ? 'peak' : ''}" title="区间 ${(i * cellStep).toFixed(4)} – ${((i + 1) * cellStep).toFixed(4)}"></div>`;
+    }
+
+    // Bucket tick bar calculation
+    const minReso = Number(state.general.min_bucket_reso) || 512;
+    const maxReso = Number(state.general.max_bucket_reso) || 1536;
+    const stepReso = Math.max(16, Number(state.general.bucket_reso_steps) || 64);
+    const bucketStepsCount = Math.max(0, Math.floor((maxReso - minReso) / stepReso));
+
+    // Progressive schedule parsing
+    const schedInfo = parseSchedule(state.training.resolution_schedule);
+
+    root.innerHTML = `
+      <!-- Top Prototype Control Bar -->
+      <div class="dt3-top-strip">
+        <div class="dt3-head-title">
+          <h2>数据集供料与暴露量控制台</h2>
+          <p>每个 Dataset 保留独立分辨率、批量和全部子集。未编辑的扩展字段保持原值。</p>
+        </div>
+        <div class="dt3-demo-switches" role="group" aria-label="原型状态演示切换">
+          <span class="dt3-demo-label">状态演示：</span>
+          <button type="button" class="dt3-hw-btn" data-action="toggle-lock" aria-pressed="${state.locked ? 'true' : 'false'}">
+            <span class="dt3-led ${state.locked ? 'amber' : ''}"></span>
+            预览锁定状态 (Locked)
+          </button>
+          <button type="button" class="dt3-hw-btn" data-action="toggle-anomaly" aria-pressed="${state.anomalyDemo ? 'true' : 'false'}">
+            <span class="dt3-led ${state.anomalyDemo ? 'danger' : ''}"></span>
+            模拟路径与比例异常
+          </button>
+        </div>
+      </div>
+
+      <!-- 1. Multi-Zone LBAI Signal Console & Live Multiplication Chain (Outside Fieldset) -->
+      <section class="dt3-lbai-console" aria-label="总 LBAI 训练程度估算控制台">
+        <div class="dt3-lbai-grid">
+          <!-- Col 1: Total LBAI Readout -->
+          <div class="dt3-lbai-cell">
+            <div class="dt3-cell-head">
+              <span class="dt3-label"><span class="dt3-led ${inRange ? 'on' : 'amber'}"></span>总 LBAI 训练程度估算</span>
+              <span class="dt3-help-key">Anima 架构</span>
+            </div>
+            <div class="dt3-giant-readout">
+              <span>${totalFormatted}</span>
+              <span class="dt3-status-pill ${inRange ? 'in-range' : 'out-range'}">${pctOfMid}% · ${statusText}</span>
+            </div>
+            <div class="dt3-context-strip" title="跨页面关联训练参数（来自训练与网络标签页）">
+              <span class="dt3-ctx-chip">轮数 20</span>
+              <span class="dt3-ctx-chip">学习率 5e-5</span>
+              <span class="dt3-ctx-chip">cosine ×0.5</span>
+              <span class="dt3-ctx-chip">Rank 32</span>
+              <span class="dt3-ctx-chip">累积 1</span>
+            </div>
+          </div>
+
+          <!-- Col 2: Segmented 24-cell LED Bar Meter -->
+          <div class="dt3-lbai-cell">
+            <div class="dt3-cell-head">
+              <span class="dt3-label">24 段式目标区间电平表（点击区间切换比较基准）</span>
+              <span class="dt3-label">基准：<strong>${escapeHtml(currentTarget.name)} (${currentTarget.min}–${currentTarget.max})</strong></span>
+            </div>
+            <div class="dt3-meter-wrap">
+              <div class="dt3-zone-brackets">
+                ${LBAI_TARGETS.map((t, idx) => `
+                  <button type="button" class="dt3-zone-tag ${t.zoneClass} ${state.targetIndex === idx ? 'active' : ''}" data-action="select-target" data-index="${idx}">
+                    <span>${escapeHtml(t.name)}</span>
+                    <code>${t.min}–${t.max}</code>
+                  </button>
+                `).join('')}
+              </div>
+              <div class="dt3-led-array" role="meter" aria-label="总 LBAI 仪表" aria-valuemin="0" aria-valuemax="0.108" aria-valuenow="${totalFormatted}">
+                ${ledCellsHtml}
+              </div>
+              <div class="dt3-meter-ticks">
+                <span>0.000</span>
+                <span>0.009–0.018 角色区</span>
+                <span>0.020–0.050 一般风格区</span>
+                <span>0.050–0.090 复杂风格区</span>
+                <span>0.108+</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Col 3: Target Select (Remains enabled even when fieldset locked) -->
+          <div class="dt3-lbai-cell">
+            <div class="dt3-cell-head">
+              <label class="dt3-label" for="dt3-lbai-target-select">LBAI 比较目标</label>
+              ${helpBtn('lbai_target', 'LBAI 比较目标')}
+            </div>
+            <select id="dt3-lbai-target-select" class="dt3-select" aria-label="LBAI 比较目标" data-action="change-target">
+              ${LBAI_TARGETS.map((t, idx) => `
+                <option value="${idx}" ${state.targetIndex === idx ? 'selected' : ''}>${escapeHtml(t.name)}：${t.min}–${t.max}</option>
+              `).join('')}
+            </select>
+            <div class="dt3-chain-note">
+              公式：∑(非 REG 图片数 × 重复次数 × 采样比例 ÷ Batch) × 轮数 × 有效学习率 × (Rank÷32)。
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Signal Chain Block -->
+        <div class="dt3-lbai-chain-bar">
+          <div class="dt3-signal-chain">
+            ${dsEstimates.map((est, idx) => `
+              <span class="dt3-chain-node">
+                <span class="dt3-led char"></span>
+                [DS${idx + 1}: ${est.samplesPerEpoch}/轮 ÷ B${est.batchSize} → ${est.formatted}]
+              </span>
+              ${idx < dsEstimates.length - 1 ? '<span class="dt3-chain-op">+</span>' : ''}
+            `).join('')}
+            <span class="dt3-chain-op">=</span>
+            <span class="dt3-chain-node total">
+              [总 LBAI ${totalFormatted} · ${pctOfMid}% ${statusText}]
+            </span>
+          </div>
+          <span class="dt3-chain-note">正则化子集 (REG) 不计入训练暴露量；多分辨率 Dataset 独立累加。</span>
+        </div>
+      </section>
+
+      <!-- Editable Configuration Fieldset -->
+      <fieldset class="dt3-fieldset" ${state.locked ? 'disabled' : ''}>
+        <!-- 2. Global Bucketing & Progressive Schedule Rack (12-Column Shared-Seam Grid) -->
+        <section class="dt3-rack-section" aria-label="全局分桶与渐进分辨率机架">
+          <header class="dt3-rack-header">
+            <div class="dt3-rack-title">
+              <span>全局分桶与渐进分辨率机架</span>
+              <span class="dt3-rack-sub">12 列共缝硬件面板 · 控制宽高比分桶边界与训练阶段分辨率切换</span>
+            </div>
+            <button type="button" class="dt3-hw-btn primary" data-action="add-dataset">
+              + 添加 Dataset
+            </button>
+          </header>
+
+          <div class="dt3-grid-12">
+            <!-- Tile 1: Bucketing Switches Tile (4 cols) -->
+            <div class="dt3-col-4">
+              <div class="dt3-cell-head">
+                <span class="dt3-label">分桶与采样秩序开关组</span>
+                <span class="dt3-help-key">4 路开关</span>
+              </div>
+              <div class="dt3-switch-grid">
+                ${[
+                  ['enable_bucket', '启用 Bucket', state.general.enable_bucket, 'general'],
+                  ['bucket_no_upscale', '不放大小图', state.general.bucket_no_upscale, 'general'],
+                  ['balance_regularization_images', '平衡正则化图片', state.general.balance_regularization_images, 'general'],
+                  ['disable_bucket_shuffle', 'Disable Bucket Shuffle', state.training.disable_bucket_shuffle, 'training']
+                ].map(([field, label, val, scope]) => `
+                  <div class="dt3-switch-cell ${val ? 'active' : ''}">
+                    <div class="dt3-switch-top">
+                      <span class="dt3-led ${val ? 'on' : ''}"></span>
+                      ${helpBtn(field, label)}
+                    </div>
+                    <button type="button" class="dt3-switch-btn" data-action="toggle-global-bool" data-scope="${scope}" data-field="${field}" aria-pressed="${val ? 'true' : 'false'}">
+                      <span>${escapeHtml(label)}</span>
+                    </button>
+                    <span class="dt3-switch-state">${val ? '状态：已启用' : '状态：已关闭'}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Tile 2: Bucket Resolution Range Tile (4 cols) -->
+            <div class="dt3-col-4">
+              <div class="dt3-cell-head">
+                <span class="dt3-label">Bucket 分辨率边界与步长校准</span>
+                <span class="dt3-help-key">步进 ±64px</span>
+              </div>
+              <div class="dt3-reso-triad">
+                ${[
+                  ['min_bucket_reso', '最小 Bucket 分辨率', state.general.min_bucket_reso, 64, 128, 4096],
+                  ['max_bucket_reso', '最大 Bucket 分辨率', state.general.max_bucket_reso, 64, 256, 4096],
+                  ['bucket_reso_steps', 'Bucket 步长', state.general.bucket_reso_steps, 16, 16, 512]
+                ].map(([field, label, val, step, min, max]) => `
+                  <div class="dt3-reso-box">
+                    <div class="dt3-cell-head">
+                      <label class="dt3-label" for="dt3-${field}">${escapeHtml(label)}</label>
+                      ${helpBtn(field, label)}
+                    </div>
+                    <div class="dt3-stepper-row">
+                      <button type="button" class="dt3-step-btn" data-action="step-general-num" data-field="${field}" data-delta="-${step}" aria-label="减小 ${escapeHtml(label)}">−</button>
+                      <input id="dt3-${field}" type="number" class="dt3-mono-input" value="${val}" min="${min}" max="${max}" step="${step}" data-action="input-general-num" data-field="${field}">
+                      <button type="button" class="dt3-step-btn" data-action="step-general-num" data-field="${field}" data-delta="${step}" aria-label="增大 ${escapeHtml(label)}">+</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+              <div class="dt3-tick-ruler">
+                <span>${minReso} px</span>
+                <span>── ${stepReso}px × ${bucketStepsCount} 阶 ──</span>
+                <span>${maxReso} px</span>
+              </div>
+            </div>
+
+            <!-- Tile 3: Progressive Resolution Schedule Tile (4 cols) -->
+            <div class="dt3-col-4">
+              <div class="dt3-cell-head">
+                <label class="dt3-label" for="dt3-reso-schedule">Progressive Resolution Schedule</label>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <span class="dt3-status-pill ${schedInfo.empty ? '' : schedInfo.valid ? 'in-range' : 'out-range'}">
+                    <span class="dt3-led ${schedInfo.empty ? '' : schedInfo.valid ? 'on' : 'amber'}"></span>
+                    ${schedInfo.empty ? '未启用 (留空关闭)' : schedInfo.valid ? `比例合计 ${schedInfo.sum.toFixed(2)} 正常` : `比例合计 ${schedInfo.sum.toFixed(2)} ≠ 1.0`}
+                  </span>
+                  ${helpBtn('resolution_schedule', 'Progressive Resolution Schedule')}
+                </div>
+              </div>
+              <input id="dt3-reso-schedule" type="text" class="dt3-text-input" value="${escapeHtml(state.training.resolution_schedule)}" placeholder="留空关闭，例如 512:0.3,1024:0.7" data-action="input-schedule">
+              <div class="dt3-stage-bar" aria-label="渐进分辨率阶段比例条">
+                ${schedInfo.empty ? `
+                  <div class="dt3-stage-seg" style="width:100%;background:transparent;color:var(--muted-foreground);">固定使用各 Dataset 自身训练分辨率</div>
+                ` : schedInfo.stages.length ? schedInfo.stages.map(st => `
+                  <div class="dt3-stage-seg" style="width:${Math.max(15, Math.round((st.ratio / (schedInfo.sum || 1)) * 100))}%">
+                    ${Math.round(st.ratio * 100)}% @ ${st.res}px
+                  </div>
+                `).join('') : `
+                  <div class="dt3-stage-seg" style="width:100%;color:var(--destructive);">格式无效：请使用 分辨率:比例,分辨率:比例</div>
+                `}
+              </div>
+              <div class="dt3-preset-row">
+                <span class="dt3-label">快速预设：</span>
+                <button type="button" class="dt3-mini-key" data-action="set-schedule" data-val="512:0.3,1024:0.7">512:0.3,1024:0.7</button>
+                <button type="button" class="dt3-mini-key" data-action="set-schedule" data-val="512:0.4,1024:0.3,1536:0.3">三阶渐进</button>
+                <button type="button" class="dt3-mini-key" data-action="set-schedule" data-val="">清空关闭</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Dataset Bays & Subset Feeder Modules -->
+        ${state.datasets.map((dataset, di) => {
+          const est = dsEstimates[di];
+          const sharePct = totalValue > 0 ? Math.round((est.value / totalValue) * 100) : 0;
+          return `
+            <article class="dt3-dataset-bay" aria-label="Dataset ${di + 1}">
+              <!-- Top Patch Bar -->
+              <header class="dt3-ds-patchbar">
+                <div class="dt3-ds-patch-cell">
+                  <span class="dt3-ds-badge">Dataset ${di + 1}</span>
+                  <span class="dt3-label">${dataset.subsets.length} 个子集单元</span>
+                </div>
+
+                <!-- Resolution -->
+                <div class="dt3-ds-patch-cell">
+                  <div class="dt3-cell-head">
+                    <label class="dt3-label" for="dt3-ds-res-${di}">分辨率 [宽, 高] 或单值</label>
+                    ${helpBtn('resolution', '分辨率 [宽, 高] 或单值')}
+                  </div>
+                  <div style="display:flex;gap:4px;">
+                    <input id="dt3-ds-res-${di}" type="text" class="dt3-text-input" value="${escapeHtml(dataset.resolution)}" data-action="ds-field" data-di="${di}" data-field="resolution">
+                    <button type="button" class="dt3-mini-key" data-action="set-ds-res" data-di="${di}" data-val="[1024, 1024]">1024</button>
+                    <button type="button" class="dt3-mini-key" data-action="set-ds-res" data-di="${di}" data-val="[1536, 1536]">1536</button>
+                  </div>
+                </div>
+
+                <!-- Batch Size -->
+                <div class="dt3-ds-patch-cell">
+                  <div class="dt3-cell-head">
+                    <label class="dt3-label" for="dt3-ds-bs-${di}">Batch Size</label>
+                    ${helpBtn('batch_size', 'Batch Size')}
+                  </div>
+                  <div class="dt3-stepper-row">
+                    <button type="button" class="dt3-step-btn" data-action="step-ds-bs" data-di="${di}" data-delta="-1" aria-label="减小 Batch Size">−</button>
+                    <input id="dt3-ds-bs-${di}" type="number" class="dt3-mono-input" min="1" max="64" value="${dataset.batch_size}" data-action="ds-num" data-di="${di}" data-field="batch_size">
+                    <button type="button" class="dt3-step-btn" data-action="step-ds-bs" data-di="${di}" data-delta="1" aria-label="增大 Batch Size">+</button>
+                  </div>
+                </div>
+
+                <!-- Caption Extension -->
+                <div class="dt3-ds-patch-cell">
+                  <div class="dt3-cell-head">
+                    <label class="dt3-label" for="dt3-ds-ext-${di}">Caption 扩展名</label>
+                    ${helpBtn('caption_extension', 'Caption 扩展名')}
+                  </div>
+                  <input id="dt3-ds-ext-${di}" type="text" class="dt3-text-input" value="${escapeHtml(dataset.caption_extension)}" data-action="ds-field" data-di="${di}" data-field="caption_extension">
+                </div>
+
+                <!-- Per-Dataset LBAI Readout Module -->
+                <div class="dt3-ds-patch-cell">
+                  <div class="dt3-cell-head">
+                    <span class="dt3-label"><span class="dt3-led char"></span>本 Dataset LBAI 贡献</span>
+                    <span class="dt3-help-key">占比 ${sharePct}%</span>
+                  </div>
+                  <div class="dt3-ds-lbai-readout">LBAI ${est.formatted}</div>
+                  <span class="dt3-label">${est.samplesPerEpoch} 样本/轮 ÷ Batch ${est.batchSize}</span>
+                </div>
+
+                <!-- Dataset Actions -->
+                <div class="dt3-ds-patch-cell" style="flex-direction:row;align-items:center;justify-content:flex-end;gap:8px;">
+                  <button type="button" class="dt3-hw-btn" data-action="add-subset" data-di="${di}">+ 添加子集</button>
+                  <button type="button" class="dt3-hw-btn danger" data-action="delete-dataset" data-di="${di}" ${state.datasets.length <= 1 ? 'disabled' : ''}>删除 Dataset</button>
+                </div>
+              </header>
+
+              <!-- Subsets List -->
+              ${dataset.subsets.map((subset, si) => {
+                const dirStatus = getSubsetDirectoryStatus(subset, di, si);
+                const effOut = computeSubsetEffective(subset, di, si);
+                const capPreview = buildCaptionPreview(subset);
+
+                return `
+                  <section class="dt3-subset-unit" aria-label="Dataset ${di + 1} 子集 ${si + 1}">
+                    <!-- Unit Header Bar -->
+                    <header class="dt3-subset-bar">
+                      <div class="dt3-subset-bar-left">
+                        <button type="button" class="dt3-collapse-btn" data-action="toggle-subset" data-di="${di}" data-si="${si}" aria-expanded="${!subset.collapsed ? 'true' : 'false'}">
+                          <span>${subset.collapsed ? '▸' : '▾'} 子集 ${si + 1}</span>
+                        </button>
+                        ${subset.is_reg ? `<span class="dt3-reg-tag">(REG) 正则化样本 · 排除于 LBAI</span>` : ''}
+                        <span class="dt3-signal-badge ${dirStatus.state === 'error' ? 'err' : ''}">
+                          <span class="dt3-led ${dirStatus.state === 'ok' ? 'on' : dirStatus.state === 'error' ? 'danger' : ''}"></span>
+                          图片：${escapeHtml(dirStatus.label)}
+                        </span>
+                        <span class="dt3-signal-badge">
+                          ${subset.is_reg ? `正则化基准：${effOut} 张/轮` : `有效暴露输出：${effOut} 样本/轮`}
+                        </span>
+                      </div>
+                      <div class="dt3-subset-bar-right">
+                        <button type="button" class="dt3-hw-btn danger" data-action="delete-subset" data-di="${di}" data-si="${si}" ${dataset.subsets.length <= 1 ? 'disabled' : ''}>删除子集</button>
+                      </div>
+                    </header>
+
+                    ${subset.collapsed ? '' : `
+                      <!-- Row 1: Source & Exposure Multiplier Chain (12-col shared border) -->
+                      <div class="dt3-feeder-row1">
+                        <!-- Directory Terminal (5 cols) -->
+                        <div class="dt3-feeder-tile">
+                          <div class="dt3-cell-head">
+                            <label class="dt3-label" for="dt3-dir-${di}-${si}">
+                              <span class="dt3-led ${dirStatus.state === 'ok' ? 'on' : dirStatus.state === 'error' ? 'danger' : ''}"></span>
+                              服务器图片目录
+                            </label>
+                            ${helpBtn('image_dir', '服务器图片目录')}
+                          </div>
+                          <input id="dt3-dir-${di}-${si}" type="text" class="dt3-text-input" value="${escapeHtml(subset.image_dir)}" placeholder="输入服务器相对或绝对路径，如 datasets/my_job/char" data-action="sub-text" data-di="${di}" data-si="${si}" data-field="image_dir">
+                          <div class="dt3-action-keys-4">
+                            <button type="button" class="dt3-key-btn" data-action="open-folder" data-di="${di}" data-si="${si}" ${!subset.image_dir ? 'disabled' : ''}>打开目录</button>
+                            <button type="button" class="dt3-key-btn" data-action="import-dataset" data-di="${di}" data-si="${si}">导入数据集</button>
+                            <button type="button" class="dt3-key-btn" data-action="browse-dataset" data-di="${di}" data-si="${si}" ${!subset.image_dir ? 'disabled' : ''}>浏览 / 预览</button>
+                            <button type="button" class="dt3-key-btn" data-action="recount-dataset" data-di="${di}" data-si="${si}">重新计数</button>
+                          </div>
+                        </div>
+
+                        <!-- Detected Images Readout (2 cols) -->
+                        <div class="dt3-feeder-tile">
+                          <div class="dt3-cell-head">
+                            <span class="dt3-label">检测图片计数</span>
+                            <span class="dt3-op-chip">源数据</span>
+                          </div>
+                          <div class="dt3-big-number">
+                            <span>${dirStatus.state === 'ok' ? dirStatus.count : dirStatus.label}</span>
+                            ${dirStatus.state === 'ok' ? '<small>张原图</small>' : ''}
+                          </div>
+                          <span class="dt3-label">${dirStatus.state === 'ok' ? '扫描状态正常' : dirStatus.state === 'error' ? '目录校验失败' : '等待绑定路径'}</span>
+                        </div>
+
+                        <!-- × Repeats Module (2 cols) -->
+                        <div class="dt3-feeder-tile">
+                          <div class="dt3-cell-head">
+                            <label class="dt3-label" for="dt3-rep-${di}-${si}"><span class="dt3-op-chip">×</span> 重复次数</label>
+                            ${helpBtn('num_repeats', '重复次数')}
+                          </div>
+                          <div class="dt3-stepper-row">
+                            <button type="button" class="dt3-step-btn" data-action="step-sub-num" data-di="${di}" data-si="${si}" data-field="num_repeats" data-delta="-1" data-min="1" data-max="1000" aria-label="减小重复次数">−</button>
+                            <input id="dt3-rep-${di}-${si}" type="number" class="dt3-mono-input" min="1" step="1" value="${subset.num_repeats}" data-action="sub-num" data-di="${di}" data-si="${si}" data-field="num_repeats">
+                            <button type="button" class="dt3-step-btn" data-action="step-sub-num" data-di="${di}" data-si="${si}" data-field="num_repeats" data-delta="1" data-min="1" data-max="1000" aria-label="增大重复次数">+</button>
+                          </div>
+                          <span class="dt3-label">每轮重复权重倍率</span>
+                        </div>
+
+                        <!-- × Sample Rate Module (1.5 cols) -->
+                        <div class="dt3-feeder-tile">
+                          <div class="dt3-cell-head">
+                            <label class="dt3-label" for="dt3-rate-${di}-${si}"><span class="dt3-op-chip">×</span> 每轮图片采样比例</label>
+                            ${helpBtn('epoch_sample_rate', '每轮图片采样比例')}
+                          </div>
+                          <div class="dt3-stepper-row">
+                            <button type="button" class="dt3-step-btn" data-action="step-sub-num" data-di="${di}" data-si="${si}" data-field="epoch_sample_rate" data-delta="-0.1" data-min="0" data-max="1" aria-label="减小每轮图片采样比例">−</button>
+                            <input id="dt3-rate-${di}-${si}" type="number" class="dt3-mono-input" min="0" max="1" step="0.01" value="${subset.epoch_sample_rate}" data-action="sub-num" data-di="${di}" data-si="${si}" data-field="epoch_sample_rate">
+                            <button type="button" class="dt3-step-btn" data-action="step-sub-num" data-di="${di}" data-si="${si}" data-field="epoch_sample_rate" data-delta="0.1" data-min="0" data-max="1" aria-label="增大每轮图片采样比例">+</button>
+                          </div>
+                          <span class="dt3-label">取值 0～1 (${Math.round((Number(subset.epoch_sample_rate) || 0) * 100)}%)</span>
+                        </div>
+
+                        <!-- = Effective Output Tile (1.5 cols) -->
+                        <div class="dt3-feeder-tile output-well">
+                          <div class="dt3-cell-head">
+                            <span class="dt3-label"><span class="dt3-op-chip">=</span> 单轮有效样本</span>
+                            ${subset.is_reg ? '<span class="dt3-op-chip">REG</span>' : ''}
+                          </div>
+                          <div class="dt3-big-number">
+                            <span>${effOut}</span>
+                            <small>${subset.is_reg ? '张/轮' : '样本/轮'}</small>
+                          </div>
+                          <span class="dt3-label">${subset.is_reg ? '不计入 LBAI 分子' : '计入 LBAI 暴露量'}</span>
+                        </div>
+                      </div>
+
+                      <!-- Row 2: Caption Routing Bus & 4-Affix Patchbay -->
+                      <div class="dt3-caption-bus">
+                        <div class="dt3-bus-top">
+                          <span class="dt3-label">Caption 信号装配总线（4 组前后缀、保留 Token 与 Tags 打乱作用链路）</span>
+                          <div class="dt3-flow-diagram">
+                            <span class="dt3-flow-step ${subset.caption_prefix ? 'active-affix' : ''}">① Caption 前缀</span>
+                            <span class="dt3-flow-arrow">──►</span>
+                            <span class="dt3-flow-step guard">
+                              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>
+                              保留 Token: ${subset.keep_tokens} 项 |
+                              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 4h3l6 8h3M14 4h-3l-2 2.5M2 12h3l2-2.5"/></svg>
+                              ${subset.shuffle_caption ? 'Tags 打乱开启' : 'Tags 顺序固定'}
+                            </span>
+                            <span class="dt3-flow-arrow">──►</span>
+                            <span class="dt3-flow-step ${subset.tags_suffix ? 'active-affix' : ''}">② tags部分后缀</span>
+                            <span class="dt3-flow-arrow">──►</span>
+                            <span class="dt3-flow-step ${subset.natural_language_prefix ? 'active-affix' : ''}">③ 自然语言部分前缀</span>
+                            <span class="dt3-flow-arrow">──►</span>
+                            <span class="dt3-flow-step">自然语言描述</span>
+                            <span class="dt3-flow-arrow">──►</span>
+                            <span class="dt3-flow-step ${subset.caption_suffix ? 'active-affix' : ''}">④ Caption 后缀</span>
+                          </div>
+                        </div>
+
+                        <div class="dt3-preview-box" aria-label="实时合成预览">
+                          <span class="dt3-label">合成预览：</span>
+                          ${capPreview.html}
+                        </div>
+
+                        ${capPreview.mergedFirstTag ? `
+                          <div class="dt3-comma-alert warn">
+                            <span class="dt3-led amber"></span>
+                            <span>提示：当前 Caption 前缀末尾没有英文逗号，将通过空格与第 1 个 Tag 合成为同一标签项（保留 Token 设为 1 即可整项固定）。</span>
+                          </div>
+                        ` : capPreview.hasPrefix ? `
+                          <div class="dt3-comma-alert ok">
+                            <span class="dt3-led on"></span>
+                            <span>前缀末尾含英文逗号：独立占 1 个标签项，当前保留前 ${subset.keep_tokens} 项免于随机打乱与 Tag Dropout。</span>
+                          </div>
+                        ` : ''}
+                      </div>
+
+                      <div class="dt3-affix-patchbay">
+                        ${[
+                          ['caption_prefix', '① Caption 前缀', subset.caption_prefix, '例如 rin_style, '],
+                          ['tags_suffix', '② tags部分后缀', subset.tags_suffix, '位于 Tags 之后、自然语言之前'],
+                          ['natural_language_prefix', '③ 自然语言部分前缀', subset.natural_language_prefix, '例如 In the style of Rin, '],
+                          ['caption_suffix', '④ Caption 后缀', subset.caption_suffix, '追加在整段 Caption 末尾']
+                        ].map(([field, label, val, placeholder]) => `
+                          <div class="dt3-affix-tile">
+                            <div class="dt3-cell-head">
+                              <label class="dt3-label" for="dt3-${field}-${di}-${si}">${escapeHtml(label)}</label>
+                              ${helpBtn(field, label.replace(/^[①②③④]\s*/, ''))}
+                            </div>
+                            <input id="dt3-${field}-${di}-${si}" type="text" class="dt3-text-input" value="${escapeHtml(val)}" placeholder="${escapeHtml(placeholder)}" data-action="sub-text" data-di="${di}" data-si="${si}" data-field="${field}">
+                          </div>
+                        `).join('')}
+                      </div>
+
+                      <!-- Row 3: Token Protection, Dropout Attenuators & Switch Bank -->
+                      <div class="dt3-feeder-row3">
+                        ${[
+                          ['keep_tokens', '保留 Token', subset.keep_tokens, 1, 0, 64, '项受保护'],
+                          ['caption_dropout_rate', 'Caption Dropout', subset.caption_dropout_rate, 0.01, 0, 1, `整段丢弃 ${Math.round((Number(subset.caption_dropout_rate) || 0) * 100)}%`],
+                          ['caption_tag_dropout_rate', 'Tag Dropout', subset.caption_tag_dropout_rate, 0.01, 0, 1, `标签丢弃 ${Math.round((Number(subset.caption_tag_dropout_rate) || 0) * 100)}%`],
+                          ['caption_dropout_every_n_epochs', '每 N 轮 Caption Dropout', subset.caption_dropout_every_n_epochs, 1, 0, 100, Number(subset.caption_dropout_every_n_epochs) > 0 ? `每 ${subset.caption_dropout_every_n_epochs} 轮触发` : '0 (已关闭)']
+                        ].map(([field, label, val, step, min, max, subNote]) => `
+                          <div class="dt3-attenuator-tile">
+                            <div class="dt3-cell-head">
+                              <label class="dt3-label" for="dt3-${field}-${di}-${si}">${escapeHtml(label)}</label>
+                              ${helpBtn(field, label)}
+                            </div>
+                            <div class="dt3-stepper-row">
+                              <button type="button" class="dt3-step-btn" data-action="step-sub-num" data-di="${di}" data-si="${si}" data-field="${field}" data-delta="-${step}" data-min="${min}" data-max="${max}" aria-label="减小 ${escapeHtml(label)}">−</button>
+                              <input id="dt3-${field}-${di}-${si}" type="number" class="dt3-mono-input" min="${min}" max="${max}" step="${step}" value="${val}" data-action="sub-num" data-di="${di}" data-si="${si}" data-field="${field}">
+                              <button type="button" class="dt3-step-btn" data-action="step-sub-num" data-di="${di}" data-si="${si}" data-field="${field}" data-delta="${step}" data-min="${min}" data-max="${max}" aria-label="增大 ${escapeHtml(label)}">+</button>
+                            </div>
+                            <span class="dt3-label">${escapeHtml(subNote)}</span>
+                          </div>
+                        `).join('')}
+
+                        <!-- 4 Subset Booleans Switch Bank -->
+                        <div class="dt3-subset-switches">
+                          ${[
+                            ['shuffle_caption', '打乱 Caption', subset.shuffle_caption],
+                            ['flip_aug', '水平翻转', subset.flip_aug],
+                            ['is_reg', '正则化数据集', subset.is_reg],
+                            ['alpha_mask', 'Alpha Mask', subset.alpha_mask]
+                          ].map(([field, label, val]) => `
+                            <div class="dt3-switch-cell ${val ? 'active' : ''}">
+                              <div class="dt3-switch-top">
+                                <span class="dt3-led ${val ? 'on' : ''}"></span>
+                                ${helpBtn(field, label)}
+                              </div>
+                              <button type="button" class="dt3-switch-btn" data-action="toggle-sub-bool" data-di="${di}" data-si="${si}" data-field="${field}" aria-pressed="${val ? 'true' : 'false'}">
+                                <span>${escapeHtml(label)}</span>
+                              </button>
+                              <span class="dt3-switch-state">${val ? '开启' : '关闭'}</span>
+                            </div>
+                          `).join('')}
+                        </div>
+                      </div>
+                    `}
+                  </section>
+                `;
+              }).join('')}
+            </article>
+          `;
+        }).join('')}
+      </fieldset>
+
+      <!-- Read-Only Preview Section (Outside Fieldset, visible when store.locked is true) -->
+      ${state.locked ? `
+        <section class="dt3-readonly-preview" aria-label="数据集只读预览">
+          <div>
+            <strong>数据集只读预览（任务已锁定 / 训练进行中）</strong>
+            <span class="muted" style="margin-left:8px;">编辑表单已锁定，您仍可切换上方 LBAI 比较目标或只读预览各子集样本与切分结果：</span>
+          </div>
+          <div class="dt3-readonly-btns">
+            ${state.datasets.map((dataset, di) =>
+              dataset.subsets.map((subset, si) => `
+                <button type="button" class="dt3-hw-btn" data-action="browse-dataset" data-di="${di}" data-si="${si}" ${!subset.image_dir ? 'disabled' : ''}>
+                  预览 Dataset ${di + 1} / 子集 ${si + 1}
+                </button>
+              `).join('')
+            ).join('')}
+          </div>
+        </section>
+      ` : ''}
+
+      <!-- Floating FieldHelp Popover -->
+      ${renderHelpPopover()}
+
+      <!-- Simulated Hardware Action Toast -->
+      ${state.toastMessage ? `
+        <div class="dt3-toast" role="status">
+          <span class="dt3-led on"></span>
+          <span>${escapeHtml(state.toastMessage)}</span>
+        </div>
+      ` : ''}
+    `;
+  }
+
+  function renderHelpPopover() {
+    if (!state.activeHelp) return '';
+    const entry = FIELD_HELP[state.activeHelp.field];
+    if (!entry) return '';
+    const [title, meaning, effect, notes] = entry;
+    const top = Math.min(window.innerHeight - 260, Math.max(16, state.activeHelp.top));
+    const left = Math.min(window.innerWidth - 380, Math.max(16, state.activeHelp.left));
+    return `
+      <aside class="dt3-help-popover" style="top:${top}px;left:${left}px;" role="dialog" aria-label="${escapeHtml(title)} 参数说明">
+        <div class="dt3-help-popover-head">
+          <div>
+            <strong>${escapeHtml(title)}</strong>
+            <span class="dt3-help-key">${escapeHtml(state.activeHelp.field)}</span>
+          </div>
+          <button type="button" class="dt3-help-btn" data-action="close-help" aria-label="关闭说明">×</button>
+        </div>
+        <div class="dt3-help-row">
+          <div class="dt3-help-row-label">含义</div>
+          <div>${escapeHtml(meaning)}</div>
+        </div>
+        <div class="dt3-help-row">
+          <div class="dt3-help-row-label">作用</div>
+          <div>${escapeHtml(effect)}</div>
+        </div>
+        <div class="dt3-help-row" style="margin-bottom:0;">
+          <div class="dt3-help-row-label">注意事项</div>
+          <ul class="dt3-help-notes">
+            ${notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}
+          </ul>
+        </div>
+      </aside>
+    `;
+  }
+
+  // Event Delegation for Clicks and Inputs
+  document.addEventListener('click', (e) => {
+    const root = document.getElementById('dt3-app');
+    if (!root) return;
+
+    const helpTrigger = e.target.closest('[data-help-field]');
+    if (helpTrigger) {
+      e.preventDefault();
+      e.stopPropagation();
+      const field = helpTrigger.getAttribute('data-help-field');
+      if (state.activeHelp && state.activeHelp.field === field) {
+        state.activeHelp = null;
+      } else {
+        const rect = helpTrigger.getBoundingClientRect();
+        state.activeHelp = {
+          field,
+          top: rect.bottom + 8,
+          left: rect.left - 160
+        };
+      }
+      render();
+      return;
+    }
+
+    const actionEl = e.target.closest('[data-action]');
+    if (!actionEl) {
+      if (state.activeHelp && !e.target.closest('.dt3-help-popover')) {
+        state.activeHelp = null;
+        render();
+      }
+      return;
+    }
+
+    const action = actionEl.getAttribute('data-action');
+    const di = Number(actionEl.getAttribute('data-di'));
+    const si = Number(actionEl.getAttribute('data-si'));
+
+    switch (action) {
+      case 'close-help':
+        state.activeHelp = null;
+        render();
+        break;
+      case 'toggle-lock':
+        state.locked = !state.locked;
+        render();
+        break;
+      case 'toggle-anomaly':
+        state.anomalyDemo = !state.anomalyDemo;
+        if (state.anomalyDemo) {
+          state.training.resolution_schedule = '512:0.4,1024:0.4';
+        } else {
+          state.training.resolution_schedule = '512:0.3,1024:0.7';
+        }
+        render();
+        break;
+      case 'select-target':
+        state.targetIndex = Number(actionEl.getAttribute('data-index')) || 0;
+        render();
+        break;
+      case 'toggle-global-bool': {
+        const scope = actionEl.getAttribute('data-scope');
+        const field = actionEl.getAttribute('data-field');
+        state[scope][field] = !state[scope][field];
+        markDirty();
+        render();
+        break;
+      }
+      case 'step-general-num': {
+        const field = actionEl.getAttribute('data-field');
+        const delta = Number(actionEl.getAttribute('data-delta'));
+        const next = Math.max(16, (Number(state.general[field]) || 0) + delta);
+        state.general[field] = next;
+        markDirty();
+        render();
+        break;
+      }
+      case 'set-schedule':
+        state.training.resolution_schedule = actionEl.getAttribute('data-val') || '';
+        markDirty();
+        render();
+        break;
+      case 'add-dataset':
+        state.datasets.push({
+          id: 'ds-' + Date.now(),
+          resolution: '[1024, 1024]',
+          batch_size: 1,
+          caption_extension: '.txt',
+          subsets: [
+            {
+              id: 'sub-' + Date.now(),
+              collapsed: false,
+              image_dir: '',
+              count: 0,
+              num_repeats: 1,
+              epoch_sample_rate: 1,
+              keep_tokens: 1,
+              caption_dropout_rate: 0.05,
+              caption_tag_dropout_rate: 0,
+              caption_dropout_every_n_epochs: 0,
+              caption_prefix: '',
+              tags_suffix: '',
+              natural_language_prefix: '',
+              caption_suffix: '',
+              shuffle_caption: false,
+              flip_aug: false,
+              is_reg: false,
+              alpha_mask: false
+            }
+          ]
+        });
+        markDirty();
+        render();
+        break;
+      case 'delete-dataset':
+        if (state.datasets.length > 1) {
+          state.datasets.splice(di, 1);
+          markDirty();
+          render();
+        }
+        break;
+      case 'set-ds-res':
+        state.datasets[di].resolution = actionEl.getAttribute('data-val');
+        markDirty();
+        render();
+        break;
+      case 'step-ds-bs': {
+        const delta = Number(actionEl.getAttribute('data-delta'));
+        state.datasets[di].batch_size = Math.max(1, (Number(state.datasets[di].batch_size) || 1) + delta);
+        markDirty();
+        render();
+        break;
+      }
+      case 'add-subset':
+        state.datasets[di].subsets.push({
+          id: 'sub-' + Date.now(),
+          collapsed: false,
+          image_dir: '',
+          count: 0,
+          num_repeats: 1,
+          epoch_sample_rate: 1,
+          keep_tokens: 1,
+          caption_dropout_rate: 0.05,
+          caption_tag_dropout_rate: 0,
+          caption_dropout_every_n_epochs: 0,
+          caption_prefix: '',
+          tags_suffix: '',
+          natural_language_prefix: '',
+          caption_suffix: '',
+          shuffle_caption: false,
+          flip_aug: false,
+          is_reg: false,
+          alpha_mask: false
+        });
+        markDirty();
+        render();
+        break;
+      case 'delete-subset':
+        if (state.datasets[di].subsets.length > 1) {
+          state.datasets[di].subsets.splice(si, 1);
+          markDirty();
+          render();
+        }
+        break;
+      case 'toggle-subset':
+        state.datasets[di].subsets[si].collapsed = !state.datasets[di].subsets[si].collapsed;
+        render();
+        break;
+      case 'step-sub-num': {
+        const field = actionEl.getAttribute('data-field');
+        const delta = Number(actionEl.getAttribute('data-delta'));
+        const min = Number(actionEl.getAttribute('data-min'));
+        const max = Number(actionEl.getAttribute('data-max'));
+        const cur = Number(state.datasets[di].subsets[si][field]) || 0;
+        const rawNext = Math.round((cur + delta) * 100) / 100;
+        state.datasets[di].subsets[si][field] = Math.min(max, Math.max(min, rawNext));
+        markDirty();
+        render();
+        break;
+      }
+      case 'toggle-sub-bool': {
+        const field = actionEl.getAttribute('data-field');
+        state.datasets[di].subsets[si][field] = !state.datasets[di].subsets[si][field];
+        markDirty();
+        render();
+        break;
+      }
+      case 'open-folder': {
+        const dir = state.datasets[di].subsets[si].image_dir;
+        showToast(`已请求系统文件管理器打开目录：${dir}`);
+        break;
+      }
+      case 'import-dataset':
+        showToast(`已打开 DatasetAssetManager 导入对话框 (Dataset ${di + 1} / 子集 ${si + 1})`);
+        break;
+      case 'browse-dataset': {
+        const dir = state.datasets[di].subsets[si].image_dir;
+        showToast(`已打开 DatasetAssetManager 浏览与分词切分预览：${dir}`);
+        break;
+      }
+      case 'recount-dataset': {
+        const sub = state.datasets[di].subsets[si];
+        showToast(`已重新扫描目录计数：${sub.image_dir || '(空目录)'}`);
+        break;
+      }
+    }
+  });
+
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    const action = el.getAttribute('data-action');
+    if (!action) return;
+    const di = Number(el.getAttribute('data-di'));
+    const si = Number(el.getAttribute('data-si'));
+    const field = el.getAttribute('data-field');
+
+    if (action === 'change-target') {
+      state.targetIndex = Number(el.value) || 0;
+      render();
+      return;
+    }
+    if (action === 'input-general-num') {
+      state.general[field] = Number(el.value) || 0;
+      markDirty();
+      render();
+      return;
+    }
+    if (action === 'input-schedule') {
+      state.training.resolution_schedule = el.value;
+      markDirty();
+      render();
+      return;
+    }
+    if (action === 'ds-field') {
+      state.datasets[di][field] = el.value;
+      markDirty();
+      return;
+    }
+    if (action === 'ds-num') {
+      state.datasets[di][field] = Math.max(1, Number(el.value) || 1);
+      markDirty();
+      render();
+      return;
+    }
+    if (action === 'sub-text') {
+      state.datasets[di].subsets[si][field] = el.value;
+      if (field === 'image_dir' && el.value.trim() && !state.datasets[di].subsets[si].count) {
+        state.datasets[di].subsets[si].count = 24;
+      }
+      markDirty();
+      render();
+      return;
+    }
+    if (action === 'sub-num') {
+      state.datasets[di].subsets[si][field] = Number(el.value) || 0;
+      markDirty();
+      render();
+      return;
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

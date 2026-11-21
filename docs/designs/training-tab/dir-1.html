@@ -1,0 +1,2366 @@
+<!doctype html>
+<html lang="zh-CN" class="dark" data-theme="github-dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Training tab · Dir 1 · Tufte Run Timeline</title>
+<style>
+/* ===== Existing app shell (copied from training-ui/frontend/src/style.css). DO NOT EDIT this block. ===== */
+:root { --background:#f5f7fa; --foreground:#202b40; --card:#fff; --primary:#326cd4; --primary-foreground:#fff; --secondary:#e9edf4; --muted:#edf0f5; --muted-foreground:#677389; --accent:#e0e9fc; --destructive:#bc364a; --border:#dbe1eb; font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif; color-scheme:light; }
+.dark { --background:#10151f; --foreground:#e0e7f2; --card:#171e2b; --primary:#86aafa; --primary-foreground:#111b32; --secondary:#222d40; --muted:#1b2434; --muted-foreground:#94a3bb; --accent:#253650; --destructive:#db4e67; --border:#2b374c; color-scheme:dark; }
+[data-theme="midnight-blue"] { --background:#0c172b; --card:#10213b; --border:#263f61; --primary:#6ec1eb; }
+[data-theme="cherry-pink"] { --background:#241622; --card:#2d1e2c; --border:#513347; --primary:#e8a0c1; }
+* { box-sizing:border-box; border-color:var(--border); }
+body { margin:0; background:var(--background); color:var(--foreground); font-size:14px; line-height:1.55; }
+button { cursor:pointer; font:inherit; color:inherit; background:none; border:0; } button:disabled { cursor:not-allowed; opacity:.45; }
+input,select,textarea { max-width:100%; font:inherit; }
+:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+a { color:var(--primary); text-decoration:none; } h1,h2,h3,p { margin-top:0; } small { display:block; }
+.studio-shell { display:grid; grid-template-columns:245px minmax(0,1fr); min-height:100dvh; }
+.sidebar { position:sticky; top:0; height:100dvh; border-right:1px solid var(--border); padding:26px 18px 16px; background:color-mix(in srgb,var(--card) 94%,transparent); display:flex; flex-direction:column; gap:16px; }
+.brand { display:flex; gap:11px; align-items:center; color:var(--foreground); font-size:16px; font-weight:650; margin-bottom:12px; }.brand small { font-weight:400; font-size:11px; color:var(--muted-foreground); letter-spacing:.06em; }
+.brand-mark { background:linear-gradient(140deg,#8cadff,#9c7ae3); color:#14213a; display:grid; place-items:center; font-weight:800; border-radius:10px; width:36px; height:40px; }
+.sidebar-heading { display:flex; align-items:center; justify-content:space-between; }.sidebar-heading h2 { margin:0; font-size:12px; color:var(--muted-foreground); letter-spacing:.1em; }
+.subtle { border:0; background:none; padding:3px; color:var(--muted-foreground); }
+.shell-input { width:100%; height:36px; border:1px solid var(--border); border-radius:6px; padding:4px 12px; background:color-mix(in srgb,var(--border) 30%,transparent); color:var(--foreground); }
+.job-list { flex:1; min-height:100px; overflow:auto; display:flex; flex-direction:column; gap:6px; }.job-item { border:1px solid transparent; border-radius:7px; display:flex; gap:10px; align-items:center; padding:10px; background:transparent; text-align:left; }.job-item.selected { background:var(--accent); border-color:var(--border); }.job-name small { font-size:10px; color:var(--muted-foreground); }.job-dot { width:6px; height:6px; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }.job-dot.running { background:#5ace9d; box-shadow:0 0 7px #5ace9d66; }
+.new-job { display:grid; gap:9px; border-top:1px solid var(--border); padding-top:18px; }.new-job label { font-size:12px; color:var(--muted-foreground); }.new-job select { height:36px; border:1px solid var(--border); border-radius:6px; padding:0 10px; background:var(--background); color:var(--foreground); }
+.sidebar footer { display:flex; flex-direction:column; align-items:flex-start; gap:6px; font-size:11px; }.connection-on { color:#70be9d; }
+main { min-width:0; }
+.toolbar { min-height:115px; padding:25px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:color-mix(in srgb,var(--background) 90%,transparent); }
+.eyebrow { font-size:9px; font-weight:650; letter-spacing:.18em; color:var(--muted-foreground); } h1 { font-size:22px; font-weight:650; margin:2px 0; } .dirty-dot { font-size:10px; color:#e3b76a; margin-left:9px; }
+.toolbar-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.sbtn { display:inline-flex; align-items:center; height:36px; padding:0 16px; border-radius:6px; font-size:14px; font-weight:500; background:var(--primary); color:var(--primary-foreground); }
+.sbtn.outline { background:color-mix(in srgb,var(--border) 30%,transparent); border:1px solid var(--border); color:var(--foreground); }
+.sbtn.ghost { background:none; color:var(--foreground); } .sbtn.train { background:#599e7d; color:#071e15; }
+.tabs { display:flex; gap:3px; padding:0 25px; border-bottom:1px solid var(--border); overflow:auto; }.tabs button { white-space:nowrap; padding:15px 13px; border-bottom:2px solid transparent; color:var(--muted-foreground); font-size:12px; }.tabs button.active { color:var(--primary); border-bottom-color:var(--primary); }
+.workspace { padding:26px 32px 60px; margin:auto; }
+.muted { color:var(--muted-foreground); }
+/* demo-only theme switcher */
+.theme-dock { position:fixed; right:14px; bottom:14px; z-index:999; display:flex; gap:4px; padding:5px; border:1px solid var(--border); border-radius:8px; background:var(--card); box-shadow:0 6px 20px #0005; font-size:11px; }
+.theme-dock button { padding:4px 8px; border-radius:5px; color:var(--muted-foreground); } .theme-dock button[aria-pressed=true] { background:var(--accent); color:var(--foreground); }
+@media(max-width:1000px) { .studio-shell{grid-template-columns:205px minmax(0,1fr)} .toolbar,.workspace{padding-left:20px;padding-right:20px} .tabs{padding:0 10px} }
+@media(max-width:680px) { .studio-shell{display:block}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding:16px}.job-list{max-height:150px}.toolbar{padding:18px}.workspace{padding:18px 12px} }
+/* ===== end of shell ===== */
+
+/* ===== Direction 1 · Edward Tufte-style Run Timeline (scoped under .tt) ===== */
+.tt-wrap {
+  --tt-mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+  --tt-hairline: color-mix(in srgb, var(--border) 75%, transparent);
+  --tt-hairline-soft: color-mix(in srgb, var(--border) 45%, transparent);
+  --tt-ink-soft: color-mix(in srgb, var(--foreground) 72%, var(--background));
+  --tt-ink-faint: var(--muted-foreground);
+  --tt-surface-whisper: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+  --tt-warn: #d49b4b;
+  max-width: 1560px;
+  margin: 0 auto;
+}
+
+/* Quiet top bar: live recipe + demo state controls (outside fieldset so controls stay interactive when locked) */
+.tt-topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--tt-hairline);
+}
+.tt-recipe {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 14px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+.tt-recipe-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  cursor: pointer;
+  border-bottom: 1px dotted transparent;
+  transition: border-color .15s, color .15s;
+}
+.tt-recipe-item:hover {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+}
+.tt-recipe-mono {
+  font-family: var(--tt-mono);
+  font-weight: 500;
+}
+.tt-recipe-sep {
+  color: var(--tt-ink-faint);
+  user-select: none;
+}
+
+.tt-demo-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.tt-demo-btn {
+  padding: 3px 9px;
+  border: 1px solid var(--tt-hairline);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  transition: color .15s, border-color .15s, background .15s;
+}
+.tt-demo-btn:hover {
+  color: var(--foreground);
+  border-color: var(--border);
+  background: var(--tt-surface-whisper);
+}
+.tt-demo-btn[aria-pressed="true"] {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+.tt-dirty-count {
+  font-family: var(--tt-mono);
+  font-size: 12px;
+  color: var(--tt-warn);
+}
+
+/* Locked notice strip (only visible when locked) */
+.tt-lock-banner {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--tt-hairline);
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.tt-lock-banner.is-visible {
+  display: flex;
+}
+.tt-lock-banner strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* Main fieldset root */
+.tt {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.tt:disabled {
+  opacity: .58;
+}
+.tt:disabled .tt-chart-hit {
+  pointer-events: none;
+}
+
+/* ===== Hero: Tufte Run Timeline ===== */
+.tt-hero {
+  padding: 18px 0 20px;
+  border-bottom: 1px solid var(--tt-hairline);
+}
+.tt-hero-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.tt-hero-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0;
+}
+.tt-hero-caption {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.tt-chart-stage {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+}
+.tt-chart-svg {
+  display: block;
+  width: 100%;
+  height: 204px;
+  overflow: visible;
+  user-select: none;
+}
+.tt-chart-svg text {
+  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  fill: var(--muted-foreground);
+  font-size: 12px;
+}
+.tt-chart-svg text.mono {
+  font-family: var(--tt-mono);
+  font-variant-numeric: tabular-nums;
+}
+.tt-chart-svg text.ink {
+  fill: var(--foreground);
+  font-weight: 500;
+}
+.tt-chart-svg text.primary-ink {
+  fill: var(--primary);
+  font-weight: 500;
+}
+.tt-chart-hit {
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.tt-chart-hit:hover .tt-hit-label {
+  fill: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.tt-chart-hit:hover .tt-hit-stroke {
+  stroke-width: 3;
+}
+.tt-chart-hit:hover .tt-hit-fill {
+  opacity: .22;
+}
+
+/* ===== Four-column hairline parameter sheet ===== */
+.tt-columns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  padding-top: 22px;
+}
+.tt-col {
+  min-width: 0;
+  padding: 0 22px;
+  border-right: 1px solid var(--tt-hairline-soft);
+}
+.tt-col:first-child {
+  padding-left: 0;
+}
+.tt-col:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+.tt-col-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--tt-hairline);
+}
+.tt-col-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+  letter-spacing: -.01em;
+}
+.tt-col-meta {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-family: var(--tt-mono);
+}
+
+/* Field rows (ConfigField-compatible structure) — single hairline per row for clean Tufte data-ink */
+.tt-fields {
+  display: flex;
+  flex-direction: column;
+}
+.tt-field {
+  display: block;
+  padding: 9px 0 8px;
+  border-bottom: 1px solid var(--tt-hairline-soft);
+  transition: background .2s, border-color .15s;
+  position: relative;
+}
+.tt-field:hover:not(.is-disabled) {
+  border-bottom-color: color-mix(in srgb, var(--foreground) 30%, var(--border));
+}
+.tt-field:focus-within {
+  border-bottom-color: var(--primary);
+}
+.tt-field:last-child {
+  border-bottom: 0;
+}
+.tt-field[hidden] {
+  display: none;
+}
+.tt-field.is-highlighted {
+  background: color-mix(in srgb, var(--primary) 11%, transparent);
+  box-shadow: -8px 0 0 color-mix(in srgb, var(--primary) 11%, transparent), 8px 0 0 color-mix(in srgb, var(--primary) 11%, transparent);
+}
+.tt-field.is-disabled {
+  opacity: .48;
+}
+.tt-field.is-error {
+  border-bottom-color: var(--destructive);
+}
+
+.tt-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+.tt-label-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  line-height: 1.35;
+}
+.tt-field:focus-within .tt-label-left {
+  color: var(--foreground);
+}
+.tt-mod-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tt-warn);
+  flex-shrink: 0;
+  display: none;
+}
+.tt-field.is-modified .tt-mod-dot {
+  display: inline-block;
+}
+
+/* ? help trigger */
+.tt-help {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--muted-foreground) 42%, transparent);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 1;
+  flex-shrink: 0;
+  cursor: help;
+  vertical-align: middle;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.tt-help:hover,
+.tt-help:focus-visible {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+/* Inputs & selects — borderless inside the single-hairline row */
+.tt-control,
+.tt-select,
+.tt-textarea {
+  width: 100%;
+  background: transparent;
+  color: var(--foreground);
+  border: 0;
+  border-radius: 3px;
+  padding: 2px 2px 2px 0;
+  font-size: 14px;
+  line-height: 1.45;
+  transition: background .15s;
+}
+.tt-control.mono {
+  font-family: var(--tt-mono);
+  font-variant-numeric: tabular-nums;
+}
+.tt-control:focus,
+.tt-select:focus {
+  outline: none;
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+.tt-select {
+  cursor: pointer;
+  padding-right: 18px;
+}
+.tt-select option {
+  background: var(--card);
+  color: var(--foreground);
+}
+.tt-textarea {
+  font-family: var(--tt-mono);
+  font-size: 13px;
+  min-height: 68px;
+  resize: vertical;
+  border: 1px solid var(--tt-hairline);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-top: 4px;
+}
+.tt-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 4%, transparent);
+}
+
+/* Segmented hairline control for 2-option unit swaps (Steps / Epochs) */
+.tt-seg {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  width: 100%;
+  gap: 0;
+  margin-top: 2px;
+}
+.tt-seg button {
+  padding: 3px 8px 5px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -9px;
+  text-align: center;
+  transition: color .15s, border-color .15s;
+}
+.tt-seg button:hover:not(:disabled) {
+  color: var(--foreground);
+}
+.tt-seg button[aria-pressed="true"] {
+  color: var(--foreground);
+  font-weight: 600;
+  border-bottom-color: var(--primary);
+}
+
+/* Learning Rate stepper + logarithmic gauge (adapted from dir-3) */
+.tt-lr-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tt-lr-row .tt-control {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+.tt-stepper {
+  display: inline-flex;
+  border: 1px solid var(--tt-hairline);
+  border-radius: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--muted) 65%, transparent);
+  flex-shrink: 0;
+}
+.tt-stepper button {
+  width: 26px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  font-family: var(--tt-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  transition: background .1s, color .1s;
+}
+.tt-stepper button + button {
+  border-left: 1px solid var(--tt-hairline);
+}
+.tt-stepper button:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--primary);
+}
+.tt-stepper button:active:not(:disabled) {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.tt-gauge {
+  position: relative;
+  height: 8px;
+  margin-top: 6px;
+  background: color-mix(in srgb, var(--muted) 80%, transparent);
+  border: 1px solid var(--tt-hairline);
+  border-radius: 2px;
+  overflow: hidden;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.tt:disabled .tt-gauge {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.tt-gauge-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--primary) 78%, transparent);
+  pointer-events: none;
+}
+.tt-gauge-ticks {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 11px,
+    color-mix(in srgb, var(--background) 65%, transparent) 11px,
+    color-mix(in srgb, var(--background) 65%, transparent) 12px
+  );
+  pointer-events: none;
+}
+.tt-scale-marks {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--tt-mono);
+  font-size: 10px;
+  color: color-mix(in srgb, var(--muted-foreground) 80%, transparent);
+  margin-top: 3px;
+  user-select: none;
+}
+
+/* Unified LR Scheduler combobox + two-column curve preview (matches SchedulerSelect.vue / SchedulerCurve.vue) */
+.tt-sched-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 2px 2px 0;
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--tt-mono);
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+.tt-sched-trigger-chev {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1;
+  transition: transform .15s, color .15s;
+}
+.tt-sched-trigger[aria-expanded="true"] .tt-sched-trigger-chev {
+  color: var(--primary);
+  transform: rotate(180deg);
+}
+.tt-sched-content {
+  position: fixed;
+  z-index: 90;
+  width: min(600px, calc(100vw - 24px));
+  max-height: min(460px, calc(100vh - 24px));
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 12px 36px #0005;
+  text-shadow: none;
+}
+.tt-sched-content[hidden] {
+  display: none;
+}
+.scheduler-menu-layout {
+  display: grid;
+  grid-template-columns: minmax(210px, .9fr) minmax(0, 1.1fr);
+}
+.scheduler-options-column {
+  min-width: 0;
+  padding: 10px;
+}
+.scheduler-menu-hint {
+  padding: 3px 7px 9px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.scheduler-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.scheduler-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 9px;
+  border-radius: 6px;
+  font-family: var(--tt-mono);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+.scheduler-option[data-highlighted="true"] {
+  background: var(--accent);
+  color: var(--primary);
+}
+.scheduler-option[aria-selected="true"] {
+  font-weight: 650;
+}
+.scheduler-selected {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.scheduler-curve {
+  padding: 15px;
+  border-left: 1px solid var(--border);
+  background: color-mix(in srgb, var(--muted) 50%, var(--card));
+  min-width: 0;
+}
+.scheduler-preview-eyebrow {
+  font-size: 10px;
+  letter-spacing: .12em;
+  color: var(--muted-foreground);
+  margin-bottom: 5px;
+}
+.scheduler-preview-title {
+  font-size: 15px;
+  font-weight: 650;
+}
+.scheduler-curve > code {
+  display: block;
+  font-family: var(--tt-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+}
+.scheduler-figure {
+  margin: 12px 0 9px;
+}
+.scheduler-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--primary);
+}
+.scheduler-grid {
+  fill: none;
+  stroke: var(--border);
+  stroke-dasharray: 3 4;
+  stroke-width: .7;
+}
+.scheduler-axis {
+  fill: none;
+  stroke: var(--muted-foreground);
+  stroke-width: .8;
+}
+.scheduler-axis-text {
+  fill: var(--muted-foreground);
+  font-size: 8px;
+}
+.scheduler-line {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.scheduler-floor {
+  fill: none;
+  stroke: var(--muted-foreground);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+.scheduler-figure figcaption {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.55;
+  margin-top: 4px;
+}
+.scheduler-preview-description {
+  font-size: 12px;
+  line-height: 1.65;
+  margin: 7px 0;
+}
+.scheduler-preview-disclaimer {
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+@media (max-width: 600px) {
+  .scheduler-menu-layout { grid-template-columns: minmax(0, 1fr); }
+  .scheduler-curve { border-left: 0; border-top: 1px solid var(--border); padding: 12px; }
+}
+
+/* Boolean switch row — inline help trigger so multi-line labels never detach ? */
+.tt-bool-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+.tt-bool-label {
+  display: block;
+  font-size: 14px;
+  color: var(--foreground);
+  line-height: 1.4;
+  min-width: 0;
+}
+.tt-bool-label .tt-mod-dot {
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.tt-bool-label .tt-help {
+  margin-left: 5px;
+  vertical-align: -2px;
+}
+.tt-switch {
+  position: relative;
+  width: 34px;
+  height: 19px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+.tt-switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.tt-switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--border) 45%, transparent);
+  transition: background .15s, border-color .15s;
+}
+.tt-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  transition: transform .15s, background .15s;
+}
+.tt-switch input:checked + .tt-switch-track {
+  background: color-mix(in srgb, var(--primary) 24%, transparent);
+  border-color: var(--primary);
+}
+.tt-switch input:checked + .tt-switch-track::after {
+  transform: translateX(15px);
+  background: var(--primary);
+}
+.tt-switch input:focus-visible + .tt-switch-track {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Notes, dependency hints, validation errors */
+.tt-note {
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+.tt-dep-note {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--tt-warn);
+}
+.tt-dep-note[hidden] {
+  display: none;
+}
+.tt-error {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--destructive);
+  font-weight: 500;
+}
+.tt-error[hidden] {
+  display: none;
+}
+
+/* Details disclosure for Optimizer Args */
+.tt-details {
+  padding: 10px 0 2px;
+}
+.tt-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+.tt-details summary::-webkit-details-marker {
+  display: none;
+}
+.tt-details summary:hover {
+  color: var(--foreground);
+}
+.tt-details-chev {
+  font-size: 11px;
+  transition: transform .15s;
+}
+.tt-details[open] .tt-details-chev {
+  transform: rotate(90deg);
+}
+
+/* Tufte small-multiple inside Caching & Timesteps: live timestep density */
+.tt-mini-figure {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tt-hairline-soft);
+}
+.tt-mini-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-bottom: 6px;
+}
+.tt-mini-head strong {
+  font-weight: 500;
+  color: var(--foreground);
+}
+.tt-mini-svg {
+  display: block;
+  width: 100%;
+  height: 46px;
+  overflow: visible;
+}
+.tt-mini-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 11px;
+  font-family: var(--tt-mono);
+  color: var(--muted-foreground);
+}
+
+/* Shared floating help tooltip */
+.tt-tooltip {
+  position: fixed;
+  z-index: 1200;
+  width: min(320px, calc(100vw - 24px));
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px color-mix(in srgb, #000 32%, transparent);
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity .12s, transform .12s;
+}
+.tt-tooltip.is-open {
+  opacity: 1;
+  transform: translateY(0);
+}
+.tt-tooltip-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tt-tooltip-key {
+  font-family: var(--tt-mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.tt-tooltip p {
+  margin: 0 0 5px;
+  font-size: 13px;
+  color: var(--foreground);
+}
+.tt-tooltip p:last-child {
+  margin-bottom: 0;
+}
+.tt-tooltip .tt-tip-k {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.tt-tooltip .tt-tip-note {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--tt-hairline-soft);
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Responsive degradation */
+@media (max-width: 1220px) {
+  .tt-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 28px;
+  }
+  .tt-col {
+    padding: 0 20px;
+  }
+  .tt-col:nth-child(odd) {
+    padding-left: 0;
+  }
+  .tt-col:nth-child(even) {
+    padding-right: 0;
+    border-right: 0;
+  }
+}
+@media (max-width: 720px) {
+  .tt-columns {
+    grid-template-columns: 1fr;
+    row-gap: 24px;
+  }
+  .tt-col {
+    padding: 0;
+    border-right: 0;
+  }
+  .tt-chart-svg {
+    height: 176px;
+  }
+}
+</style>
+</head>
+<body>
+<div class="studio-shell">
+  <aside class="sidebar">
+    <a class="brand" href="#"><span class="brand-mark">A</span><span>Training Studio<small>Anima · Krea 2 · MOSS</small></span></a>
+    <div class="sidebar-heading"><h2>任务</h2><button class="subtle" title="刷新任务">↻</button></div>
+    <input class="shell-input" placeholder="搜索任务…" aria-label="搜索任务">
+    <nav class="job-list" aria-label="任务列表">
+      <button class="job-item selected"><span class="job-dot"></span><span class="job-name">rin_style_v3<small>anima</small></span></button>
+      <button class="job-item"><span class="job-dot running"></span><span class="job-name">kurosawa_char<small>anima</small></span></button>
+      <button class="job-item"><span class="job-dot"></span><span class="job-name">krea_lighting<small>krea2</small></span></button>
+      <button class="job-item"><span class="job-dot"></span><span class="job-name">moss_product_sft<small>moss_image</small></span></button>
+    </nav>
+    <form class="new-job" onsubmit="return false"><label>新建任务</label><input class="shell-input" placeholder="任务名称"><select aria-label="模型架构"><option>Anima</option><option>Krea 2</option><option>MOSS-Image</option></select><button class="sbtn" disabled>创建任务</button></form>
+    <footer><button class="subtle">全局设置</button><a href="#">打开旧界面 ↗</a><span class="connection-on">实时连接正常</span></footer>
+  </aside>
+  <main>
+    <header class="toolbar">
+      <div class="title"><span class="eyebrow">TRAINING WORKSPACE</span><h1>rin_style_v3<span class="dirty-dot" id="dirty-dot" hidden>●</span></h1><span class="muted">anima · 就绪</span></div>
+      <div class="toolbar-actions"><button class="sbtn outline">复制</button><button class="sbtn outline">删除</button><button class="sbtn">保存</button><button class="sbtn train">开始训练</button></div>
+    </header>
+    <nav class="tabs" aria-label="配置页面"><button class="active">训练</button><button>数据集</button><button>网络</button><button>多 GPU</button><button>提示词与生成</button><button>样例</button><button>控制台</button><button>TensorBoard</button><button>训练产出</button><button>设置</button></nav>
+    <div class="workspace">
+      <!--
+        Architecture mapping note (per spec):
+        - Active view: Anima (default).
+        - Krea 2: uses the same Run Timeline hero & 4-column hairline sheet; hides Anima-only fields (text_encoder_lr, lr_warmup_unit, save_model_as, flash_attn, lowram, cache_latents_to_disk, cache_text_encoder_outputs_to_disk, cache_text_encoder_variants), restricts mixed_precision to bf16 and offload to CPU, and renders Dynamic Scaled FP8 / Attention / Split Attention / Text Encoder Cache Batch at the base of Performance & Caching.
+        - MOSS-Image: keeps the same Run Timeline hero; Optimization/Schedule remain identical, Performance adds ConvRot INT8, Block Swap ring/H2D/pinned, and per-block Compile backend/mode/dynamic options.
+      -->
+      <div class="tt-wrap">
+        <!-- One-line live recipe summary + unobtrusive prototype state toggles -->
+        <div class="tt-topbar">
+          <div class="tt-recipe" id="tt-recipe" aria-label="当前训练配方摘要"></div>
+          <div class="tt-demo-bar">
+            <span class="tt-dirty-count" id="tt-dirty-count" hidden></span>
+            <button type="button" class="tt-demo-btn" id="tt-toggle-lock" aria-pressed="false">预览锁定状态</button>
+            <button type="button" class="tt-demo-btn" id="tt-toggle-error" aria-pressed="false">预览校验错误</button>
+          </div>
+        </div>
+
+        <div class="tt-lock-banner" id="tt-lock-banner" role="status">
+          <span><strong>表单已锁定</strong> — 正在保存配置或任务运行中，当前参数只读。</span>
+          <span>点击右上角“预览锁定状态”恢复编辑</span>
+        </div>
+
+        <fieldset class="tt" id="tt-fieldset">
+          <!-- Hero: Interactive Tufte Run Timeline -->
+          <section class="tt-hero" aria-label="学习率与保存时间线">
+            <div class="tt-hero-head">
+              <h2 class="tt-hero-title">训练时间线 · 学习率曲线与检查点节奏</h2>
+              <span class="tt-hero-caption" id="tt-chart-caption">点击曲线、预热区间、保存刻度或终点名称可定位对应参数</span>
+            </div>
+            <div class="tt-chart-stage">
+              <svg class="tt-chart-svg" id="tt-timeline-svg" viewBox="0 0 1120 196" preserveAspectRatio="xMidYMid meet" role="img" aria-label="学习率随训练进度的变化曲线"></svg>
+            </div>
+          </section>
+
+          <!-- Four hairline-separated columns -->
+          <div class="tt-columns">
+            <!-- Column 1: Optimization -->
+            <section class="tt-col" aria-labelledby="col-opt">
+              <div class="tt-col-head">
+                <h2 id="col-opt">Optimization</h2>
+                <span class="tt-col-meta" id="meta-opt">AdamW8bit</span>
+              </div>
+              <div class="tt-fields">
+                <div class="tt-field" data-field="learning_rate">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span><label for="f-learning_rate">Learning Rate</label><button type="button" class="tt-help" data-help="learning_rate" aria-label="Learning Rate 说明">?</button></span>
+                  </span>
+                  <div class="tt-lr-row">
+                    <input class="tt-control mono" id="f-learning_rate" type="text" inputmode="decimal" value="5e-5" />
+                    <div class="tt-stepper">
+                      <button type="button" id="tt-lr-dec" aria-label="减小 Learning Rate">−</button>
+                      <button type="button" id="tt-lr-inc" aria-label="增大 Learning Rate">+</button>
+                    </div>
+                  </div>
+                  <div class="tt-gauge" id="tt-lr-gauge" role="slider" tabindex="0" aria-label="Learning Rate 滑条" aria-valuemin="0.000001" aria-valuemax="0.001" aria-valuenow="0.00005" title="点击或横向拖拽调节 Learning Rate">
+                    <div class="tt-gauge-fill" id="tt-lr-gauge-fill"></div>
+                    <div class="tt-gauge-ticks"></div>
+                  </div>
+                  <div class="tt-scale-marks" aria-hidden="true">
+                    <span>1e-6</span><span>1e-5</span><span>5e-5</span><span>1e-4</span><span>1e-3</span>
+                  </div>
+                  <span class="tt-error" id="err-learning_rate" hidden></span>
+                </div>
+
+                <label class="tt-field" data-field="text_encoder_lr">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Text Encoder LR<button type="button" class="tt-help" data-help="text_encoder_lr" aria-label="Text Encoder LR 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-text_encoder_lr" type="text" inputmode="decimal" value="5e-5" />
+                  <span class="tt-error" id="err-text_encoder_lr" hidden></span>
+                </label>
+
+                <label class="tt-field" data-field="optimizer_type">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Optimizer<button type="button" class="tt-help" data-help="optimizer_type" aria-label="Optimizer 说明">?</button></span>
+                  </span>
+                  <select class="tt-select mono" id="f-optimizer_type">
+                    <option value="AdamW8bit">AdamW8bit</option>
+                    <option value="AdamW">AdamW</option>
+                    <option value="PagedAdamW">PagedAdamW</option>
+                    <option value="PagedAdamW8bit">PagedAdamW8bit</option>
+                    <option value="PagedAdamW32bit">PagedAdamW32bit</option>
+                    <option value="Adafactor">Adafactor</option>
+                    <option value="Lion8bit">Lion8bit</option>
+                    <option value="PagedLion8bit">PagedLion8bit</option>
+                    <option value="SGDNesterov8bit">SGDNesterov8bit</option>
+                    <option value="Prodigy">Prodigy</option>
+                    <option value="AdamWScheduleFree">AdamWScheduleFree</option>
+                    <option value="RAdamScheduleFree">RAdamScheduleFree</option>
+                    <option value="SGDScheduleFree">SGDScheduleFree</option>
+                  </select>
+                </label>
+
+                <div class="tt-field" data-field="lr_scheduler">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span><label for="f-lr_scheduler">LR Scheduler</label><button type="button" class="tt-help" data-help="lr_scheduler" aria-label="LR Scheduler 说明">?</button></span>
+                  </span>
+                  <button type="button" id="f-lr_scheduler" class="tt-sched-trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="tt-sched-pop" aria-label="LR Scheduler">
+                    <span id="tt-sched-value">cosine</span>
+                    <span class="tt-sched-trigger-chev" aria-hidden="true">⌄</span>
+                  </button>
+                  <div class="tt-sched-content" id="tt-sched-pop" role="dialog" aria-label="LR Scheduler 选项" hidden>
+                    <div class="scheduler-menu-layout">
+                      <div class="scheduler-options-column">
+                        <div class="scheduler-menu-hint">悬停 / ↑↓ 预览 · 选择后应用</div>
+                        <div class="scheduler-options" id="tt-sched-options" role="listbox" aria-label="LR Scheduler 列表"></div>
+                      </div>
+                      <section class="scheduler-curve" id="tt-sched-curve" aria-label="学习率曲线预览"></section>
+                    </div>
+                  </div>
+                </div>
+
+                <label class="tt-field" data-field="lr_scheduler_num_cycles" id="row-lr_scheduler_num_cycles" hidden>
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Restart Cycles<button type="button" class="tt-help" data-help="lr_scheduler_num_cycles" aria-label="Restart Cycles 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-lr_scheduler_num_cycles" type="number" min="1" step="1" value="1" />
+                  <span class="tt-error" id="err-lr_scheduler_num_cycles" hidden></span>
+                </label>
+
+                <label class="tt-field" data-field="lr_scheduler_min_lr_ratio" id="row-lr_scheduler_min_lr_ratio" hidden>
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Min LR Ratio<button type="button" class="tt-help" data-help="lr_scheduler_min_lr_ratio" aria-label="Min LR Ratio 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-lr_scheduler_min_lr_ratio" type="number" min="0" max="1" step="0.01" value="0" />
+                  <span class="tt-error" id="err-lr_scheduler_min_lr_ratio" hidden></span>
+                </label>
+
+                <div class="tt-field" data-field="lr_warmup_unit">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>LR Warmup Unit<button type="button" class="tt-help" data-help="lr_warmup_unit" aria-label="LR Warmup Unit 说明">?</button></span>
+                  </span>
+                  <div class="tt-seg" role="group" aria-label="LR Warmup Unit">
+                    <button type="button" data-seg="lr_warmup_unit" data-val="steps" aria-pressed="true">Steps</button>
+                    <button type="button" data-seg="lr_warmup_unit" data-val="epochs" aria-pressed="false">Epochs</button>
+                  </div>
+                </div>
+
+                <label class="tt-field" data-field="lr_warmup_steps" id="row-lr_warmup_steps">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>LR Warmup Steps<button type="button" class="tt-help" data-help="lr_warmup_steps" aria-label="LR Warmup Steps 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-lr_warmup_steps" type="number" min="0" step="1" value="100" />
+                  <span class="tt-error" id="err-lr_warmup_steps" hidden></span>
+                </label>
+
+                <label class="tt-field" data-field="lr_warmup_epochs" id="row-lr_warmup_epochs" hidden>
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>LR Warmup Epochs<button type="button" class="tt-help" data-help="lr_warmup_epochs" aria-label="LR Warmup Epochs 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-lr_warmup_epochs" type="number" min="0" step="any" value="1" />
+                  <span class="tt-error" id="err-lr_warmup_epochs" hidden></span>
+                </label>
+
+                <label class="tt-field" data-field="weight_decay">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Weight Decay<button type="button" class="tt-help" data-help="weight_decay" aria-label="Weight Decay 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-weight_decay" type="number" min="0" step="any" value="0" />
+                  <span class="tt-error" id="err-weight_decay" hidden></span>
+                </label>
+
+                <div class="tt-field" data-field="decouple" id="row-decouple" hidden>
+                  <label class="tt-bool-row">
+                    <span class="tt-bool-label"><span class="tt-mod-dot"></span>Decouple Weight Decay<button type="button" class="tt-help" data-help="decouple" aria-label="Decouple Weight Decay 说明">?</button></span>
+                    <span class="tt-switch"><input type="checkbox" id="f-decouple" checked /><span class="tt-switch-track"></span></span>
+                  </label>
+                </div>
+
+                <label class="tt-field" data-field="seed">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Seed<button type="button" class="tt-help" data-help="seed" aria-label="Seed 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-seed" type="number" step="1" value="42" />
+                </label>
+
+                <details class="tt-details" id="details-optimizer_args">
+                  <summary>
+                    <span>Optimizer Args (JSON array)</span>
+                    <span class="tt-details-chev">›</span>
+                  </summary>
+                  <label class="tt-field" data-field="optimizer_args" style="border-bottom:0;padding-top:8px;">
+                    <span class="tt-label-row">
+                      <span class="tt-label-left"><span class="tt-mod-dot"></span>optimizer_args<button type="button" class="tt-help" data-help="optimizer_args" aria-label="Optimizer Args 说明">?</button></span>
+                    </span>
+                    <textarea class="tt-textarea" id="f-optimizer_args" spellcheck="false">["weight_decay=0"]</textarea>
+                    <small class="tt-note">保留全部已有参数；切换优化器时仅共用 weight_decay，其他参数按优化器暂存，切回时恢复。</small>
+                    <span class="tt-error" id="err-optimizer_args" hidden></span>
+                  </label>
+                </details>
+              </div>
+            </section>
+
+            <!-- Column 2: Training Schedule -->
+            <section class="tt-col" aria-labelledby="col-sched">
+              <div class="tt-col-head">
+                <h2 id="col-sched">Training Schedule</h2>
+                <span class="tt-col-meta" id="meta-sched">20 epochs</span>
+              </div>
+              <div class="tt-fields">
+                <div class="tt-field" data-field="duration_unit">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Duration Unit<button type="button" class="tt-help" data-help="duration_unit" aria-label="Duration Unit 说明">?</button></span>
+                  </span>
+                  <div class="tt-seg" role="group" aria-label="Duration Unit">
+                    <button type="button" data-seg="duration_unit" data-val="epochs" aria-pressed="true">Epochs</button>
+                    <button type="button" data-seg="duration_unit" data-val="steps" aria-pressed="false">Steps</button>
+                  </div>
+                </div>
+
+                <label class="tt-field" data-field="max_train_epochs" id="row-max_train_epochs">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Max Epochs<button type="button" class="tt-help" data-help="max_train_epochs" aria-label="Max Epochs 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-max_train_epochs" type="number" min="1" step="1" value="20" />
+                  <span class="tt-error" id="err-max_train_epochs" hidden></span>
+                </label>
+
+                <label class="tt-field" data-field="save_every_n_epochs" id="row-save_every_n_epochs">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Save Every N Epochs<button type="button" class="tt-help" data-help="save_every_n_epochs" aria-label="Save Every N Epochs 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-save_every_n_epochs" type="number" min="1" step="1" value="1" />
+                  <span class="tt-error" id="err-save_every_n_epochs" hidden></span>
+                </label>
+
+                <label class="tt-field" data-field="max_train_steps" id="row-max_train_steps" hidden>
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Max Steps<button type="button" class="tt-help" data-help="max_train_steps" aria-label="Max Steps 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-max_train_steps" type="number" min="1" step="1" value="1000" />
+                  <span class="tt-error" id="err-max_train_steps" hidden></span>
+                </label>
+
+                <label class="tt-field" data-field="save_every_n_steps" id="row-save_every_n_steps" hidden>
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Save Every N Steps<button type="button" class="tt-help" data-help="save_every_n_steps" aria-label="Save Every N Steps 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-save_every_n_steps" type="number" min="1" step="1" value="500" />
+                  <span class="tt-error" id="err-save_every_n_steps" hidden></span>
+                </label>
+
+                <label class="tt-field" data-field="output_name">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Output Name<button type="button" class="tt-help" data-help="output_name" aria-label="Output Name 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-output_name" type="text" value="rin_style_v3" />
+                </label>
+
+                <label class="tt-field" data-field="save_model_as">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Save Format<button type="button" class="tt-help" data-help="save_model_as" aria-label="Save Format 说明">?</button></span>
+                  </span>
+                  <select class="tt-select mono" id="f-save_model_as">
+                    <option value="safetensors">safetensors</option>
+                    <option value="ckpt">ckpt</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <!-- Column 3: Performance -->
+            <section class="tt-col" aria-labelledby="col-perf">
+              <div class="tt-col-head">
+                <h2 id="col-perf">Performance</h2>
+                <span class="tt-col-meta" id="meta-perf">bf16</span>
+              </div>
+              <div class="tt-fields">
+                <label class="tt-field" data-field="mixed_precision">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Mixed Precision<button type="button" class="tt-help" data-help="mixed_precision" aria-label="Mixed Precision 说明">?</button></span>
+                  </span>
+                  <select class="tt-select mono" id="f-mixed_precision">
+                    <option value="bf16">bf16</option>
+                    <option value="fp16">fp16</option>
+                    <option value="no">no</option>
+                  </select>
+                </label>
+
+                <label class="tt-field" data-field="save_precision">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Save Precision<button type="button" class="tt-help" data-help="save_precision" aria-label="Save Precision 说明">?</button></span>
+                  </span>
+                  <select class="tt-select mono" id="f-save_precision">
+                    <option value="bf16">bf16</option>
+                    <option value="fp16">fp16</option>
+                    <option value="float">float</option>
+                  </select>
+                </label>
+
+                <label class="tt-field" data-field="gradient_accumulation_steps">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Gradient Accumulation Steps<button type="button" class="tt-help" data-help="gradient_accumulation_steps" aria-label="Gradient Accumulation Steps 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-gradient_accumulation_steps" type="number" min="1" step="1" value="1" />
+                  <span class="tt-error" id="err-gradient_accumulation_steps" hidden></span>
+                </label>
+
+                <label class="tt-field" data-field="max_data_loader_n_workers">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>DataLoader Workers<button type="button" class="tt-help" data-help="max_data_loader_n_workers" aria-label="DataLoader Workers 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-max_data_loader_n_workers" type="number" min="0" max="16" step="1" value="4" />
+                  <span class="tt-error" id="err-max_data_loader_n_workers" hidden></span>
+                </label>
+
+                <div class="tt-field" data-field="persistent_data_loader_workers" id="row-persistent_data_loader_workers">
+                  <label class="tt-bool-row">
+                    <span class="tt-bool-label"><span class="tt-mod-dot"></span>Persistent DataLoader Workers<button type="button" class="tt-help" data-help="persistent_data_loader_workers" aria-label="Persistent DataLoader Workers 说明">?</button></span>
+                    <span class="tt-switch"><input type="checkbox" id="f-persistent_data_loader_workers" checked /><span class="tt-switch-track"></span></span>
+                  </label>
+                  <span class="tt-dep-note" id="dep-persistent_data_loader_workers" hidden>Workers 为 0 时不可启用。</span>
+                </div>
+
+                <div class="tt-field" data-field="gradient_checkpointing">
+                  <label class="tt-bool-row">
+                    <span class="tt-bool-label"><span class="tt-mod-dot"></span>Gradient Checkpointing<button type="button" class="tt-help" data-help="gradient_checkpointing" aria-label="Gradient Checkpointing 说明">?</button></span>
+                    <span class="tt-switch"><input type="checkbox" id="f-gradient_checkpointing" checked /><span class="tt-switch-track"></span></span>
+                  </label>
+                  <small class="tt-note">以计算换显存；关闭时一并关闭 activation offload。</small>
+                </div>
+
+                <label class="tt-field" data-field="activation_offload">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Activation Offload<button type="button" class="tt-help" data-help="activation_offload" aria-label="Activation Offload 说明">?</button></span>
+                  </span>
+                  <select class="tt-select" id="f-activation_offload">
+                    <option value="none">None</option>
+                    <option value="cpu">CPU Offload</option>
+                    <option value="unsloth">Unsloth Offload</option>
+                  </select>
+                  <small class="tt-note">需要 Gradient Checkpointing；Anima 与手动 Block Swap 互斥。</small>
+                </label>
+
+                <label class="tt-field" data-field="blocks_to_swap" id="row-blocks_to_swap">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Blocks to Swap<button type="button" class="tt-help" data-help="blocks_to_swap" aria-label="Blocks to Swap 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-blocks_to_swap" type="number" min="0" max="26" step="1" value="0" />
+                  <span class="tt-dep-note" id="dep-blocks_to_swap" hidden>已启用 Activation Offload，Block Swap 已归零并禁用。</span>
+                  <span class="tt-error" id="err-blocks_to_swap" hidden></span>
+                </label>
+
+                <div class="tt-field" data-field="flash_attn">
+                  <label class="tt-bool-row">
+                    <span class="tt-bool-label"><span class="tt-mod-dot"></span>Flash Attention<button type="button" class="tt-help" data-help="flash_attn" aria-label="Flash Attention 说明">?</button></span>
+                    <span class="tt-switch"><input type="checkbox" id="f-flash_attn" /><span class="tt-switch-track"></span></span>
+                  </label>
+                  <small class="tt-note">需要安装 flash-attn。</small>
+                </div>
+
+                <div class="tt-field" data-field="torch_compile">
+                  <label class="tt-bool-row">
+                    <span class="tt-bool-label"><span class="tt-mod-dot"></span>Torch Compile<button type="button" class="tt-help" data-help="torch_compile" aria-label="Torch Compile 说明">?</button></span>
+                    <span class="tt-switch"><input type="checkbox" id="f-torch_compile" /><span class="tt-switch-track"></span></span>
+                  </label>
+                  <small class="tt-note">首次编译较慢；CUDA Direct 与 TP/SP 模式不可使用。</small>
+                </div>
+
+                <div class="tt-field" data-field="lowram">
+                  <label class="tt-bool-row">
+                    <span class="tt-bool-label"><span class="tt-mod-dot"></span>Low RAM Optimization<button type="button" class="tt-help" data-help="lowram" aria-label="Low RAM Optimization 说明">?</button></span>
+                    <span class="tt-switch"><input type="checkbox" id="f-lowram" /><span class="tt-switch-track"></span></span>
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <!-- Column 4: Caching & Timesteps -->
+            <section class="tt-col" aria-labelledby="col-cache">
+              <div class="tt-col-head">
+                <h2 id="col-cache">Caching &amp; Timesteps</h2>
+                <span class="tt-col-meta" id="meta-cache">shift 3</span>
+              </div>
+              <div class="tt-fields">
+                <div class="tt-field" data-field="cache_latents_to_disk">
+                  <label class="tt-bool-row">
+                    <span class="tt-bool-label"><span class="tt-mod-dot"></span>Cache Latents to Disk<button type="button" class="tt-help" data-help="cache_latents_to_disk" aria-label="Cache Latents to Disk 说明">?</button></span>
+                    <span class="tt-switch"><input type="checkbox" id="f-cache_latents_to_disk" checked /><span class="tt-switch-track"></span></span>
+                  </label>
+                </div>
+
+                <label class="tt-field" data-field="vae_batch_size">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>VAE Cache Batch Size<button type="button" class="tt-help" data-help="vae_batch_size" aria-label="VAE Cache Batch Size 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-vae_batch_size" type="number" min="1" max="32" step="1" value="1" />
+                  <span class="tt-error" id="err-vae_batch_size" hidden></span>
+                </label>
+
+                <div class="tt-field" data-field="cache_text_encoder_outputs_to_disk">
+                  <label class="tt-bool-row">
+                    <span class="tt-bool-label"><span class="tt-mod-dot"></span>Cache Text Encoder Outputs to Disk<button type="button" class="tt-help" data-help="cache_text_encoder_outputs_to_disk" aria-label="Cache Text Encoder Outputs to Disk 说明">?</button></span>
+                    <span class="tt-switch"><input type="checkbox" id="f-cache_text_encoder_outputs_to_disk" checked /><span class="tt-switch-track"></span></span>
+                  </label>
+                  <span class="tt-dep-note" id="dep-cache_te" hidden>已因文本变体缓存自动开启。</span>
+                </div>
+
+                <div class="tt-field" data-field="cache_text_encoder_variants">
+                  <label class="tt-bool-row">
+                    <span class="tt-bool-label"><span class="tt-mod-dot"></span>按图片 / 轮次 / 重复次数缓存文本变体<button type="button" class="tt-help" data-help="cache_text_encoder_variants" aria-label="逐次文本变体缓存 说明">?</button></span>
+                    <span class="tt-switch"><input type="checkbox" id="f-cache_text_encoder_variants" /><span class="tt-switch-track"></span></span>
+                  </label>
+                </div>
+
+                <label class="tt-field" data-field="timestep_sample_method">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Timestep Sample Method<button type="button" class="tt-help" data-help="timestep_sample_method" aria-label="Timestep Sample Method 说明">?</button></span>
+                  </span>
+                  <select class="tt-select mono" id="f-timestep_sample_method">
+                    <option value="logit_normal">logit_normal</option>
+                    <option value="uniform">uniform</option>
+                  </select>
+                </label>
+
+                <label class="tt-field" data-field="discrete_flow_shift">
+                  <span class="tt-label-row">
+                    <span class="tt-label-left"><span class="tt-mod-dot"></span>Flow Shift<button type="button" class="tt-help" data-help="discrete_flow_shift" aria-label="Flow Shift 说明">?</button></span>
+                  </span>
+                  <input class="tt-control mono" id="f-discrete_flow_shift" type="number" min="0" step="0.1" value="3" />
+                  <span class="tt-error" id="err-discrete_flow_shift" hidden></span>
+                </label>
+
+                <!-- Small multiple: analytical timestep density curve -->
+                <div class="tt-mini-figure" aria-label="训练噪声时间步分布预览">
+                  <div class="tt-mini-head">
+                    <strong>时间步抽样密度</strong>
+                    <span id="tt-ts-label">偏向高噪声</span>
+                  </div>
+                  <svg class="tt-mini-svg" id="tt-timestep-svg" viewBox="0 0 240 46" preserveAspectRatio="none" role="img" aria-label="噪声时间步密度曲线"></svg>
+                  <div class="tt-mini-axis"><span>0 (低噪)</span><span>1 (高噪)</span></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Shared floating tooltip -->
+<div class="tt-tooltip" id="tt-tooltip" role="tooltip" aria-hidden="true"></div>
+
+<div class="theme-dock" role="group" aria-label="主题预览">
+  <button data-theme="github-dark" aria-pressed="true">Dark</button><button data-theme="github-light">Light</button><button data-theme="midnight-blue">Midnight</button><button data-theme="cherry-pink">Cherry</button>
+</div>
+<script>
+// Shell theme switcher + URL ?theme= support
+function applyTheme(t) {
+  const valid = ['github-dark', 'github-light', 'midnight-blue', 'cherry-pink'];
+  const next = valid.includes(t) ? t : 'github-dark';
+  document.documentElement.dataset.theme = next;
+  document.documentElement.classList.toggle('dark', next !== 'github-light');
+  document.querySelectorAll('.theme-dock button').forEach(x => {
+    x.setAttribute('aria-pressed', String(x.dataset.theme === next));
+  });
+}
+document.querySelectorAll('.theme-dock button').forEach(b => b.onclick = () => applyTheme(b.dataset.theme));
+const urlTheme = new URLSearchParams(location.search).get('theme');
+if (urlTheme) applyTheme(urlTheme);
+
+// ===== Direction 1 · Tufte Run Timeline interactive state & charts =====
+(function () {
+  const HELP = {
+    learning_rate: ['学习率', '每次优化器更新的基础步幅。', '调节模型学习新概念的速度；过大可能不稳定，过小可能学不充分。', '与 Batch Size、梯度累积及训练步数共同影响训练；自适应优化器的学习率语义需按其实现理解。'],
+    text_encoder_lr: ['文本编码器学习率', '为实际参与训练的文本编码器参数指定学习率。', '与图像主干学习率分开控制文本侧的更新。', '仅训练 DiT 或缓存文本输出、冻结文本编码器时，不会因此让文本编码器自动参与训练。'],
+    optimizer_type: ['优化器', '根据梯度更新可训练参数的算法。', '影响显存占用、收敛方式及可接受的附加参数。', '8bit / Paged 实现需要对应依赖；不同优化器的 optimizer_args 不可直接混用。'],
+    lr_scheduler: ['学习率调度器', '控制学习率随训练进度的变化曲线。', '例如 cosine 后期降低学习率，constant 保持基础水平。', '不能替代 weight_decay；ScheduleFree 优化器应使用与其实现相容的调度配置，不宜盲目叠加衰减。'],
+    lr_warmup_unit: ['学习率预热单位', '选择 Steps（更新步）或 Epochs（轮）设置预热时长。', '旧配置默认 Steps；切换时保留两种单位各自的值。', 'Anima 的 Epochs 模式按每轮更新步数换算，计入梯度累积和多卡数量；与训练总时长的单位独立。'],
+    lr_warmup_epochs: ['学习率预热轮数', '在指定轮数对应的更新步内，将学习率从 0 线性增加到基础学习率。', '每个更新步递增，到达预热终点后继续所选调度器；支持小数，0 表示无预热。', 'Constant 自动启用预热；ScheduleFree 不支持此模式。'],
+    lr_warmup_steps: ['学习率预热步数', '在训练开始的一段更新步内逐渐升高学习率。', '减少起步时过大的参数更新；0 表示无预热。', '是否生效取决于所选调度器；单位为优化器更新步，不是图片数。'],
+    lr_scheduler_num_cycles: ['调度周期数', '周期调度器在整个训练内使用的循环次数。', '调节余弦重启等调度器的循环频率。', '只对读取此参数的调度器有效，不是额外增加训练轮数。'],
+    lr_scheduler_min_lr_ratio: ['最低学习率比例', '最低学习率与基础学习率的比值。', '为支持最低学习率的调度器设置衰减下限。', '0 表示允许降至零；仅对支持该参数的调度器生效。'],
+    weight_decay: ['权重衰减', '优化器对可训练权重施加的收缩约束。', '限制权重增长，提供正则化；不是学习率衰减。', '可与 cosine 同用。关闭应明确设置为 0，留空可能恢复优化器默认值。'],
+    decouple: ['解耦权重衰减', '控制支持此选项的优化器如何应用 weight decay。', '将权重衰减与梯度自适应处理分开。', '仅用于支持 decouple 的优化器；不能作为通用参数传给所有优化器。'],
+    optimizer_args: ['优化器附加参数', '由 key=value 字符串组成的 JSON 数组。', '向所选优化器传递 weight_decay、betas 等细节。', '示例：["weight_decay=0.01"]。参数名称、类型和取值必须由当前优化器支持。'],
+    seed: ['随机种子', '初始化随机数生成器的数值。', '便于在相同环境下比较配置，0 也是有效种子。', '多进程、不同算子或软件版本仍可能产生差异，不保证逐位复现。'],
+    duration_unit: ['训练时长单位', '选择按 Epochs（轮）还是 Steps（更新步）控制训练。', '切换训练终点以及保存、采样间隔所使用的单位。', '界面会清理另一单位的相关字段；改变数据量、batch 或累积步数会改变每轮更新次数。'],
+    max_train_epochs: ['最大训练轮数', '遍历数据集的最大轮数。', '结合数据量、重复次数和采样比例决定训练量。', '本界面与 Steps 模式择一；启用渐进分辨率时，阶段边界最终按总更新步计算。'],
+    max_train_steps: ['最大更新步数', '优化器完成参数更新的最大次数。', '直接限制训练长度；并非每读入一张图片就增加一步。', '梯度累积会合并多个小批次才更新一次；本界面与 Epochs 模式择一。'],
+    save_every_n_epochs: ['按轮保存间隔', '每经过指定轮数保存一次模型权重。', '保留中间检查点，便于比较或回退。', '普通模型权重不等于完整 Resume 状态；频繁保存会增加磁盘占用。'],
+    save_every_n_steps: ['按步保存间隔', '每完成指定优化器更新步数保存一次权重。', '在 Steps 模式下控制检查点密度。', '不是微批次间隔；完整断点恢复还需要另行保存训练状态。'],
+    output_name: ['输出名称', '模型和训练输出文件的名称前缀。', '区分不同实验的产物。', '不要填写路径分隔符或系统不允许的文件名字符；输出目录由任务另行管理。'],
+    save_model_as: ['模型保存格式', '训练权重的序列化文件格式。', '选择下游工具可读取的文件类型。', '保存格式不改变训练算法；不同模型及加载器对 ckpt 支持不同。'],
+    mixed_precision: ['混合精度', '前向与反向计算使用的精度模式。', 'BF16 / FP16 通常可节省显存并加速计算。', '需要硬件及算子支持；保存精度是另一项设置。'],
+    save_precision: ['权重保存精度', '写入检查点的浮点数精度。', '影响输出体积与保存时的量化舍入，不直接改变训练计算精度。', '恢复完整 optimizer 状态与仅加载低精度权重不同；必须由下游加载器支持。'],
+    max_data_loader_n_workers: ['数据加载进程数', '用于读取、预处理训练样本的 worker 数量。', '可减少等待数据的时间，但会增加 CPU 和内存负担。', '0 表示在主进程加载，此时不能启用 Persistent DataLoader Workers。'],
+    persistent_data_loader_workers: ['持久数据加载进程', '跨训练轮保留 DataLoader worker。', '减少每轮重新创建进程的开销，同时持续占用内存。', '必须 DataLoader Workers > 0。'],
+    gradient_accumulation_steps: ['梯度累积步数', '累积多个微批次的梯度后再更新参数。', '在较低单批显存下提高有效批量；单卡有效批量约为 batch × 累积步数。', '不等同于提高单次 batch；同样 Epochs 下更新次数会减少。'],
+    gradient_checkpointing: ['梯度检查点', '反向传播时重算部分激活，而不是全部保留。', '以额外计算换取显存，通常使每步变慢。', 'Activation Offload 依赖此开关。'],
+    flash_attn: ['FlashAttention', '使用独立 FlashAttention 算子计算注意力。', '在匹配的形状和设备上降低注意力显存开销并可能加速。', '需要兼容的 flash-attn、PyTorch、CUDA 与 GPU。'],
+    torch_compile: ['Torch Compile', '通过编译后端优化模型计算图。', '首次及新形状编译需要时间，长训练可能受益，也可能增加内存。', '本项目 Anima 与 CUDA Direct、TP/SP 明确互斥。'],
+    lowram: ['低内存加载', '使用训练器的低系统内存模型加载路径。', '减少加载过程中的部分 CPU RAM 峰值。', '不是显存卸载开关，不能替代 Blocks to Swap 或梯度检查点。'],
+    blocks_to_swap: ['交换到 CPU 的 Block 数量', '将部分主干模块按执行顺序在 CPU 与 GPU 间交换。', '降低显存常驻权重，代价是 RAM、传输与同步开销；0 关闭。', 'Anima 与 Activation Offload 互斥；FSDP 模式不允许手动 Block Swap。'],
+    activation_offload: ['激活卸载方式', '选择将检查点相关激活转存 CPU 的实现。', '减少 GPU 激活驻留，增加 RAM 和设备传输。', '需要 Gradient Checkpointing；CPU 与 Unsloth 只能择一，与 Blocks to Swap 互斥。'],
+    cache_latents_to_disk: ['磁盘 Latent 缓存', '将 VAE 编码后的图像潜变量保存到磁盘。', '避免训练时反复编码图像，消耗缓存空间与初始化时间。', '缓存不适合每次都改变图像的随机裁剪、颜色增强。'],
+    vae_batch_size: ['VAE 缓存批量', '预编码图像 Latent 时一次处理的图片数量。', '较大可提高缓存速度，但增加缓存阶段显存。', '仅影响缓存阶段，不是训练 Batch Size。'],
+    cache_text_encoder_outputs_to_disk: ['文本输出磁盘缓存', '将文本编码器输出保存，训练时直接复用。', '减少重复文本编码，并可卸载冻结的文本编码器。', '训练文本编码器时不能缓存。'],
+    cache_text_encoder_variants: ['逐次文本变体缓存', 'Anima 在训练前为每张图的各轮次、各次重复预生成文本编码。开启后自动使用磁盘文本缓存。', '支持 Tags 打乱、keep_tokens、Tag Dropout 和 Caption Dropout，训练阶段可卸载 Qwen3。', '预处理时间和磁盘占用按使用次数增长。'],
+    timestep_sample_method: ['训练噪声时间步采样', '决定各噪声程度在训练中被抽到的概率。', 'logit_normal 偏向中间阶段；uniform 在应用 shift 前均匀抽样。', '不是推理采样器。最终分布还受 discrete_flow_shift 影响。'],
+    discrete_flow_shift: ['训练 Flow Shift', '对训练噪声时间步的分布施加偏移。', '1 不偏移，大于 1 偏向更高噪声，小于 1 偏向更低噪声。', '应为正数；与采样方法共同生效。']
+  };
+
+  const INITIAL = {
+    learning_rate: 0.00005,
+    text_encoder_lr: 0.00005,
+    optimizer_type: 'AdamW8bit',
+    lr_scheduler: 'cosine',
+    lr_warmup_unit: 'steps',
+    lr_warmup_steps: 100,
+    lr_warmup_epochs: 1,
+    weight_decay: 0,
+    seed: 42,
+    lr_scheduler_num_cycles: 1,
+    lr_scheduler_min_lr_ratio: 0,
+    decouple: true,
+    optimizer_args: '["weight_decay=0"]',
+    duration_unit: 'epochs',
+    max_train_epochs: 20,
+    save_every_n_epochs: 1,
+    max_train_steps: 1000,
+    save_every_n_steps: 500,
+    output_name: 'rin_style_v3',
+    save_model_as: 'safetensors',
+    mixed_precision: 'bf16',
+    save_precision: 'bf16',
+    max_data_loader_n_workers: 4,
+    gradient_accumulation_steps: 1,
+    persistent_data_loader_workers: true,
+    gradient_checkpointing: true,
+    flash_attn: false,
+    torch_compile: false,
+    lowram: false,
+    blocks_to_swap: 0,
+    activation_offload: 'none',
+    cache_latents_to_disk: true,
+    vae_batch_size: 1,
+    cache_text_encoder_outputs_to_disk: true,
+    cache_text_encoder_variants: false,
+    timestep_sample_method: 'logit_normal',
+    discrete_flow_shift: 3
+  };
+
+  const state = { ...INITIAL };
+  const errors = {};
+  let locked = false;
+  let errorDemoActive = false;
+
+  const $ = id => document.getElementById(id);
+
+  function fmtLR(v) {
+    if (!Number.isFinite(v) || v < 0) return '—';
+    if (v === 0) return '0';
+    if (v < 0.001 || v >= 1000) {
+      return v.toExponential(2).replace(/\.?0+e/, 'e').replace('e+', 'e');
+    }
+    return String(Number(v.toPrecision(4)));
+  }
+
+  function schedulerValue(kind, u, cycles, minRatio) {
+    const t = Math.max(0, Math.min(1, u));
+    if (kind === 'constant') return 1;
+    if (kind === 'linear') return 1 - t;
+    if (kind === 'polynomial') return Math.pow(1 - t, 1.8);
+    if (kind === 'cosine_with_restarts') {
+      const c = Math.max(1, Math.round(cycles || 1));
+      return 0.5 * (1 + Math.cos(Math.PI * (2 * c - 1) * t));
+    }
+    if (kind === 'cosine_with_min_lr') {
+      const floor = Math.max(0, Math.min(1, Number(minRatio) || 0));
+      return floor + (1 - floor) * 0.5 * (1 + Math.cos(Math.PI * t));
+    }
+    return 0.5 * (1 + Math.cos(Math.PI * t)); // cosine
+  }
+
+  function syncOptimizerArgs(key, val) {
+    let arr = [];
+    try {
+      const parsed = JSON.parse(state.optimizer_args);
+      if (Array.isArray(parsed)) arr = parsed.map(String);
+    } catch (_) {}
+    const prefix = key + '=';
+    const idx = arr.findIndex(item => item.trim().startsWith(prefix));
+    const entry = `${key}=${val}`;
+    if (idx >= 0) arr[idx] = entry;
+    else arr.push(entry);
+    state.optimizer_args = JSON.stringify(arr);
+    $('f-optimizer_args').value = state.optimizer_args;
+  }
+
+  function validateField(key) {
+    delete errors[key];
+    const v = state[key];
+    if (key === 'max_train_epochs' && (!Number.isFinite(v) || v < 1)) errors[key] = '最小值为 1';
+    if (key === 'save_every_n_epochs' && (!Number.isFinite(v) || v < 1)) errors[key] = '最小值为 1';
+    if (key === 'max_train_steps' && (!Number.isFinite(v) || v < 1)) errors[key] = '最小值为 1';
+    if (key === 'save_every_n_steps' && (!Number.isFinite(v) || v < 1)) errors[key] = '最小值为 1';
+    if (key === 'gradient_accumulation_steps' && (!Number.isFinite(v) || v < 1)) errors[key] = '最小值为 1';
+    if (key === 'lr_scheduler_num_cycles' && (!Number.isFinite(v) || v < 1)) errors[key] = '最小值为 1';
+    if (key === 'lr_scheduler_min_lr_ratio' && (!Number.isFinite(v) || v < 0 || v > 1)) errors[key] = '范围 0 – 1';
+    if (key === 'lr_warmup_steps' && (!Number.isFinite(v) || v < 0)) errors[key] = '最小值为 0';
+    if (key === 'lr_warmup_epochs' && (!Number.isFinite(v) || v < 0)) errors[key] = '最小值为 0';
+    if (key === 'weight_decay' && (!Number.isFinite(v) || v < 0)) errors[key] = '最小值为 0';
+    if (key === 'learning_rate' && (!Number.isFinite(v) || v <= 0)) errors[key] = '必须大于 0';
+    if (key === 'text_encoder_lr' && (!Number.isFinite(v) || v < 0)) errors[key] = '最小值为 0';
+    if (key === 'max_data_loader_n_workers' && (!Number.isFinite(v) || v < 0 || v > 16)) errors[key] = '范围 0 – 16';
+    if (key === 'blocks_to_swap' && (!Number.isFinite(v) || v < 0 || v > 26)) errors[key] = '范围 0 – 26';
+    if (key === 'vae_batch_size' && (!Number.isFinite(v) || v < 1 || v > 32)) errors[key] = '范围 1 – 32';
+    if (key === 'discrete_flow_shift' && (!Number.isFinite(v) || v < 0)) errors[key] = '最小值为 0';
+    if (key === 'optimizer_args') {
+      try {
+        const parsed = JSON.parse(v);
+        if (!Array.isArray(parsed)) errors[key] = '必须为 JSON 字符串数组';
+      } catch (_) {
+        errors[key] = 'JSON 格式无效';
+      }
+    }
+  }
+
+  function updateDirty() {
+    let count = 0;
+    document.querySelectorAll('.tt-field[data-field]').forEach(el => {
+      const k = el.dataset.field;
+      const changed = String(state[k]) !== String(INITIAL[k]);
+      el.classList.toggle('is-modified', changed);
+      if (changed) count++;
+    });
+    const dot = $('dirty-dot');
+    dot.hidden = count === 0;
+    const badge = $('tt-dirty-count');
+    if (count > 0) {
+      badge.hidden = false;
+      badge.textContent = `已修改 ${count} 项`;
+    } else {
+      badge.hidden = true;
+    }
+  }
+
+  function focusField(key) {
+    const row = document.querySelector(`.tt-field[data-field="${key}"]`);
+    if (!row || row.hidden) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const input = row.querySelector('input, select, textarea, button[data-seg]');
+    if (input && !locked) input.focus({ preventScroll: true });
+    row.classList.remove('is-highlighted');
+    void row.offsetWidth;
+    row.classList.add('is-highlighted');
+    setTimeout(() => row.classList.remove('is-highlighted'), 1200);
+  }
+
+  function renderRecipe() {
+    const isEp = state.duration_unit === 'epochs';
+    const total = isEp ? state.max_train_epochs : state.max_train_steps;
+    const saveN = isEp ? state.save_every_n_epochs : state.save_every_n_steps;
+    const unitLabel = isEp ? 'epochs' : 'steps';
+    const wVal = state.lr_warmup_unit === 'epochs' ? state.lr_warmup_epochs : state.lr_warmup_steps;
+    const wUnit = state.lr_warmup_unit === 'epochs' ? 'ep' : 'steps';
+    const schedLabel = state.lr_scheduler === 'cosine_with_restarts'
+      ? `cosine×${state.lr_scheduler_num_cycles}`
+      : state.lr_scheduler === 'cosine_with_min_lr'
+        ? `cosine (min ${state.lr_scheduler_min_lr_ratio})`
+        : state.lr_scheduler;
+
+    const parts = [
+      { field: 'optimizer_type', text: state.optimizer_type, mono: true },
+      { field: 'learning_rate', text: `LR ${fmtLR(state.learning_rate)}`, mono: true },
+      { field: 'lr_scheduler', text: `${schedLabel} · warmup ${wVal} ${wUnit}`, mono: true },
+      { field: isEp ? 'max_train_epochs' : 'max_train_steps', text: `${total} ${unitLabel}`, mono: true },
+      { field: isEp ? 'save_every_n_epochs' : 'save_every_n_steps', text: `每 ${saveN} ${isEp ? '轮' : '步'}保存`, mono: false },
+      { field: 'mixed_precision', text: state.mixed_precision, mono: true }
+    ];
+
+    $('tt-recipe').innerHTML = parts.map((p, i) =>
+      `${i ? '<span class="tt-recipe-sep">·</span>' : ''}<span class="tt-recipe-item${p.mono ? ' tt-recipe-mono' : ''}" data-focus="${p.field}">${p.text}</span>`
+    ).join('');
+
+    $('meta-opt').textContent = state.optimizer_type;
+    $('meta-sched').textContent = `${total} ${unitLabel}`;
+    $('meta-perf').textContent = state.activation_offload !== 'none'
+      ? `${state.mixed_precision} · ${state.activation_offload}`
+      : state.blocks_to_swap > 0
+        ? `${state.mixed_precision} · swap ${state.blocks_to_swap}`
+        : state.mixed_precision;
+    $('meta-cache').textContent = `shift ${state.discrete_flow_shift}`;
+  }
+
+  function renderTimeline() {
+    const svg = $('tt-timeline-svg');
+    const stageW = svg.parentElement ? svg.parentElement.clientWidth : 1120;
+    const W = Math.max(520, Math.round(stageW || 1120));
+    const H = 204;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+    const padL = 56, padR = 158, padT = 32, padB = 38;
+    const plotW = Math.max(240, W - padL - padR);
+    const plotH = H - padT - padB;
+
+    const isEp = state.duration_unit === 'epochs';
+    const total = Math.max(1, Number(isEp ? state.max_train_epochs : state.max_train_steps) || 1);
+    const saveN = Math.max(1, Number(isEp ? state.save_every_n_epochs : state.save_every_n_steps) || 1);
+    const unitShort = isEp ? 'epoch' : 'step';
+    const unitPlural = isEp ? 'epochs' : 'steps';
+
+    const peakLR = Math.max(1e-9, Number(state.learning_rate) || 0.00005);
+    const teLR = Math.max(0, Number(state.text_encoder_lr) || 0);
+    const maxY = Math.max(peakLR, teLR);
+
+    const wSameUnit = state.lr_warmup_unit === state.duration_unit;
+    const wRaw = Math.max(0, Number(state.lr_warmup_unit === 'epochs' ? state.lr_warmup_epochs : state.lr_warmup_steps) || 0);
+    // Honest axis handling: exact fraction when units match; clearly labelled schematic ramp when units differ
+    let wFrac = 0;
+    if (wRaw > 0) {
+      wFrac = wSameUnit ? Math.min(0.95, wRaw / total) : 0.10;
+    }
+
+    const xOf = frac => padL + frac * plotW;
+    const yOf = val => padT + plotH * (1 - Math.max(0, Math.min(1, val / maxY)));
+
+    // Build LR curve: warmup happens ONCE at [0, wFrac], then smooth scheduler curve across [wFrac, 1]
+    function buildCurve(peak) {
+      const c = Math.max(1, Math.round(Number(state.lr_scheduler_num_cycles) || 1));
+      const N = state.lr_scheduler === 'cosine_with_restarts' ? Math.max(180, c * 64) : 140;
+      const pts = [];
+      if (wFrac > 0) {
+        pts.push([xOf(0), yOf(0)]);
+        pts.push([xOf(wFrac), yOf(peak)]);
+      }
+      const span = Math.max(1e-6, 1 - wFrac);
+      const annTarget = state.lr_scheduler === 'cosine_with_restarts'
+        ? Math.min(0.85, wFrac + span * (0.5 / Math.max(1, 2 * c - 1)))
+        : Math.min(0.76, Math.max(wFrac + 0.24, 0.46));
+      let bestDist = Infinity;
+      let annPt = [xOf(0.5), yOf(peak * 0.5)];
+      for (let i = 0; i <= N; i++) {
+        const u = i / N;
+        const f = wFrac + span * u;
+        const mult = schedulerValue(state.lr_scheduler, u, c, state.lr_scheduler_min_lr_ratio);
+        const pt = [xOf(f), yOf(peak * mult)];
+        pts.push(pt);
+        const d = Math.abs(f - annTarget);
+        if (d < bestDist) { bestDist = d; annPt = pt; }
+      }
+      if (state.lr_scheduler === 'cosine_with_restarts') {
+        annPt = [xOf(wFrac + span * (2 / Math.max(1, 2 * c - 1))), padT - 10];
+      }
+      const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+      return { subpaths: [d], jumpXs: [], endY: pts[pts.length - 1][1], annPt };
+    }
+
+    const mainCurve = buildCurve(peakLR);
+    const mainPathsHit = mainCurve.subpaths.map(d => `<path d="${d}" fill="none" stroke="transparent" stroke-width="14" />`).join('');
+    const mainPathsDraw = mainCurve.subpaths.map(d => `<path d="${d}" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tt-hit-stroke" />`).join('');
+    const restartJumps = mainCurve.jumpXs.map(jx =>
+      `<line x1="${jx.toFixed(1)}" y1="${yOf(0).toFixed(1)}" x2="${jx.toFixed(1)}" y2="${yOf(peakLR).toFixed(1)}" stroke="var(--primary)" stroke-opacity=".45" stroke-width="1.2" stroke-dasharray="2 3" />`
+    ).join('');
+
+    // Optional Text Encoder secondary curve when distinct from main LR
+    let tePath = '';
+    if (teLR > 0 && Math.abs(teLR - peakLR) / maxY > 0.02) {
+      const teCurve = buildCurve(teLR);
+      const teDraw = teCurve.subpaths.map(d => `<path d="${d}" fill="none" stroke="var(--muted-foreground)" stroke-width="1.3" stroke-dasharray="4 3" class="tt-hit-stroke" />`).join('');
+      tePath = `
+        <g class="tt-chart-hit" data-focus="text_encoder_lr">
+          ${teDraw}
+          <text x="${(teCurve.annPt[0] + 6).toFixed(1)}" y="${(teCurve.annPt[1] - 6).toFixed(1)}" class="mono tt-hit-label">TE ${fmtLR(teLR)}</text>
+        </g>`;
+    }
+
+    // Warmup shaded zone + direct label cleanly above the peak line (zero overlap with curve)
+    let warmupMarkup = '';
+    if (wRaw > 0) {
+      const wx = xOf(wFrac);
+      const wLabel = wSameUnit
+        ? `预热 ${wRaw} ${state.lr_warmup_unit === 'epochs' ? 'ep' : 'steps'}`
+        : `预热 ${wRaw} ${state.lr_warmup_unit === 'epochs' ? 'ep' : 'steps'}（示意）`;
+      const wField = state.lr_warmup_unit === 'epochs' ? 'lr_warmup_epochs' : 'lr_warmup_steps';
+      warmupMarkup = `
+        <g class="tt-chart-hit" data-focus="${wField}">
+          <rect x="${padL}" y="${padT}" width="${(wx - padL).toFixed(1)}" height="${plotH}" fill="var(--primary)" opacity=".08" class="tt-hit-fill" />
+          <line x1="${wx.toFixed(1)}" y1="${padT - 5}" x2="${wx.toFixed(1)}" y2="${padT + plotH}" stroke="var(--primary)" stroke-opacity=".42" stroke-dasharray="2 3" />
+          <text x="${(wx + 4).toFixed(1)}" y="${padT - 10}" class="tt-hit-label">${wLabel}</text>
+        </g>`;
+    }
+
+    // Min LR floor reference line when cosine_with_min_lr
+    let minFloorMarkup = '';
+    if (state.lr_scheduler === 'cosine_with_min_lr') {
+      const ratio = Math.max(0, Math.min(1, Number(state.lr_scheduler_min_lr_ratio) || 0));
+      const fy = yOf(peakLR * ratio);
+      minFloorMarkup = `
+        <g class="tt-chart-hit" data-focus="lr_scheduler_min_lr_ratio">
+          <line x1="${padL}" y1="${fy.toFixed(1)}" x2="${padL + plotW}" y2="${fy.toFixed(1)}" stroke="var(--muted-foreground)" stroke-opacity=".45" stroke-dasharray="3 4" />
+          <text x="${(padL + plotW - 4).toFixed(1)}" y="${(fy - 5).toFixed(1)}" text-anchor="end" class="mono tt-hit-label">下限 ${ratio}× (${fmtLR(peakLR * ratio)})</text>
+        </g>`;
+    }
+
+    // Save checkpoint ticks along baseline
+    const saveCount = Math.floor(total / saveN);
+    const maxTicks = 44;
+    const stepStride = saveCount > maxTicks ? Math.ceil(saveCount / maxTicks) : 1;
+    let ticksMarkup = '';
+    for (let k = 1; k <= saveCount; k += stepStride) {
+      const pos = (k * saveN) / total;
+      if (pos > 1.0001) break;
+      const tx = xOf(pos);
+      ticksMarkup += `<line x1="${tx.toFixed(1)}" y1="${padT + plotH}" x2="${tx.toFixed(1)}" y2="${padT + plotH + 6}" stroke="var(--foreground)" stroke-opacity=".55" stroke-width="1.2" />`;
+    }
+    const saveField = isEp ? 'save_every_n_epochs' : 'save_every_n_steps';
+    const saveSummary = `每 ${saveN} ${unitShort} 保存 · 共 ${saveCount} 次`;
+
+    // Mid-curve direct annotation for scheduler
+    const annPt = mainCurve.annPt;
+    const schedAnn = state.lr_scheduler === 'cosine_with_restarts'
+      ? `${state.lr_scheduler} · ${state.lr_scheduler_num_cycles} cycles`
+      : state.lr_scheduler;
+
+    // End marker with clean two-line output name (no premature truncation)
+    const endX = xOf(1);
+    const endY = mainCurve.endY;
+    const baseName = (state.output_name || 'output').trim();
+    const nameLine = baseName.length > 18 ? baseName.slice(0, 17) + '…' : baseName;
+
+    svg.innerHTML = `
+      <!-- Tufte range-frame axes -->
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="var(--border)" stroke-width="1" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="var(--border)" stroke-width="1" />
+      <!-- Subtle peak reference line -->
+      <line x1="${padL}" y1="${yOf(peakLR).toFixed(1)}" x2="${padL + plotW}" y2="${yOf(peakLR).toFixed(1)}" stroke="var(--border)" stroke-opacity=".42" stroke-dasharray="2 5" />
+
+      <!-- Y-axis direct labels -->
+      <g class="tt-chart-hit" data-focus="learning_rate">
+        <text x="${padL - 10}" y="${(yOf(peakLR) + 4).toFixed(1)}" text-anchor="end" class="mono ink tt-hit-label">${fmtLR(peakLR)}</text>
+      </g>
+      <text x="${padL - 10}" y="${padT + plotH + 4}" text-anchor="end" class="mono">0</text>
+
+      ${warmupMarkup}
+      ${minFloorMarkup}
+      ${tePath}
+
+      <!-- Main LR curve -->
+      <g class="tt-chart-hit" data-focus="lr_scheduler">
+        ${restartJumps}
+        ${mainPathsHit}
+        ${mainPathsDraw}
+        <text x="${(annPt[0] + (state.lr_scheduler === 'cosine_with_restarts' ? 0 : 10)).toFixed(1)}" y="${(state.lr_scheduler === 'cosine_with_restarts' ? padT - 10 : Math.max(padT + 14, annPt[1] - 10)).toFixed(1)}"${state.lr_scheduler === 'cosine_with_restarts' ? ' text-anchor="middle"' : ''} class="mono primary-ink tt-hit-label">${schedAnn}</text>
+      </g>
+
+      <!-- Save checkpoint ticks -->
+      <g class="tt-chart-hit" data-focus="${saveField}">
+        <rect x="${padL}" y="${padT + plotH - 2}" width="${plotW}" height="24" fill="transparent" />
+        ${ticksMarkup}
+        <text x="${(padL + plotW / 2).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="middle" class="tt-hit-label">${saveSummary}</text>
+      </g>
+
+      <!-- X-axis endpoints -->
+      <text x="${padL}" y="${padT + plotH + 26}" class="mono">0</text>
+      <text x="${(padL + plotW * 0.25).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="middle" class="mono" opacity=".6">${Math.round(total * 0.25)}</text>
+      <text x="${(padL + plotW * 0.75).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="middle" class="mono" opacity=".6">${Math.round(total * 0.75)}</text>
+      <g class="tt-chart-hit" data-focus="${isEp ? 'max_train_epochs' : 'max_train_steps'}">
+        <text x="${(padL + plotW).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="end" class="mono ink tt-hit-label">${total} ${unitPlural}</text>
+      </g>
+
+      <!-- End marker & output filename -->
+      <g class="tt-chart-hit" data-focus="output_name">
+        <line x1="${endX.toFixed(1)}" y1="${padT}" x2="${endX.toFixed(1)}" y2="${padT + plotH}" stroke="var(--border)" stroke-width="1" />
+        <circle cx="${endX.toFixed(1)}" cy="${endY.toFixed(1)}" r="3.5" fill="var(--primary)" />
+        <text x="${(endX + 12).toFixed(1)}" y="${(padT + plotH / 2 - 4).toFixed(1)}" class="mono ink tt-hit-label">${nameLine}</text>
+        <text x="${(endX + 12).toFixed(1)}" y="${(padT + plotH / 2 + 13).toFixed(1)}" class="mono">.${state.save_model_as} · ${state.save_precision}</text>
+      </g>
+    `;
+  }
+
+  function renderTimestepMini() {
+    const svg = $('tt-timestep-svg');
+    const shift = Math.max(0.05, Number(state.discrete_flow_shift) || 1);
+    const method = state.timestep_sample_method;
+    const W = 240, H = 46, padT = 6, padB = 2;
+    const plotH = H - padT - padB;
+
+    const samples = 60;
+    const ys = [];
+    for (let i = 1; i < samples; i++) {
+      const tp = i / samples;
+      const denom = shift - (shift - 1) * tp;
+      const t = tp / denom;
+      const jac = shift / (denom * denom);
+      let baseP = 1;
+      if (method === 'logit_normal') {
+        const logit = Math.log(t / (1 - t));
+        baseP = Math.exp(-0.5 * logit * logit) / (t * (1 - t) * Math.sqrt(2 * Math.PI));
+      }
+      ys.push([tp, baseP * jac]);
+    }
+    const maxP = Math.max(...ys.map(p => p[1]), 1e-6);
+    const pts = ys.map(([tp, p]) => `${(tp * W).toFixed(1)},${(padT + plotH * (1 - p / maxP)).toFixed(1)}`);
+    const lineD = `M0,${padT + plotH} L${pts.join(' L')} L${W},${padT + plotH}`;
+
+    $('tt-ts-label').textContent = shift > 1.05 ? `偏向高噪声 · ${shift}` : shift < 0.95 ? `偏向低噪声 · ${shift}` : '无偏移 · 1.0';
+
+    svg.innerHTML = `
+      <line x1="0" y1="${padT + plotH}" x2="${W}" y2="${padT + plotH}" stroke="var(--border)" stroke-width="1" />
+      <path d="${lineD} Z" fill="var(--primary)" opacity=".12" />
+      <path d="${lineD}" fill="none" stroke="var(--primary)" stroke-width="1.5" />
+    `;
+  }
+
+  // Unified LR Scheduler preview (matches SchedulerSelect.vue + SchedulerCurve.vue + scheduler-curves.ts)
+  const SCHEDULER_LIST = ['cosine', 'constant', 'linear', 'cosine_with_restarts', 'cosine_with_min_lr', 'polynomial'];
+  const cosineHalf = t => 0.5 * (1 + Math.cos(Math.PI * t));
+  const SCHEDULER_PREVIEWS = {
+    constant: {
+      title: '恒定学习率',
+      description: '训练期间学习率维持在基础水平，不随进度衰减。',
+      example: '保持在 100% 基础学习率；此示意不包含 Warmup。',
+      segments: [() => 1]
+    },
+    linear: {
+      title: '线性衰减',
+      description: '学习率随训练进度匀速下降至零，变化节奏直观可控。',
+      example: '从峰值匀速降至零；此示意不包含 Warmup。',
+      segments: [t => 1 - t]
+    },
+    cosine: {
+      title: '余弦衰减',
+      description: '学习率沿半个余弦周期平滑下降：起止较缓，中段下降较快。',
+      example: '单次从峰值降至零；此示意不包含 Warmup。',
+      segments: [cosineHalf]
+    },
+    cosine_with_restarts: {
+      title: '余弦周期重启',
+      description: '每个周期沿余弦曲线平滑衰减与回升，在峰值与谷值之间循环直至训练结束。',
+      example: '仅以 3 个周期举例；实际周期数由 Restart / Scheduler Cycles 决定，此示意不包含 Warmup。',
+      segments: [t => 0.5 * (1 + Math.cos(Math.PI * 5 * t))]
+    },
+    cosine_with_min_lr: {
+      title: '带下限的余弦衰减',
+      description: '沿余弦曲线下降，但保留最低学习率，不一定降到零。',
+      example: '虚线以最低学习率比例 20% 举例；实际由 Min LR Ratio 决定。',
+      segments: [t => 0.2 + 0.8 * cosineHalf(t)],
+      floor: 0.2
+    },
+    polynomial: {
+      title: '多项式衰减',
+      description: '按多项式曲线降低学习率；指数不同，弯曲程度和衰减速度也不同。',
+      example: '仅以 power = 2、衰减至零举例；不是训练器默认指数或终点。',
+      segments: [t => (1 - t) ** 2]
+    }
+  };
+  let highlightedSched = state.lr_scheduler;
+
+  function renderSchedulerCurve(name) {
+    const curveEl = $('tt-sched-curve');
+    const preview = SCHEDULER_PREVIEWS[name];
+    const plot = { left: 35, top: 17, width: 250, height: 119, bottom: 136 };
+    let figureHtml = '';
+    if (preview) {
+      const paths = preview.segments.map((fn, index, segments) =>
+        Array.from({ length: 129 }, (_, i) => {
+          const t = i / 128;
+          const x = plot.left + plot.width * (index + t) / segments.length;
+          const y = plot.top + plot.height * (1 - Math.max(0, Math.min(1, fn(t))));
+          return `${i ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)}`;
+        }).join(' ')
+      );
+      const floorY = preview.floor !== undefined ? plot.top + plot.height * (1 - preview.floor) : null;
+      const areaHtml = paths.length === 1
+        ? `<path d="${paths[0]} L285,136 L35,136 Z" fill="url(#tt-sched-fill)" />`
+        : '';
+      const floorHtml = floorY !== null
+        ? `<path d="M35 ${floorY.toFixed(1)} H285" class="scheduler-floor" />`
+        : '';
+      const linesHtml = paths.map(d => `<path d="${d}" class="scheduler-line" />`).join('');
+      figureHtml = `
+        <figure class="scheduler-figure">
+          <svg viewBox="0 0 310 169" role="img" class="scheduler-graph" aria-label="${preview.title}学习率曲线示意">
+            <defs><linearGradient id="tt-sched-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="currentColor" stop-opacity="0.18"/><stop offset="100%" stop-color="currentColor" stop-opacity="0.01"/></linearGradient></defs>
+            <g class="scheduler-grid">
+              <path d="M35 17 H285"/><path d="M35 76.5 H285"/><path d="M35 136 H285"/>
+              <path d="M35 17 V136"/><path d="M160 17 V136"/><path d="M285 17 V136"/>
+            </g>
+            <g class="scheduler-axis"><path d="M35 12 V136 H291"/></g>
+            ${areaHtml}
+            ${floorHtml}
+            ${linesHtml}
+            <g class="scheduler-axis-text">
+              <text x="28" y="21" text-anchor="end">1</text>
+              <text x="28" y="140" text-anchor="end">0</text>
+              <text x="35" y="151">0%</text>
+              <text x="285" y="151" text-anchor="end">100%</text>
+              <text x="160" y="164" text-anchor="middle">训练进度</text>
+              <text x="35" y="10">相对学习率</text>
+            </g>
+          </svg>
+          <figcaption>${preview.example}</figcaption>
+        </figure>`;
+    }
+    curveEl.innerHTML = `
+      <div class="scheduler-preview-eyebrow">LR SCHEDULE · 曲线示意</div>
+      <div class="scheduler-preview-title">${preview ? preview.title : '自定义调度器'}</div>
+      <code>${name || '未设置'}</code>
+      ${figureHtml}
+      <p class="scheduler-preview-description">${preview ? preview.description : '未提供此自定义调度器的示意图；现有配置会原样保留。'}</p>
+      <p class="scheduler-preview-disclaimer">仅展示曲线形状，不是当前任务的实际学习率。Warmup、总步数、周期数、最低学习率和后端实现会影响实际曲线。</p>
+    `;
+  }
+
+  function renderSchedulerPopover() {
+    $('tt-sched-value').textContent = state.lr_scheduler;
+    const optsEl = $('tt-sched-options');
+    optsEl.innerHTML = SCHEDULER_LIST.map(name => `
+      <button type="button" class="scheduler-option" data-sched="${name}" role="option"
+        aria-selected="${state.lr_scheduler === name}" data-highlighted="${highlightedSched === name}">
+        <span>${name}</span>
+        ${state.lr_scheduler === name ? '<span class="scheduler-selected" aria-hidden="true">✓</span>' : ''}
+      </button>
+    `).join('');
+    renderSchedulerCurve(highlightedSched);
+  }
+
+  // Learning Rate log gauge (1e-6 .. 1e-3, adapted from dir-3)
+  const LR_LOG_MIN = -6;
+  const LR_LOG_MAX = -3;
+  function lrToRatio(v) {
+    if (!Number.isFinite(v) || v <= 0) return 0;
+    return Math.max(0, Math.min(1, (Math.log10(v) - LR_LOG_MIN) / (LR_LOG_MAX - LR_LOG_MIN)));
+  }
+  function ratioToLr(ratio) {
+    const r = Math.max(0, Math.min(1, ratio));
+    const raw = Math.pow(10, LR_LOG_MIN + r * (LR_LOG_MAX - LR_LOG_MIN));
+    const exp = Math.floor(Math.log10(raw));
+    const pow = Math.pow(10, exp - 1);
+    return Math.round(raw / pow) * pow;
+  }
+  function stepLr(dir) {
+    const cur = Number.isFinite(state.learning_rate) && state.learning_rate > 0 ? state.learning_rate : 0.00005;
+    let delta = 0.00001;
+    if (cur < 0.00001 || (dir < 0 && cur <= 0.00001)) delta = 0.000001;
+    else if (cur >= 0.0001 && (dir > 0 || cur > 0.0001)) delta = cur >= 0.001 ? 0.0001 : 0.00005;
+    const next = Math.max(1e-7, Number((cur + dir * delta).toPrecision(4)));
+    state.learning_rate = next;
+    $('f-learning_rate').value = fmtLR(next);
+    validateField('learning_rate');
+    syncUI();
+  }
+  function renderLrGauge() {
+    const ratio = lrToRatio(state.learning_rate);
+    $('tt-lr-gauge-fill').style.width = `${(ratio * 100).toFixed(1)}%`;
+    $('tt-lr-gauge').setAttribute('aria-valuenow', String(Number.isFinite(state.learning_rate) ? state.learning_rate : 0));
+  }
+
+  function syncUI() {
+    // Conditional visibility
+    $('row-lr_scheduler_num_cycles').hidden = state.lr_scheduler !== 'cosine_with_restarts';
+    $('row-lr_scheduler_min_lr_ratio').hidden = state.lr_scheduler !== 'cosine_with_min_lr';
+    $('row-decouple').hidden = !/Prodigy|DAdapt/.test(state.optimizer_type);
+
+    $('row-lr_warmup_steps').hidden = state.lr_warmup_unit !== 'steps';
+    $('row-lr_warmup_epochs').hidden = state.lr_warmup_unit !== 'epochs';
+
+    const isEp = state.duration_unit === 'epochs';
+    $('row-max_train_epochs').hidden = !isEp;
+    $('row-save_every_n_epochs').hidden = !isEp;
+    $('row-max_train_steps').hidden = isEp;
+    $('row-save_every_n_steps').hidden = isEp;
+
+    // Segmented controls aria-pressed
+    document.querySelectorAll('[data-seg]').forEach(btn => {
+      btn.setAttribute('aria-pressed', String(state[btn.dataset.seg] === btn.dataset.val));
+    });
+
+    // Dependencies: Workers = 0 -> Persistent off & disabled
+    const noWorkers = Number(state.max_data_loader_n_workers) === 0;
+    $('f-persistent_data_loader_workers').disabled = noWorkers;
+    $('f-persistent_data_loader_workers').checked = state.persistent_data_loader_workers;
+    $('row-persistent_data_loader_workers').classList.toggle('is-disabled', noWorkers);
+    $('dep-persistent_data_loader_workers').hidden = !noWorkers;
+
+    // Dependencies: Activation Offload <-> Gradient Checkpointing & Blocks to Swap
+    const offloadOn = state.activation_offload !== 'none';
+    $('f-gradient_checkpointing').checked = state.gradient_checkpointing;
+    $('f-activation_offload').value = state.activation_offload;
+    $('f-blocks_to_swap').disabled = offloadOn;
+    $('f-blocks_to_swap').value = state.blocks_to_swap;
+    $('row-blocks_to_swap').classList.toggle('is-disabled', offloadOn);
+    $('dep-blocks_to_swap').hidden = !offloadOn;
+
+    // Dependencies: TE variants -> Cache TE Outputs on
+    $('f-cache_text_encoder_outputs_to_disk').checked = state.cache_text_encoder_outputs_to_disk;
+    $('dep-cache_te').hidden = !state.cache_text_encoder_variants;
+
+    // Errors
+    document.querySelectorAll('.tt-field[data-field]').forEach(row => {
+      const k = row.dataset.field;
+      const errEl = $('err-' + k);
+      if (errEl) {
+        const msg = errors[k] || '';
+        errEl.textContent = msg;
+        errEl.hidden = !msg;
+        row.classList.toggle('is-error', Boolean(msg));
+      }
+    });
+
+    renderLrGauge();
+    renderRecipe();
+    renderTimeline();
+    renderTimestepMini();
+    renderSchedulerPopover();
+    updateDirty();
+  }
+
+  // Bind inputs
+  function bindNumber(id, key, onAfter) {
+    $(id).addEventListener('input', e => {
+      state[key] = e.target.value === '' ? NaN : Number(e.target.value);
+      validateField(key);
+      if (onAfter) onAfter(state[key]);
+      syncUI();
+    });
+  }
+
+  bindNumber('f-learning_rate', 'learning_rate');
+  $('tt-lr-dec').addEventListener('click', () => stepLr(-1));
+  $('tt-lr-inc').addEventListener('click', () => stepLr(1));
+
+  // Learning Rate gauge scrub (pointer drag + click + keyboard)
+  const lrGauge = $('tt-lr-gauge');
+  function applyLrFromClientX(clientX) {
+    const rect = lrGauge.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const next = ratioToLr((clientX - rect.left) / rect.width);
+    state.learning_rate = next;
+    $('f-learning_rate').value = fmtLR(next);
+    validateField('learning_rate');
+    syncUI();
+  }
+  lrGauge.addEventListener('pointerdown', e => {
+    if (locked || e.button !== 0) return;
+    e.preventDefault();
+    lrGauge.setPointerCapture(e.pointerId);
+    applyLrFromClientX(e.clientX);
+    const onMove = ev => applyLrFromClientX(ev.clientX);
+    const onUp = () => {
+      lrGauge.removeEventListener('pointermove', onMove);
+      lrGauge.removeEventListener('pointerup', onUp);
+      lrGauge.removeEventListener('pointercancel', onUp);
+    };
+    lrGauge.addEventListener('pointermove', onMove);
+    lrGauge.addEventListener('pointerup', onUp);
+    lrGauge.addEventListener('pointercancel', onUp);
+  });
+  lrGauge.addEventListener('keydown', e => {
+    if (locked) return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); stepLr(-1); }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); stepLr(1); }
+  });
+
+  bindNumber('f-text_encoder_lr', 'text_encoder_lr');
+  bindNumber('f-lr_scheduler_num_cycles', 'lr_scheduler_num_cycles');
+  bindNumber('f-lr_scheduler_min_lr_ratio', 'lr_scheduler_min_lr_ratio');
+  bindNumber('f-lr_warmup_steps', 'lr_warmup_steps');
+  bindNumber('f-lr_warmup_epochs', 'lr_warmup_epochs');
+  bindNumber('f-weight_decay', 'weight_decay', v => { if (Number.isFinite(v)) syncOptimizerArgs('weight_decay', v); });
+  bindNumber('f-seed', 'seed');
+  bindNumber('f-max_train_epochs', 'max_train_epochs');
+  bindNumber('f-save_every_n_epochs', 'save_every_n_epochs');
+  bindNumber('f-max_train_steps', 'max_train_steps');
+  bindNumber('f-save_every_n_steps', 'save_every_n_steps');
+  bindNumber('f-gradient_accumulation_steps', 'gradient_accumulation_steps');
+  bindNumber('f-max_data_loader_n_workers', 'max_data_loader_n_workers', v => {
+    if (v === 0) state.persistent_data_loader_workers = false;
+  });
+  bindNumber('f-blocks_to_swap', 'blocks_to_swap');
+  bindNumber('f-vae_batch_size', 'vae_batch_size');
+  bindNumber('f-discrete_flow_shift', 'discrete_flow_shift');
+
+  $('f-output_name').addEventListener('input', e => { state.output_name = e.target.value; syncUI(); });
+  $('f-optimizer_args').addEventListener('input', e => { state.optimizer_args = e.target.value; validateField('optimizer_args'); syncUI(); });
+
+  ['optimizer_type', 'save_model_as', 'mixed_precision', 'save_precision', 'timestep_sample_method'].forEach(key => {
+    $('f-' + key).addEventListener('change', e => { state[key] = e.target.value; syncUI(); });
+  });
+
+  // Activation offload rule
+  $('f-activation_offload').addEventListener('change', e => {
+    state.activation_offload = e.target.value;
+    if (state.activation_offload !== 'none') {
+      state.gradient_checkpointing = true;
+      state.blocks_to_swap = 0;
+    }
+    syncUI();
+  });
+
+  // Gradient checkpointing rule
+  $('f-gradient_checkpointing').addEventListener('change', e => {
+    state.gradient_checkpointing = e.target.checked;
+    if (!state.gradient_checkpointing) state.activation_offload = 'none';
+    syncUI();
+  });
+
+  // Other checkboxes
+  ['persistent_data_loader_workers', 'flash_attn', 'torch_compile', 'lowram', 'cache_latents_to_disk', 'cache_text_encoder_outputs_to_disk'].forEach(key => {
+    $('f-' + key).addEventListener('change', e => { state[key] = e.target.checked; syncUI(); });
+  });
+  $('f-decouple').addEventListener('change', e => {
+    state.decouple = e.target.checked;
+    syncOptimizerArgs('decouple', state.decouple ? 'True' : 'False');
+    syncUI();
+  });
+  $('f-cache_text_encoder_variants').addEventListener('change', e => {
+    state.cache_text_encoder_variants = e.target.checked;
+    if (state.cache_text_encoder_variants) state.cache_text_encoder_outputs_to_disk = true;
+    syncUI();
+  });
+
+  // Segmented controls
+  document.querySelectorAll('[data-seg]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state[btn.dataset.seg] = btn.dataset.val;
+      syncUI();
+    });
+  });
+
+  // Unified LR Scheduler combobox popover
+  const schedPop = $('tt-sched-pop');
+  const schedTrigger = $('f-lr_scheduler');
+  function positionSchedPop() {
+    const rect = schedTrigger.getBoundingClientRect();
+    const pw = Math.min(600, window.innerWidth - 24);
+    const left = Math.max(12, Math.min(window.innerWidth - pw - 12, rect.left));
+    schedPop.style.left = left + 'px';
+    const ph = schedPop.offsetHeight || 380;
+    const spaceBelow = window.innerHeight - rect.bottom - 12;
+    const fieldRow = schedTrigger.closest('.tt-field');
+    const anchorTop = fieldRow ? fieldRow.getBoundingClientRect().top : rect.top;
+    const top = spaceBelow >= Math.min(ph, 260) || anchorTop < ph
+      ? rect.bottom + 6
+      : Math.max(12, anchorTop - ph - 6);
+    schedPop.style.top = top + 'px';
+  }
+  function openSchedPop() {
+    if (locked) return;
+    highlightedSched = state.lr_scheduler;
+    renderSchedulerPopover();
+    schedPop.hidden = false;
+    schedTrigger.setAttribute('aria-expanded', 'true');
+    positionSchedPop();
+  }
+  function closeSchedPop() {
+    schedPop.hidden = true;
+    schedTrigger.setAttribute('aria-expanded', 'false');
+  }
+  schedTrigger.addEventListener('click', e => {
+    e.stopPropagation();
+    if (schedPop.hidden) openSchedPop();
+    else closeSchedPop();
+  });
+  schedTrigger.addEventListener('keydown', e => {
+    if (locked) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (schedPop.hidden) { openSchedPop(); return; }
+      const idx = SCHEDULER_LIST.indexOf(highlightedSched);
+      const nextIdx = (idx + (e.key === 'ArrowDown' ? 1 : -1) + SCHEDULER_LIST.length) % SCHEDULER_LIST.length;
+      highlightedSched = SCHEDULER_LIST[nextIdx];
+      renderSchedulerPopover();
+    } else if (e.key === 'Enter' && !schedPop.hidden) {
+      e.preventDefault();
+      state.lr_scheduler = highlightedSched;
+      closeSchedPop();
+      syncUI();
+    } else if (e.key === 'Escape' && !schedPop.hidden) {
+      e.preventDefault();
+      closeSchedPop();
+    }
+  });
+  $('tt-sched-options').addEventListener('pointermove', e => {
+    const opt = e.target.closest('[data-sched]');
+    if (!opt || highlightedSched === opt.dataset.sched) return;
+    highlightedSched = opt.dataset.sched;
+    renderSchedulerPopover();
+  });
+  $('tt-sched-options').addEventListener('click', e => {
+    const opt = e.target.closest('[data-sched]');
+    if (!opt) return;
+    state.lr_scheduler = opt.dataset.sched;
+    closeSchedPop();
+    syncUI();
+    schedTrigger.focus();
+  });
+  document.addEventListener('click', e => {
+    if (!schedPop.hidden && !schedPop.contains(e.target) && !schedTrigger.contains(e.target)) {
+      closeSchedPop();
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !schedPop.hidden) {
+      closeSchedPop();
+      schedTrigger.focus();
+    }
+  });
+  window.addEventListener('scroll', () => { if (!schedPop.hidden) positionSchedPop(); }, true);
+  window.addEventListener('resize', () => { if (!schedPop.hidden) positionSchedPop(); });
+
+  // Click delegation on chart & recipe -> focus corresponding field
+  document.addEventListener('click', e => {
+    const target = e.target.closest('[data-focus]');
+    if (target) focusField(target.dataset.focus);
+  });
+
+  // Demo controls: Locked state & Validation error preview
+  $('tt-toggle-lock').addEventListener('click', () => {
+    locked = !locked;
+    if (locked) closeSchedPop();
+    $('tt-fieldset').disabled = locked;
+    $('tt-toggle-lock').setAttribute('aria-pressed', String(locked));
+    $('tt-lock-banner').classList.toggle('is-visible', locked);
+  });
+
+  $('tt-toggle-error').addEventListener('click', () => {
+    errorDemoActive = !errorDemoActive;
+    $('tt-toggle-error').setAttribute('aria-pressed', String(errorDemoActive));
+    const key = state.duration_unit === 'epochs' ? 'max_train_epochs' : 'max_train_steps';
+    const input = $('f-' + key);
+    if (errorDemoActive) {
+      state[key] = -1;
+      input.value = '-1';
+      validateField(key);
+      syncUI();
+      focusField(key);
+    } else {
+      state[key] = INITIAL[key];
+      input.value = String(INITIAL[key]);
+      validateField(key);
+      syncUI();
+    }
+  });
+
+  // Floating ? help tooltip
+  const tip = $('tt-tooltip');
+  function showTip(btn) {
+    const key = btn.dataset.help;
+    const entry = HELP[key];
+    if (!entry) return;
+    const [title, meaning, effect, ...notes] = entry;
+    tip.innerHTML = `
+      <div class="tt-tooltip-title"><span>${title}</span><span class="tt-tooltip-key">${key}</span></div>
+      <p><span class="tt-tip-k">含义：</span>${meaning}</p>
+      <p><span class="tt-tip-k">作用：</span>${effect}</p>
+      ${notes.length ? `<div class="tt-tip-note">${notes.join(' ')}</div>` : ''}
+    `;
+    tip.classList.add('is-open');
+    tip.setAttribute('aria-hidden', 'false');
+    const rect = btn.getBoundingClientRect();
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    let left = rect.left + rect.width / 2 - tw / 2;
+    left = Math.max(12, Math.min(window.innerWidth - tw - 12, left));
+    let top = rect.bottom + 8;
+    if (top + th > window.innerHeight - 12) top = rect.top - th - 8;
+    tip.style.left = left + 'px';
+    tip.style.top = Math.max(12, top) + 'px';
+  }
+  function hideTip() {
+    tip.classList.remove('is-open');
+    tip.setAttribute('aria-hidden', 'true');
+  }
+  document.querySelectorAll('.tt-help').forEach(btn => {
+    btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showTip(btn); });
+    btn.addEventListener('mouseenter', () => showTip(btn));
+    btn.addEventListener('mouseleave', hideTip);
+    btn.addEventListener('focus', () => showTip(btn));
+    btn.addEventListener('blur', hideTip);
+  });
+
+  // Optional URL query params for state verification (?sched=cosine_with_restarts&cycles=3&openSched=1)
+  const qs = new URLSearchParams(location.search);
+  if (qs.get('sched') && SCHEDULER_LIST.includes(qs.get('sched'))) {
+    state.lr_scheduler = qs.get('sched');
+    highlightedSched = state.lr_scheduler;
+  }
+  if (qs.get('cycles')) {
+    const c = Math.max(1, Math.round(Number(qs.get('cycles')) || 1));
+    state.lr_scheduler_num_cycles = c;
+    $('f-lr_scheduler_num_cycles').value = String(c);
+  }
+
+  // Initial render + responsive ResizeObserver for 1:1 full-width SVG timeline
+  syncUI();
+  if (qs.get('openSched') === '1') openSchedPop();
+  if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(() => renderTimeline());
+    ro.observe($('tt-timeline-svg').parentElement);
+  }
+})();
+</script>
+</body>
+</html>

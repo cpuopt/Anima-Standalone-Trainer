@@ -1,0 +1,2850 @@
+<!doctype html>
+<html lang="zh-CN" class="dark" data-theme="github-dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Network tab · Direction 1 (Tufte &amp; Victor Explorable Matrix Workbench)</title>
+<style>
+/* ===== Existing app shell (copied from training-ui/frontend/src/style.css). DO NOT EDIT this block. ===== */
+:root { --background:#f5f7fa; --foreground:#202b40; --card:#fff; --primary:#326cd4; --primary-foreground:#fff; --secondary:#e9edf4; --muted:#edf0f5; --muted-foreground:#677389; --accent:#e0e9fc; --destructive:#bc364a; --border:#dbe1eb; font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif; color-scheme:light; }
+.dark { --background:#10151f; --foreground:#e0e7f2; --card:#171e2b; --primary:#86aafa; --primary-foreground:#111b32; --secondary:#222d40; --muted:#1b2434; --muted-foreground:#94a3bb; --accent:#253650; --destructive:#db4e67; --border:#2b374c; color-scheme:dark; }
+[data-theme="midnight-blue"] { --background:#0c172b; --card:#10213b; --border:#263f61; --primary:#6ec1eb; }
+[data-theme="cherry-pink"] { --background:#241622; --card:#2d1e2c; --border:#513347; --primary:#e8a0c1; }
+* { box-sizing:border-box; border-color:var(--border); }
+body { margin:0; background:var(--background); color:var(--foreground); font-size:14px; line-height:1.55; }
+button { cursor:pointer; font:inherit; color:inherit; background:none; border:0; } button:disabled { cursor:not-allowed; opacity:.45; }
+input,select,textarea { max-width:100%; font:inherit; }
+:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+a { color:var(--primary); text-decoration:none; } h1,h2,h3,p { margin-top:0; } small { display:block; }
+.studio-shell { display:grid; grid-template-columns:245px minmax(0,1fr); min-height:100dvh; }
+.sidebar { position:sticky; top:0; height:100dvh; border-right:1px solid var(--border); padding:26px 18px 16px; background:color-mix(in srgb,var(--card) 94%,transparent); display:flex; flex-direction:column; gap:16px; }
+.brand { display:flex; gap:11px; align-items:center; color:var(--foreground); font-size:16px; font-weight:650; margin-bottom:12px; }.brand small { font-weight:400; font-size:11px; color:var(--muted-foreground); letter-spacing:.06em; }
+.brand-mark { background:linear-gradient(140deg,#8cadff,#9c7ae3); color:#14213a; display:grid; place-items:center; font-weight:800; border-radius:10px; width:36px; height:40px; }
+.sidebar-heading { display:flex; align-items:center; justify-content:space-between; }.sidebar-heading h2 { margin:0; font-size:12px; color:var(--muted-foreground); letter-spacing:.1em; }
+.subtle { border:0; background:none; padding:3px; color:var(--muted-foreground); }
+.shell-input { width:100%; height:36px; border:1px solid var(--border); border-radius:6px; padding:4px 12px; background:color-mix(in srgb,var(--border) 30%,transparent); color:var(--foreground); }
+.job-list { flex:1; min-height:100px; overflow:auto; display:flex; flex-direction:column; gap:6px; }.job-item { border:1px solid transparent; border-radius:7px; display:flex; gap:10px; align-items:center; padding:10px; background:transparent; text-align:left; }.job-item.selected { background:var(--accent); border-color:var(--border); }.job-name small { font-size:10px; color:var(--muted-foreground); }.job-dot { width:6px; height:6px; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }.job-dot.running { background:#5ace9d; box-shadow:0 0 7px #5ace9d66; }
+.new-job { display:grid; gap:9px; border-top:1px solid var(--border); padding-top:18px; }.new-job label { font-size:12px; color:var(--muted-foreground); }.new-job select { height:36px; border:1px solid var(--border); border-radius:6px; padding:0 10px; background:var(--background); color:var(--foreground); }
+.sidebar footer { display:flex; flex-direction:column; align-items:flex-start; gap:6px; font-size:11px; }.connection-on { color:#70be9d; }
+main { min-width:0; }
+.toolbar { min-height:115px; padding:25px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:color-mix(in srgb,var(--background) 90%,transparent); }
+.eyebrow { font-size:9px; font-weight:650; letter-spacing:.18em; color:var(--muted-foreground); } h1 { font-size:22px; font-weight:650; margin:2px 0; } .dirty-dot { font-size:10px; color:#e3b76a; margin-left:9px; }
+.toolbar-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.sbtn { display:inline-flex; align-items:center; height:36px; padding:0 16px; border-radius:6px; font-size:14px; font-weight:500; background:var(--primary); color:var(--primary-foreground); }
+.sbtn.outline { background:color-mix(in srgb,var(--border) 30%,transparent); border:1px solid var(--border); color:var(--foreground); }
+.sbtn.ghost { background:none; color:var(--foreground); } .sbtn.train { background:#599e7d; color:#071e15; }
+.tabs { display:flex; gap:3px; padding:0 25px; border-bottom:1px solid var(--border); overflow:auto; }.tabs button { white-space:nowrap; padding:15px 13px; border-bottom:2px solid transparent; color:var(--muted-foreground); font-size:12px; }.tabs button.active { color:var(--primary); border-bottom-color:var(--primary); }
+.workspace { padding:26px 32px 60px; margin:auto; }
+.muted { color:var(--muted-foreground); }
+/* demo-only theme switcher */
+.theme-dock { position:fixed; right:14px; bottom:14px; z-index:999; display:flex; gap:4px; padding:5px; border:1px solid var(--border); border-radius:8px; background:var(--card); box-shadow:0 6px 20px #0005; font-size:11px; }
+.theme-dock button { padding:4px 8px; border-radius:5px; color:var(--muted-foreground); } .theme-dock button[aria-pressed=true] { background:var(--accent); color:var(--foreground); }
+@media(max-width:1000px) { .studio-shell{grid-template-columns:205px minmax(0,1fr)} .toolbar,.workspace{padding-left:20px;padding-right:20px} .tabs{padding:0 10px} }
+@media(max-width:680px) { .studio-shell{display:block}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding:16px}.job-list{max-height:150px}.toolbar{padding:18px}.workspace{padding:18px 12px} }
+/* ===== end of shell ===== */
+
+/* ===== Direction 1 styles (Network tab root: .nt-wrap / .nt) ===== */
+.nt-wrap {
+  --nt-mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+  --nt-hairline: color-mix(in srgb, var(--border) 82%, transparent);
+  --nt-hairline-soft: color-mix(in srgb, var(--border) 48%, transparent);
+  --nt-surface: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+  --nt-surface-strong: color-mix(in srgb, var(--foreground) 4.5%, transparent);
+  --nt-ok: #26895a;
+  --nt-warn: #b87114;
+  --nt-err: var(--destructive);
+  --nt-accent-2: #7c4dff;
+  max-width: 1560px;
+  margin: 0 auto;
+  min-width: 0;
+  color: var(--foreground);
+}
+.dark .nt-wrap {
+  --nt-ok: #5ace9d;
+  --nt-warn: #f0b254;
+  --nt-accent-2: #b58cff;
+}
+.nt-wrap .mono {
+  font-family: var(--nt-mono);
+  font-variant-numeric: tabular-nums;
+}
+.nt-wrap [hidden] {
+  display: none !important;
+}
+
+/* 1. Top Header & Demo Controls */
+.nt-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--nt-hairline);
+  margin-bottom: 10px;
+}
+.nt-title-block {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.nt-title-block h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.nt-title-block p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.nt-demo-toggles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.nt-demo-tag {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.nt-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--nt-hairline);
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--nt-surface);
+  color: var(--foreground);
+  transition: border-color .15s, background .15s, color .15s;
+}
+.nt-pill-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.nt-pill-btn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+.nt-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .55;
+}
+.nt-pill-btn[aria-pressed="true"] .nt-pill-dot {
+  opacity: 1;
+}
+
+/* Live Recipe Summary Strip */
+.nt-recipe-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  margin-bottom: 14px;
+  background: var(--nt-surface);
+  border-top: 1px solid var(--nt-hairline-soft);
+  border-bottom: 1px solid var(--nt-hairline);
+  font-size: 13px;
+}
+.nt-recipe-items {
+  display: flex;
+  align-items: center;
+  gap: 6px 8px;
+  flex-wrap: wrap;
+  line-height: 1.4;
+}
+.nt-recipe-sep {
+  color: var(--muted-foreground);
+  opacity: .6;
+  user-select: none;
+}
+.nt-recipe-key {
+  font-family: var(--nt-mono);
+  font-weight: 600;
+  color: var(--foreground);
+}
+.nt-recipe-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-family: var(--nt-mono);
+  font-size: 12px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 38%, transparent);
+  color: var(--foreground);
+}
+.nt-recipe-chip.is-ok {
+  background: color-mix(in srgb, var(--nt-ok) 14%, transparent);
+  border-color: color-mix(in srgb, var(--nt-ok) 40%, transparent);
+  color: var(--nt-ok);
+}
+.nt-recipe-chip.is-warn {
+  background: color-mix(in srgb, var(--nt-warn) 14%, transparent);
+  border-color: color-mix(in srgb, var(--nt-warn) 40%, transparent);
+  color: var(--nt-warn);
+}
+.nt-recipe-chip.is-off {
+  background: var(--nt-surface-strong);
+  border-color: var(--nt-hairline);
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+/* Help trigger (?) */
+.nt-help-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 1px solid var(--nt-hairline);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  color: var(--muted-foreground);
+  background: transparent;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.nt-help-btn:hover,
+.nt-help-btn[aria-expanded="true"] {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+/* 2. HERO: Explorable Adapter Matrix Blueprint */
+.nt-hero {
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--nt-hairline);
+  margin-bottom: 18px;
+}
+.nt-hero[hidden] { display: none; }
+.nt-hero-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.nt-hero-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.nt-hero-title h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--foreground);
+}
+.nt-hero-title .nt-hero-sub {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.nt-hero-totals {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.nt-stat-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 4px;
+  background: var(--nt-surface-strong);
+  border: 1px solid var(--nt-hairline-soft);
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.nt-stat-inline strong {
+  font-family: var(--nt-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+/* Schematic Formula Strip */
+.nt-formula-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-hairline-soft);
+  border-left: 3px solid var(--primary);
+}
+.nt-formula-eq {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-family: var(--nt-mono);
+  font-size: 13px;
+}
+.nt-f-lhs {
+  font-weight: 700;
+  color: var(--primary);
+}
+.nt-f-op {
+  color: var(--muted-foreground);
+  font-weight: 600;
+}
+.nt-f-mat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+  border: 1px solid var(--nt-hairline);
+  color: var(--foreground);
+  font-weight: 600;
+}
+.nt-f-mat small {
+  display: inline;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.nt-f-mat.is-dora {
+  border-color: color-mix(in srgb, var(--nt-accent-2) 50%, var(--border));
+  background: color-mix(in srgb, var(--nt-accent-2) 12%, var(--card));
+}
+.nt-f-scale {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  padding: 1px 7px;
+  border-radius: 3px;
+  border: 1px dashed var(--nt-hairline);
+}
+.nt-formula-kind {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Matrix Table */
+.nt-table-scroll {
+  overflow-x: auto;
+  border-top: 1px solid var(--nt-hairline);
+  border-bottom: 1px solid var(--nt-hairline);
+}
+.nt-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.nt-matrix-table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--nt-hairline);
+  background: var(--nt-surface);
+  white-space: nowrap;
+}
+.nt-matrix-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--nt-hairline-soft);
+  vertical-align: middle;
+  color: var(--foreground);
+}
+.nt-matrix-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.nt-matrix-table tbody tr:hover {
+  background: var(--nt-surface);
+}
+.nt-matrix-table tbody tr.is-disabled td {
+  color: var(--muted-foreground);
+  opacity: .75;
+}
+.nt-layer-name {
+  font-family: var(--nt-mono);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.nt-layer-type-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: var(--nt-surface-strong);
+  border: 1px solid var(--nt-hairline-soft);
+}
+.nt-dim-cell {
+  font-family: var(--nt-mono);
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+.nt-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-family: var(--nt-mono);
+  font-size: 12px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--primary) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.nt-mode-pill.is-off {
+  background: var(--nt-surface-strong);
+  border-color: var(--nt-hairline);
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.nt-mode-pill.is-full {
+  background: color-mix(in srgb, var(--nt-warn) 14%, transparent);
+  border-color: color-mix(in srgb, var(--nt-warn) 40%, transparent);
+  color: var(--nt-warn);
+}
+.nt-mat-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+.nt-mat-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--nt-mono);
+  font-size: 12px;
+  background: color-mix(in srgb, var(--card) 80%, transparent);
+  border: 1px solid var(--nt-hairline-soft);
+  white-space: nowrap;
+}
+.nt-mat-chip b {
+  color: var(--primary);
+  font-weight: 650;
+}
+.nt-mat-chip.is-mag b {
+  color: var(--nt-accent-2);
+}
+.nt-num-cell {
+  font-family: var(--nt-mono);
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+.nt-pct-cell {
+  min-width: 150px;
+}
+.nt-pct-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.nt-bar-track {
+  width: 72px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--nt-surface-strong);
+  border: 1px solid var(--nt-hairline-soft);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.nt-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 1px;
+  transition: width .2s ease;
+}
+.nt-pct-val {
+  font-family: var(--nt-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  min-width: 64px;
+  text-align: right;
+}
+.nt-hero-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+.nt-error-banner {
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--nt-err) 50%, var(--border));
+  border-left: 3px solid var(--nt-err);
+  background: color-mix(in srgb, var(--nt-err) 10%, var(--card));
+  color: var(--nt-err);
+  font-size: 13px;
+}
+.nt-error-banner[hidden] { display: none; }
+.nt-info-note {
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--nt-hairline);
+  border-left: 3px solid var(--muted-foreground);
+  background: var(--nt-surface);
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.nt-info-note[hidden] { display: none; }
+
+/* Fieldset */
+.nt-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.nt-fieldset:disabled {
+  opacity: 0.62;
+}
+
+/* 3. Row 1: Two-Column Hairline Configuration Grid */
+.nt-grid-2 {
+  display: grid;
+  grid-template-columns: 1.06fr 0.94fr;
+  gap: 0;
+  border-bottom: 1px solid var(--nt-hairline);
+  padding-bottom: 20px;
+  margin-bottom: 22px;
+}
+.nt-col {
+  min-width: 0;
+  padding-right: 26px;
+  border-right: 1px solid var(--nt-hairline-soft);
+}
+.nt-col:last-child {
+  padding-right: 0;
+  padding-left: 26px;
+  border-right: 0;
+}
+.nt-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--nt-hairline);
+}
+.nt-sec-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--foreground);
+}
+.nt-sec-meta {
+  font-family: var(--nt-mono);
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Segmented Control */
+.nt-seg-control {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border: 1px solid var(--nt-hairline);
+  border-radius: 5px;
+  padding: 2px;
+  background: var(--nt-surface-strong);
+  gap: 2px;
+  width: 100%;
+}
+.nt-seg-control.compact {
+  width: auto;
+}
+.nt-seg-btn {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.nt-seg-btn:hover:not(:disabled) {
+  color: var(--foreground);
+}
+.nt-seg-btn[aria-pressed="true"] {
+  background: var(--card);
+  color: var(--primary);
+  font-weight: 650;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.18);
+}
+
+/* Form Fields */
+.nt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  margin-bottom: 12px;
+}
+.nt-field:last-child {
+  margin-bottom: 0;
+}
+.nt-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.nt-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--muted-foreground);
+}
+.nt-field-label strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.nt-field-hint {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+.nt-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nt-input,
+.nt-select,
+.nt-textarea {
+  width: 100%;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--nt-hairline);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  color: var(--foreground);
+  font-size: 14px;
+  transition: border-color .15s, background .15s;
+}
+.nt-textarea {
+  height: auto;
+  padding: 7px 9px;
+  line-height: 1.5;
+  resize: vertical;
+  font-family: var(--nt-mono);
+  font-size: 13px;
+}
+.nt-input.mono,
+.nt-select.mono {
+  font-family: var(--nt-mono);
+  font-variant-numeric: tabular-nums;
+}
+.nt-input:focus,
+.nt-select:focus,
+.nt-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+}
+.nt-input:disabled,
+.nt-select:disabled,
+.nt-textarea:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  background: var(--nt-surface);
+}
+
+.nt-stepper {
+  display: inline-flex;
+  border: 1px solid var(--nt-hairline);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--nt-surface);
+  flex-shrink: 0;
+}
+.nt-stepper button {
+  width: 28px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  font-family: var(--nt-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.nt-stepper button + button {
+  border-left: 1px solid var(--nt-hairline);
+}
+.nt-stepper button:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--primary);
+}
+
+/* Quick Chips */
+.nt-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.nt-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--nt-hairline);
+  border-radius: 4px;
+  font-family: var(--nt-mono);
+  font-size: 12px;
+  color: var(--muted-foreground);
+  background: transparent;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.nt-chip:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.nt-chip.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 13%, transparent);
+  font-weight: 600;
+}
+
+/* Derived & Lock Badges */
+.nt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-family: var(--nt-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid var(--nt-hairline);
+  background: var(--nt-surface-strong);
+  color: var(--foreground);
+}
+.nt-badge.is-lock {
+  color: var(--nt-warn);
+  border-color: color-mix(in srgb, var(--nt-warn) 45%, transparent);
+  background: color-mix(in srgb, var(--nt-warn) 12%, transparent);
+}
+.nt-badge.is-scale {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.nt-badge.is-ok {
+  color: var(--nt-ok);
+  border-color: color-mix(in srgb, var(--nt-ok) 40%, transparent);
+  background: color-mix(in srgb, var(--nt-ok) 12%, transparent);
+}
+.nt-badge[hidden] { display: none; }
+
+/* Two-column inline sub-grid */
+.nt-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--nt-hairline-soft);
+  border-bottom: 1px solid var(--nt-hairline-soft);
+  margin: 10px 0;
+}
+.nt-pair .nt-field {
+  margin-bottom: 0;
+}
+.nt-pair .nt-field-head {
+  min-height: 24px;
+}
+
+/* Checkbox Strip */
+.nt-check-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+.nt-check-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  color: var(--foreground);
+}
+.nt-check-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary);
+  margin: 0;
+  cursor: pointer;
+}
+.nt-check-item label {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Module-Specific Block */
+.nt-mod-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  margin-bottom: 12px;
+}
+.nt-mod-grid .nt-field {
+  margin-bottom: 0;
+}
+.nt-mod-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-hairline-soft);
+  margin-bottom: 12px;
+}
+.nt-mod-toggle-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.nt-mod-empty {
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px dashed var(--nt-hairline);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+/* Weights vs Resume Distinction Block */
+.nt-wr-section {
+  padding-top: 12px;
+  border-top: 1px solid var(--nt-hairline);
+}
+.nt-wr-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.nt-wr-head h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--foreground);
+}
+.nt-wr-card {
+  padding: 9px 11px;
+  border: 1px solid var(--nt-hairline-soft);
+  border-radius: 4px;
+  background: var(--nt-surface);
+  margin-bottom: 10px;
+}
+.nt-wr-card:last-child {
+  margin-bottom: 0;
+}
+.nt-wr-card.is-weights {
+  border-left: 3px solid var(--primary);
+}
+.nt-wr-card.is-resume {
+  border-left: 3px solid var(--nt-ok);
+}
+.nt-wr-tag {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--nt-mono);
+}
+.nt-wr-card.is-weights .nt-wr-tag {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+.nt-wr-card.is-resume .nt-wr-tag {
+  color: var(--nt-ok);
+  background: color-mix(in srgb, var(--nt-ok) 14%, transparent);
+}
+
+/* Full Finetune Callout */
+.nt-fullft-box {
+  padding: 14px 16px;
+  border: 1px solid var(--nt-hairline);
+  border-left: 3px solid var(--nt-warn);
+  border-radius: 4px;
+  background: var(--nt-surface);
+  margin-top: 12px;
+}
+.nt-fullft-box h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+/* 4. Row 2: LayerRankEditor Hairline Matrix */
+.nt-layer-sec {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--nt-hairline);
+  margin-bottom: 20px;
+}
+.nt-layer-sec[hidden] { display: none; }
+.nt-layer-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--nt-hairline-soft);
+}
+.nt-layer-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.nt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--nt-hairline);
+  border-radius: 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+  color: var(--foreground);
+  transition: border-color .15s, color .15s, background .15s;
+}
+.nt-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.nt-layer-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--nt-hairline-soft);
+}
+.nt-layer-defaults {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.nt-inline-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.nt-inline-num label {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.nt-inline-num .nt-input {
+  width: 78px;
+  height: 28px;
+  font-size: 13px;
+}
+.nt-layer-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.nt-layer-table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--nt-hairline);
+  background: var(--nt-surface);
+  white-space: nowrap;
+}
+.nt-layer-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--nt-hairline-soft);
+  vertical-align: middle;
+}
+.nt-layer-table tbody tr:hover {
+  background: var(--nt-surface);
+}
+.nt-layer-table tbody tr.is-off td {
+  opacity: .55;
+}
+.nt-layer-table .nt-input {
+  width: 86px;
+  height: 28px;
+  font-size: 13px;
+  padding: 0 7px;
+}
+.nt-alpha-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.nt-alpha-auto {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-family: var(--nt-mono);
+  white-space: nowrap;
+}
+.nt-budget-cell {
+  min-width: 165px;
+}
+.nt-budget-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nt-budget-track {
+  flex: 1;
+  min-width: 70px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--nt-surface-strong);
+  border: 1px solid var(--nt-hairline-soft);
+  overflow: hidden;
+}
+.nt-budget-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 1px;
+  transition: width .2s ease;
+}
+.nt-budget-val {
+  font-family: var(--nt-mono);
+  font-size: 12px;
+  color: var(--muted-foreground);
+  min-width: 48px;
+  text-align: right;
+}
+
+/* Block Accordions for per-layer mode */
+.nt-block-details {
+  border: 1px solid var(--nt-hairline-soft);
+  border-radius: 4px;
+  margin-top: 8px;
+  background: color-mix(in srgb, var(--card) 50%, transparent);
+}
+.nt-block-details summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--nt-surface);
+  user-select: none;
+}
+.nt-block-details[open] summary {
+  border-bottom: 1px solid var(--nt-hairline-soft);
+}
+.nt-block-details .nt-layer-table {
+  margin-top: 0;
+}
+
+/* 5. Row 3: Network Args & JSON Details */
+.nt-args-sec {
+  margin-bottom: 10px;
+}
+.nt-args-sec[hidden] { display: none; }
+.nt-json-details {
+  margin-top: 10px;
+  border: 1px solid var(--nt-hairline-soft);
+  border-radius: 4px;
+  background: var(--nt-surface);
+}
+.nt-json-details summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.nt-json-details[open] summary {
+  border-bottom: 1px solid var(--nt-hairline-soft);
+}
+.nt-json-body {
+  padding: 10px 12px;
+}
+
+/* Floating FieldHelp Popover (matches dataset-tab dir-1) */
+.nt-help-popover {
+  position: fixed;
+  z-index: 1200;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  padding: 13px 15px;
+  border-radius: 7px;
+  background: var(--card);
+  border: 1px solid var(--primary);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.nt-help-popover[hidden] { display: none; }
+.nt-hp-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--nt-hairline);
+}
+.nt-hp-head strong {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--foreground);
+}
+.nt-hp-head code {
+  font-family: var(--nt-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.nt-hp-row {
+  margin-bottom: 6px;
+}
+.nt-hp-row span {
+  font-weight: 650;
+  color: var(--primary);
+  margin-right: 4px;
+}
+.nt-hp-notes {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.nt-hp-notes li {
+  margin-bottom: 3px;
+}
+
+@media (max-width: 1180px) {
+  .nt-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .nt-col,
+  .nt-col:last-child {
+    padding: 0;
+    border-right: 0;
+  }
+}
+@media (max-width: 680px) {
+  .nt-pair,
+  .nt-mod-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+<div class="studio-shell">
+  <aside class="sidebar">
+    <a class="brand" href="#"><span class="brand-mark">A</span><span>Training Studio<small>Anima · Krea 2 · MOSS</small></span></a>
+    <div class="sidebar-heading"><h2>任务</h2><button class="subtle" title="刷新任务">↻</button></div>
+    <input class="shell-input" placeholder="搜索任务…" aria-label="搜索任务">
+    <nav class="job-list" aria-label="任务列表">
+      <button class="job-item selected"><span class="job-dot"></span><span class="job-name">rin_style_v3<small>anima</small></span></button>
+      <button class="job-item"><span class="job-dot running"></span><span class="job-name">kurosawa_char<small>anima</small></span></button>
+      <button class="job-item"><span class="job-dot"></span><span class="job-name">krea_lighting<small>krea2</small></span></button>
+      <button class="job-item"><span class="job-dot"></span><span class="job-name">moss_product_sft<small>moss_image</small></span></button>
+    </nav>
+    <form class="new-job" onsubmit="return false"><label>新建任务</label><input class="shell-input" placeholder="任务名称"><select aria-label="模型架构"><option>Anima</option><option>Krea 2</option><option>MOSS-Image</option></select><button class="sbtn" disabled>创建任务</button></form>
+    <footer><button class="subtle">全局设置</button><a href="#">打开旧界面 ↗</a><span class="connection-on">实时连接正常</span></footer>
+  </aside>
+  <main>
+    <header class="toolbar">
+      <div class="title"><span class="eyebrow">TRAINING WORKSPACE</span><h1>rin_style_v3<span class="dirty-dot" id="dirty-dot" hidden>●</span></h1><span class="muted">anima · 就绪</span></div>
+      <div class="toolbar-actions"><button class="sbtn outline">复制</button><button class="sbtn outline">删除</button><button class="sbtn" id="btn-save">保存</button><button class="sbtn train">开始训练</button></div>
+    </header>
+    <nav class="tabs" aria-label="配置页面"><button>训练</button><button>数据集</button><button class="active">网络</button><button>多 GPU</button><button>提示词与生成</button><button>样例</button><button>控制台</button><button>TensorBoard</button><button>训练产出</button><button>设置</button></nav>
+    <div class="workspace">
+      <!-- ===== Direction 1 Content: Edward Tufte & Bret Victor Explorable Matrix Workbench ===== -->
+      <section class="nt-wrap nt" aria-label="网络配置">
+        <!-- Top Header & Demo Controls -->
+        <div class="nt-top-bar">
+          <div class="nt-title-block">
+            <h2>网络</h2>
+            <p>配置适配器架构、低秩矩阵分解、分层容量分配与断点续训。</p>
+          </div>
+          <div class="nt-demo-toggles" role="group" aria-label="原型交互状态切换">
+            <span class="nt-demo-tag">原型预览：</span>
+            <button type="button" class="nt-pill-btn" id="demo-lokr-btn" aria-pressed="false">
+              <span class="nt-pill-dot"></span>切换 LoKR + 分层覆盖示例
+            </button>
+            <button type="button" class="nt-pill-btn" id="demo-lock-btn" aria-pressed="false">
+              <span class="nt-pill-dot"></span>预览锁定状态 (Locked)
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Recipe Summary Strip -->
+        <div class="nt-recipe-strip" id="nt-recipe-strip" aria-live="polite"></div>
+
+        <!-- Hero: Explorable Adapter Matrix Blueprint -->
+        <section class="nt-hero" id="nt-hero" aria-label="样例层矩阵分解与参数量图解">
+          <div class="nt-hero-head">
+            <div class="nt-hero-title">
+              <h3>样例层矩阵分解与参数量图解</h3>
+              <span class="nt-hero-sub">实时响应 Rank · Factor · Full Matrix · DoRA · Block 0 分层覆盖</span>
+            </div>
+            <div class="nt-hero-totals" id="nt-hero-totals"></div>
+          </div>
+
+          <div class="nt-formula-strip" id="nt-formula-strip"></div>
+          <div class="nt-error-banner" id="nt-preview-error" role="alert" hidden></div>
+
+          <div class="nt-table-scroll">
+            <table class="nt-matrix-table">
+              <thead>
+                <tr>
+                  <th>样例层</th>
+                  <th>原始 [输出 × 输入]</th>
+                  <th>模式</th>
+                  <th>适配器矩阵</th>
+                  <th style="text-align:right">参数量</th>
+                  <th style="text-align:right">占原始层</th>
+                </tr>
+              </thead>
+              <tbody id="nt-matrix-tbody"></tbody>
+            </table>
+          </div>
+          <p class="nt-hero-note">
+            Anima 2B 标准宽度 2048，应用 Block 0 分层覆盖；未读取实际底模尺寸。单层结构示例，非整网统计；不计 Alpha 缓冲与底模 bias。Alpha / Dropout 不影响参数量。筛选目标层或加载已有权重可能改变实际结构。
+          </p>
+        </section>
+
+        <div class="nt-info-note" id="nt-preview-unsupported" hidden>
+          当前适配器模块（<code class="mono" id="nt-unsupported-mod"></code>）不支持 Anima 2B 样例层矩阵分解预览；切换至 <code>networks.lora_anima</code>、<code>networks.loha</code> 或 <code>networks.lokr</code> 可实时查看矩阵分解图解。
+        </div>
+
+        <!-- Main Configuration Fieldset -->
+        <fieldset class="nt-fieldset" id="nt-fieldset">
+          <!-- Row 1: Two-Column Hairline Configuration Grid -->
+          <div class="nt-grid-2">
+            <!-- Left Column: Training Type & Core Capacity -->
+            <div class="nt-col">
+              <div class="nt-sec-head">
+                <h3>训练类型与核心容量</h3>
+                <span class="nt-sec-meta" id="nt-left-meta">Anima DiT · Adapter</span>
+              </div>
+
+              <!-- Training Type Segmented Control -->
+              <div class="nt-field">
+                <div class="nt-field-head">
+                  <span class="nt-field-label">
+                    <strong>Training Type</strong>（训练类型）
+                    <button type="button" class="nt-help-btn" data-help="training_type" aria-label="Training Type 帮助">?</button>
+                  </span>
+                </div>
+                <div class="nt-seg-control" role="group" aria-label="Training Type">
+                  <button type="button" class="nt-seg-btn" data-type="lora" aria-pressed="true">Adapter (LoRA / LoHa / LoKR)</button>
+                  <button type="button" class="nt-seg-btn" data-type="full_finetune" aria-pressed="false">Full Finetune</button>
+                </div>
+              </div>
+
+              <!-- Adapter Core Fields -->
+              <div id="nt-adapter-core">
+                <div class="nt-field">
+                  <div class="nt-field-head">
+                    <span class="nt-field-label">
+                      <label for="f-module"><strong>Network Module</strong>（适配器实现）</label>
+                      <button type="button" class="nt-help-btn" data-help="network_module" aria-label="Network Module 帮助">?</button>
+                    </span>
+                  </div>
+                  <select id="f-module" class="nt-select mono">
+                    <option value="networks.lora_anima">networks.lora_anima</option>
+                    <option value="networks.loha">networks.loha</option>
+                    <option value="networks.lokr">networks.lokr</option>
+                    <option value="networks.lora_lumina">networks.lora_lumina</option>
+                    <option value="networks.lora">networks.lora</option>
+                  </select>
+                </div>
+
+                <!-- Rank & Alpha Pair -->
+                <div class="nt-pair">
+                  <div class="nt-field">
+                    <div class="nt-field-head">
+                      <span class="nt-field-label">
+                        <label for="f-rank">Network Dim (Rank)</label>
+                        <button type="button" class="nt-help-btn" data-help="network_dim" aria-label="Network Dim 帮助">?</button>
+                      </span>
+                      <span class="nt-badge is-lock" id="rank-lock-badge" hidden></span>
+                    </div>
+                    <div class="nt-input-row">
+                      <input id="f-rank" type="number" min="1" step="1" class="nt-input mono" value="16">
+                      <div class="nt-stepper">
+                        <button type="button" data-step="rank" data-delta="-4" aria-label="减小 Rank">−</button>
+                        <button type="button" data-step="rank" data-delta="4" aria-label="增大 Rank">+</button>
+                      </div>
+                    </div>
+                    <div class="nt-chip-row" id="rank-chips">
+                      <button type="button" class="nt-chip" data-rank-preset="8">8</button>
+                      <button type="button" class="nt-chip active" data-rank-preset="16">16</button>
+                      <button type="button" class="nt-chip" data-rank-preset="32">32</button>
+                      <button type="button" class="nt-chip" data-rank-preset="64">64</button>
+                    </div>
+                    <span class="nt-field-hint" id="rank-hint">更高 Rank 增加容量与显存。</span>
+                  </div>
+
+                  <div class="nt-field">
+                    <div class="nt-field-head">
+                      <span class="nt-field-label">
+                        <label for="f-alpha">Network Alpha</label>
+                        <button type="button" class="nt-help-btn" data-help="network_alpha" aria-label="Network Alpha 帮助">?</button>
+                      </span>
+                      <span class="nt-badge is-scale" id="alpha-scale-pill">缩放 ×1.00</span>
+                    </div>
+                    <div class="nt-input-row">
+                      <input id="f-alpha" type="number" min="0.000001" step="any" class="nt-input mono" value="16">
+                      <div class="nt-stepper">
+                        <button type="button" data-step="alpha" data-delta="-4" aria-label="减小 Alpha">−</button>
+                        <button type="button" data-step="alpha" data-delta="4" aria-label="增大 Alpha">+</button>
+                      </div>
+                    </div>
+                    <div class="nt-chip-row" id="alpha-chips">
+                      <button type="button" class="nt-chip" data-alpha-ratio="0.5">0.5×R</button>
+                      <button type="button" class="nt-chip active" data-alpha-ratio="1">1×R</button>
+                      <button type="button" class="nt-chip" data-alpha-ratio="2">2×R</button>
+                    </div>
+                    <span class="nt-field-hint">通常与 Rank 相同；Full Matrix 下缩放固定为 1。</span>
+                  </div>
+                </div>
+
+                <!-- Train UNet Only & Dropout -->
+                <div class="nt-check-row">
+                  <div class="nt-check-item">
+                    <input type="checkbox" id="f-unet-only" checked>
+                    <label for="f-unet-only">Train UNet Only（仅训练图像主干 DiT）</label>
+                    <button type="button" class="nt-help-btn" data-help="network_train_unet_only" aria-label="Train UNet Only 帮助">?</button>
+                  </div>
+                  <div class="nt-inline-num">
+                    <label for="f-dropout">Network Dropout</label>
+                    <button type="button" class="nt-help-btn" data-help="network_dropout" aria-label="Network Dropout 帮助">?</button>
+                    <input id="f-dropout" type="number" min="0" max="1" step="0.05" class="nt-input mono" value="0">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Full Finetune Options (shown when trainingType === 'full_finetune') -->
+              <div id="nt-fullft-core" class="nt-fullft-box" hidden>
+                <h4>Full Finetune 选项</h4>
+                <div class="nt-check-item" style="margin-bottom:6px">
+                  <input type="checkbox" id="f-freeze-llm" checked>
+                  <label for="f-freeze-llm"><strong>Freeze LLM Adapter</strong>（冻结预训练文本适配层）</label>
+                  <button type="button" class="nt-help-btn" data-help="freeze_llm_adapter" aria-label="Freeze LLM Adapter 帮助">?</button>
+                </div>
+                <p class="nt-field-hint" style="margin:0">
+                  建议冻结预训练 LLM adapter，避免文本理解退化及 DDP graph 问题。此前填写的 Adapter 配置草稿已暂存，切回 Adapter 模式时自动恢复。
+                </p>
+              </div>
+            </div>
+
+            <!-- Right Column: Module-Specific Options & Weights / Resume -->
+            <div class="nt-col">
+              <!-- Module-Specific Options (Adapter only) -->
+              <div id="nt-mod-specific-wrap">
+                <div class="nt-sec-head">
+                  <h3>模块专有选项</h3>
+                  <span class="nt-sec-meta" id="nt-mod-meta">networks.lora_anima</span>
+                </div>
+
+                <!-- LoKR Factor & Full Matrix -->
+                <div id="nt-opt-lokr" hidden>
+                  <div class="nt-mod-grid">
+                    <div class="nt-field">
+                      <div class="nt-field-head">
+                        <span class="nt-field-label">
+                          <label for="f-factor">LoKR Factor</label>
+                          <button type="button" class="nt-help-btn" data-help="factor" aria-label="LoKR Factor 帮助">?</button>
+                        </span>
+                      </div>
+                      <input id="f-factor" type="number" min="-1" step="1" class="nt-input mono" placeholder="-1 (自动)">
+                      <div class="nt-chip-row">
+                        <button type="button" class="nt-chip" data-factor-preset="-1">-1 自动</button>
+                        <button type="button" class="nt-chip" data-factor-preset="4">4</button>
+                        <button type="button" class="nt-chip" data-factor-preset="8">8</button>
+                        <button type="button" class="nt-chip" data-factor-preset="16">16</button>
+                      </div>
+                    </div>
+                    <div class="nt-field" style="justify-content:center">
+                      <div class="nt-check-item">
+                        <input type="checkbox" id="f-full-matrix">
+                        <label for="f-full-matrix"><strong>Full Matrix</strong></label>
+                        <button type="button" class="nt-help-btn" data-help="full_matrix" aria-label="Full Matrix 帮助">?</button>
+                      </div>
+                      <span class="nt-field-hint">直接训练完整 Kronecker 因子，忽略 Rank 与 Alpha 缩放。</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- DoRA / DoKr -->
+                <div id="nt-opt-dora" class="nt-mod-toggles">
+                  <div class="nt-mod-toggle-line">
+                    <div class="nt-check-item">
+                      <input type="checkbox" id="f-use-dora">
+                      <label for="f-use-dora" id="f-use-dora-label">Use DoRA（幅度分解）</label>
+                      <button type="button" class="nt-help-btn" data-help="use_dora" aria-label="Use DoRA 帮助">?</button>
+                    </div>
+                    <span class="nt-field-hint">保存 ComfyUI 兼容的 <code>dora_scale</code> 权重</span>
+                  </div>
+                  <div class="nt-mod-toggle-line" id="nt-opt-dora-fp32" hidden>
+                    <div class="nt-check-item">
+                      <input type="checkbox" id="f-dora-fp32">
+                      <label for="f-dora-fp32">Save Magnitude Scale in FP32</label>
+                      <button type="button" class="nt-help-btn" data-help="dora_scale_fp32" aria-label="dora_scale_fp32 帮助">?</button>
+                    </div>
+                    <span class="nt-field-hint">降低低精度保存时的幅度舍入损失</span>
+                  </div>
+                </div>
+
+                <!-- LyCORIS (LoHa / LoKR) -->
+                <div id="nt-opt-lycoris" hidden>
+                  <div class="nt-mod-grid">
+                    <div class="nt-field">
+                      <div class="nt-field-head">
+                        <span class="nt-field-label">
+                          <label for="f-mod-dim">Mod Dim</label>
+                          <button type="button" class="nt-help-btn" data-help="mod_dim" aria-label="Mod Dim 帮助">?</button>
+                        </span>
+                      </div>
+                      <input id="f-mod-dim" type="number" min="0" step="1" class="nt-input mono" placeholder="留空排除">
+                      <span class="nt-field-hint">AdaLN modulation rank；空值排除。</span>
+                    </div>
+                    <div class="nt-field">
+                      <div class="nt-field-head">
+                        <span class="nt-field-label">
+                          <label for="f-rank-dropout">Rank Dropout</label>
+                          <button type="button" class="nt-help-btn" data-help="rank_dropout" aria-label="Rank Dropout 帮助">?</button>
+                        </span>
+                      </div>
+                      <input id="f-rank-dropout" type="number" min="0" max="1" step="0.05" class="nt-input mono" placeholder="0">
+                      <span class="nt-field-hint">LyCORIS 为输出通道 dropout。</span>
+                    </div>
+                    <div class="nt-field">
+                      <div class="nt-field-head">
+                        <span class="nt-field-label">
+                          <label for="f-mod-dropout">Module Dropout</label>
+                          <button type="button" class="nt-help-btn" data-help="module_dropout" aria-label="Module Dropout 帮助">?</button>
+                        </span>
+                      </div>
+                      <input id="f-mod-dropout" type="number" min="0" max="1" step="0.05" class="nt-input mono" placeholder="0">
+                    </div>
+                    <div class="nt-field" style="justify-content:center">
+                      <div class="nt-check-item">
+                        <input type="checkbox" id="f-use-tucker">
+                        <label for="f-use-tucker">Use Tucker</label>
+                        <button type="button" class="nt-help-btn" data-help="use_tucker" aria-label="Use Tucker 帮助">?</button>
+                      </div>
+                      <span class="nt-field-hint">仅用于 Conv2d 3×3；Anima Linear 不受影响。</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Empty state for legacy lora_lumina / lora -->
+                <div id="nt-opt-empty" class="nt-mod-empty" hidden>
+                  当前模块无额外专有选项；可通过下方 <code>Network Args</code> 传入附加参数。
+                </div>
+              </div>
+
+              <!-- Weights vs Resume Section -->
+              <div class="nt-wr-section" id="nt-wr-section">
+                <div class="nt-wr-head">
+                  <h4>权重初始化与断点续训</h4>
+                  <span class="nt-sec-meta">区分：仅权重 vs 完整状态</span>
+                </div>
+
+                <!-- Network Weights (Adapter only) -->
+                <div class="nt-wr-card is-weights" id="nt-weights-card">
+                  <div class="nt-field" style="margin-bottom:0">
+                    <div class="nt-field-head">
+                      <span class="nt-field-label">
+                        <label for="f-weights"><strong>Network Weights</strong> (Adapter checkpoint)</label>
+                        <button type="button" class="nt-help-btn" data-help="network_weights" aria-label="Network Weights 帮助">?</button>
+                      </span>
+                      <span class="nt-wr-tag">仅权重初始化</span>
+                    </div>
+                    <input id="f-weights" type="text" class="nt-input mono" placeholder="/path/to/adapter.safetensors">
+                    <span class="nt-field-hint">仅加载已有 Adapter 权重初始化（不恢复优化器、调度器与训练步数）。</span>
+                  </div>
+                </div>
+
+                <!-- Resume Training -->
+                <div class="nt-wr-card is-resume">
+                  <div class="nt-field-head" style="margin-bottom:6px">
+                    <div class="nt-check-item">
+                      <input type="checkbox" id="f-auto-resume">
+                      <label for="f-auto-resume"><strong>Auto-resume from last saved state</strong></label>
+                      <button type="button" class="nt-help-btn" data-help="auto_resume_last_state" aria-label="Auto-resume 帮助">?</button>
+                    </div>
+                    <span class="nt-wr-tag">完整断点续训</span>
+                  </div>
+                  <div class="nt-field" style="margin-bottom:0">
+                    <div class="nt-field-head">
+                      <span class="nt-field-label">
+                        <label for="f-resume">Resume State Folder</label>
+                        <button type="button" class="nt-help-btn" data-help="resume" aria-label="Resume State Folder 帮助">?</button>
+                      </span>
+                      <span class="nt-badge is-lock" id="resume-lock-badge" hidden>自动恢复已接管</span>
+                    </div>
+                    <input id="f-resume" type="text" class="nt-input mono" placeholder="/path/to/state_dir">
+                    <span class="nt-field-hint">恢复完整优化器、调度器与训练步数；启用自动恢复时忽略手动目录（草稿保留）。</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: LayerRankEditor Hairline Matrix -->
+          <section class="nt-layer-sec" id="nt-layer-sec" aria-label="高级分层设置">
+            <div class="nt-layer-top">
+              <div class="nt-check-item">
+                <input type="checkbox" id="f-layer-enable">
+                <label for="f-layer-enable"><strong>高级分层设置</strong>（<code>layer_configs</code>）</label>
+                <button type="button" class="nt-help-btn" data-help="layer_configs" aria-label="高级分层设置 帮助">?</button>
+              </div>
+              <div class="nt-layer-controls" id="nt-layer-controls" hidden>
+                <span class="nt-field-label">
+                  配置模式
+                  <button type="button" class="nt-help-btn" data-help="layer_mode" aria-label="配置模式 帮助">?</button>
+                </span>
+                <div class="nt-seg-control compact" role="group" aria-label="分层配置模式">
+                  <button type="button" class="nt-seg-btn" data-layer-mode="type" aria-pressed="true">按层类型</button>
+                  <button type="button" class="nt-seg-btn" data-layer-mode="layer" aria-pressed="false">按单个层</button>
+                </div>
+                <button type="button" class="nt-btn" id="btn-refresh-layers">↻ 重新读取模型</button>
+                <button type="button" class="nt-btn" id="btn-reset-layers">重置为原 Rank</button>
+                <span class="nt-badge is-ok" id="layer-status-pill">已读取 28 个 Block，224 个可配置层</span>
+              </div>
+            </div>
+
+            <div id="nt-layer-body" hidden>
+              <div class="nt-layer-meta-bar">
+                <div class="nt-layer-defaults">
+                  <div class="nt-inline-num">
+                    <label for="f-default-rank">默认 Rank</label>
+                    <button type="button" class="nt-help-btn" data-help="layer_rank" aria-label="默认 Rank 帮助">?</button>
+                    <input id="f-default-rank" type="number" min="1" step="1" class="nt-input mono" value="16">
+                  </div>
+                  <div class="nt-inline-num" id="nt-default-factor-wrap" hidden>
+                    <label for="f-default-factor">默认 Factor</label>
+                    <button type="button" class="nt-help-btn" data-help="layer_factor" aria-label="默认 Factor 帮助">?</button>
+                    <input id="f-default-factor" type="number" min="-1" step="1" class="nt-input mono" value="-1">
+                  </div>
+                </div>
+                <span class="nt-field-hint" id="nt-layer-hint">
+                  仅配置 DiT Block，优先于全局 Alpha、Factor 和旧的 Block 配置。Alpha 默认随 Rank 变化；切换模式只应用当前模式，另一模式草稿暂存于此页面。
+                </span>
+              </div>
+              <div class="nt-error-banner" id="nt-layer-error" role="alert" hidden></div>
+              <div id="nt-layer-matrix-container"></div>
+            </div>
+          </section>
+
+          <!-- Row 3: Network Args & JSON Details -->
+          <section class="nt-args-sec" id="nt-args-sec" aria-label="附加参数">
+            <div class="nt-field">
+              <div class="nt-field-head">
+                <span class="nt-field-label">
+                  <label for="f-free-args"><strong>Network Args</strong>（自由附加参数）</label>
+                  <button type="button" class="nt-help-btn" data-help="network_args" aria-label="Network Args 帮助">?</button>
+                </span>
+                <span class="nt-sec-meta" id="nt-args-count">0 项参数</span>
+              </div>
+              <textarea id="f-free-args" class="nt-textarea" rows="2" spellcheck="false" placeholder="例如：conv_dim=8 conv_alpha=8"></textarea>
+              <span class="nt-field-hint">空格分隔 <code>key=value</code>；JSON 列表与对象整体保留。上方专用字段优先于此处的同名键。</span>
+            </div>
+
+            <details class="nt-json-details" id="nt-json-details">
+              <summary>
+                <span>全部 Network Args（JSON）</span>
+                <span class="nt-sec-meta" id="nt-json-status">有效 JSON 数组</span>
+              </summary>
+              <div class="nt-json-body">
+                <textarea id="f-args-json" class="nt-textarea" rows="4" spellcheck="false"></textarea>
+                <span class="nt-field-hint" id="nt-json-hint">可用于修正已有原始参数与 <code>layer_configs</code>；保存时校验。</span>
+              </div>
+            </details>
+          </section>
+        </fieldset>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- Floating FieldHelp Popover -->
+<div class="nt-help-popover" id="nt-help-popover" role="dialog" aria-modal="false" hidden>
+  <div class="nt-hp-head">
+    <strong id="hp-title"></strong>
+    <code id="hp-key"></code>
+  </div>
+  <div class="nt-hp-row"><span>含义</span><span id="hp-meaning" style="font-weight:400;color:var(--foreground);margin:0"></span></div>
+  <div class="nt-hp-row"><span>作用</span><span id="hp-effect" style="font-weight:400;color:var(--foreground);margin:0"></span></div>
+  <ul class="nt-hp-notes" id="hp-notes"></ul>
+</div>
+
+<div class="theme-dock" role="group" aria-label="主题预览">
+  <button data-theme="github-dark" aria-pressed="true">Dark</button><button data-theme="github-light">Light</button><button data-theme="midnight-blue">Midnight</button><button data-theme="cherry-pink">Cherry</button>
+</div>
+
+<script>
+// ===== Theme Dock & URL Parameter (?theme=github-light) =====
+function applyTheme(t) {
+  const valid = ['github-dark', 'github-light', 'midnight-blue', 'cherry-pink'];
+  const theme = valid.includes(t) ? t : 'github-dark';
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.classList.toggle('dark', theme !== 'github-light');
+  document.querySelectorAll('.theme-dock button').forEach(x => {
+    x.setAttribute('aria-pressed', String(x.dataset.theme === theme));
+  });
+}
+document.querySelectorAll('.theme-dock button').forEach(b => {
+  b.onclick = () => applyTheme(b.dataset.theme);
+});
+const urlTheme = new URLSearchParams(location.search).get('theme');
+if (urlTheme) applyTheme(urlTheme);
+
+// ===== Exact LayerRank logic (from training-ui/public/js/layer-rank.js) =====
+const LayerRank = (function () {
+  const types = { self_attn: 'Self Attention', cross_attn: 'Cross Attention', mlp: 'MLP', modulation: 'AdaLN Modulation' };
+  function typeOf(name) {
+    const m = /^blocks\.\d+\.(self_attn|cross_attn|mlp|adaln_modulation_[^.]+)\..+$/.exec(name);
+    return m ? (m[1].startsWith('adaln_') ? 'modulation' : m[1]) : null;
+  }
+  function create(rank, factor = -1) {
+    return { version: 1, mode: 'type', default_rank: Number(rank), default_factor: Number(factor), types: {}, layers: {} };
+  }
+  function resolve(config, name, isType = false) {
+    const row = {
+      rank: config.default_rank,
+      enabled: true,
+      factor: config.default_factor ?? -1,
+      ...(config.types?.[isType ? name : typeOf(name)] || {}),
+      ...(isType ? {} : config.layers?.[name] || {})
+    };
+    row.alpha ??= row.rank;
+    return row;
+  }
+  function validate(config, names) {
+    const positive = (n) => typeof n === 'number' && Number.isFinite(n) && n > 0;
+    const factor = (n) => Number.isInteger(n) && (n === -1 || n > 0);
+    if (!config || config.version !== 1 || !['type', 'layer'].includes(config.mode)) throw Error('不支持的分层配置版本或模式');
+    if (!positive(config.default_rank) || !Number.isInteger(config.default_rank)) throw Error('Rank 必须为正整数');
+    if (!factor(config.default_factor ?? -1)) throw Error('Factor 必须为 -1 或正整数');
+    for (const group of ['types', 'layers']) {
+      const entries = config[group] || {};
+      if (typeof entries !== 'object' || Array.isArray(entries)) throw Error('分层配置格式错误');
+      for (const [name, entry] of Object.entries(entries)) {
+        if (group === 'types' ? !Object.hasOwn(types, name) : !names.includes(name)) throw Error(`模型中不存在该层：${name}`);
+        if (!entry || typeof entry !== 'object' || Object.keys(entry).some(k => !['rank', 'alpha', 'factor', 'enabled'].includes(k))) throw Error(`无效的层配置：${name}`);
+        if ('enabled' in entry && typeof entry.enabled !== 'boolean') throw Error('训练开关必须为布尔值');
+        if ('rank' in entry && (!positive(entry.rank) || !Number.isInteger(entry.rank))) throw Error(`${name}: Rank 必须为正整数`);
+        if ('alpha' in entry && !positive(entry.alpha)) throw Error(`${name}: Alpha 必须大于 0`);
+        if ('factor' in entry && !factor(entry.factor)) throw Error(`${name}: Factor 必须为 -1 或正整数`);
+      }
+    }
+  }
+  function compact(config, isLokr) {
+    const out = { version: 1, mode: config.mode, default_rank: config.default_rank };
+    if (isLokr) out.default_factor = config.default_factor ?? -1;
+    const group = config.mode === 'type' ? 'types' : 'layers';
+    const entries = {};
+    for (const [name, entry] of Object.entries(config[group] || {})) {
+      const next = {};
+      if (entry.enabled === false) next.enabled = false;
+      if ('rank' in entry && entry.rank !== config.default_rank) next.rank = entry.rank;
+      if ('alpha' in entry) next.alpha = entry.alpha;
+      if (isLokr && 'factor' in entry && entry.factor !== (config.default_factor ?? -1)) next.factor = entry.factor;
+      if (Object.keys(next).length) entries[name] = next;
+    }
+    out[group] = entries;
+    return out;
+  }
+  function tokenize(text) {
+    const tokens = []; let token = '', depth = 0, quote = '', escaped = false;
+    for (const char of text) {
+      if (!quote && !depth && /\s/.test(char)) { if (token) tokens.push(token); token = ''; continue; }
+      token += char;
+      if (escaped) { escaped = false; continue; }
+      if (quote) { if (char === '\\') escaped = true; else if (char === quote) quote = ''; }
+      else if (char === '"' || char === "'") quote = char;
+      else if (char === '{' || char === '[') depth++;
+      else if (char === '}' || char === ']') depth--;
+    }
+    if (token) tokens.push(token);
+    return tokens;
+  }
+  return { types, typeOf, create, resolve, validate, compact, tokenize };
+})();
+
+// ===== Exact AdapterMatrix logic (from training-ui/public/js/adapter-matrix.js) =====
+const AdapterMatrix = (function () {
+  const samples = {
+    anima: [
+      { name: 'blocks.0.self_attn.q_proj', input: 2048, output: 2048 },
+      { name: 'blocks.0.cross_attn.k_proj', input: 1024, output: 2048 },
+      { name: 'blocks.0.mlp.layer1', input: 2048, output: 8192 },
+    ]
+  };
+  function integer(value, name, min = 1) {
+    if (!Number.isSafeInteger(value) || value < min) throw Error(`${name} 必须为${min === 1 ? '正' : '非负'}整数`);
+  }
+  function factorization(dimension, factor = -1) {
+    integer(dimension, '矩阵维度');
+    if (!Number.isSafeInteger(factor) || (factor !== -1 && factor < 1)) throw Error('Factor 必须为 -1 或正整数');
+    if (factor > 0 && dimension % factor === 0) return [factor, dimension / factor].sort((a, b) => a - b);
+    const limit = factor < 0 ? dimension : factor;
+    let m = 1, n = dimension;
+    while (m < n) {
+      let next = m + 1;
+      while (dimension % next !== 0) next++;
+      const other = dimension / next;
+      if (next + other > m + n || next > limit) break;
+      m = next; n = other;
+    }
+    return [m, n].sort((a, b) => a - b);
+  }
+  function calculate({ input, output, rank, factor = -1, kind = 'lora', full = false, dora = false }) {
+    integer(input, '输入维度'); integer(output, '输出维度');
+    if (!['lora', 'loha', 'lokr'].includes(kind)) throw Error('不支持的适配器类型');
+    if (!(kind === 'lokr' && full)) integer(rank, 'Rank');
+    let matrices, mode, split = null;
+    if (kind === 'lokr') {
+      const [im, inn] = factorization(input, factor), [ol, ok] = factorization(output, factor);
+      split = { input: [im, inn], output: [ol, ok] };
+      const useFull = full || rank >= Math.max(ok, inn) / 2;
+      mode = full ? 'Full（手动）' : useFull ? 'Full（自动）' : `LoKR · rank ${rank}`;
+      matrices = [['W1', [ol, im]], ...(useFull ? [['W2', [ok, inn]]] : [['W2a', [ok, rank]], ['W2b', [rank, inn]]])];
+    } else if (kind === 'loha') {
+      mode = `LoHa · rank ${rank}`;
+      matrices = [['W1a', [output, rank]], ['W1b', [rank, input]], ['W2a', [output, rank]], ['W2b', [rank, input]]];
+    } else {
+      mode = `LoRA · rank ${rank}`;
+      matrices = [['down', [rank, input]], ['up', [output, rank]]];
+    }
+    if (dora) {
+      matrices.push(['magnitude', [output, 1]]);
+      mode = mode.replace('LoKR', 'DoKr').replace('LoRA', 'DoRA');
+      if (kind === 'lokr' && mode.startsWith('Full')) mode = `DoKr · ${mode}`;
+    }
+    const count = matrices.reduce((sum, [, shape]) => sum + shape.reduce((a, b) => a * b, 1), 0);
+    const base = input * output;
+    if (!Number.isSafeInteger(count) || !Number.isSafeInteger(base)) throw Error('参数量超出可计算范围');
+    return { matrices, count, base, percent: count / base * 100, mode, split };
+  }
+  function boolean(value) { return /^(true|1|yes|y|on)$/i.test(String(value)); }
+  function preview({ architecture, networkModule, rank, args = [] }) {
+    const kind = networkModule.endsWith('.lokr') ? 'lokr' : networkModule.endsWith('.loha') ? 'loha' : 'lora';
+    const values = {};
+    for (const token of args) {
+      const eq = token.indexOf('='), key = token.slice(0, eq).trim();
+      if (eq < 1) throw Error('Network Args 必须为 key=value');
+      if (Object.hasOwn(values, key)) throw Error(`Network Args 重复参数：${key}`);
+      values[key] = token.slice(eq + 1).trim();
+    }
+    const config = values.layer_configs ? JSON.parse(values.layer_configs) : null;
+    if (config && (config.version !== 1 || !['type', 'layer'].includes(config.mode))) throw Error('无效的分层配置');
+    return (samples[architecture] || []).map(sample => {
+      const type = LayerRank.typeOf(sample.name);
+      let selected = { rank: Number(rank), factor: Number(values.factor ?? -1), enabled: true };
+      const typeKey = { self_attn: 'self_attn_dim', cross_attn: 'cross_attn_dim', mlp: 'mlp_dim' }[type];
+      if (architecture === 'anima' && typeKey && values[typeKey] !== undefined) {
+        selected.rank = Number(values[typeKey]); selected.enabled = selected.rank !== 0;
+      }
+      if (architecture === 'anima' && config) selected = LayerRank.resolve(config, sample.name);
+      if (!selected.enabled) return { ...sample, matrices: [], count: 0, base: sample.input * sample.output, percent: 0, mode: '该样例层已关闭' };
+      return {
+        ...sample,
+        ...calculate({ ...sample, ...selected, kind, full: boolean(values.full_matrix), dora: architecture === 'anima' && boolean(values.use_dora) })
+      };
+    });
+  }
+  return { factorization, calculate, preview };
+})();
+
+// ===== Exact FieldHelp Catalog (from training-ui/frontend/src/components/forms/field-help.ts, network scope) =====
+const NETWORK_HELP = {
+  training_type: ['训练类型', '选择 Adapter 训练或完整微调。', 'Adapter 只训练附加模块；Full Finetune 更新底模参数，资源需求更大。', 'Krea 2 / MOSS 当前界面只支持 Adapter。切换会移除或恢复适配器草稿，不是把一种检查点直接转成另一种。'],
+  network_module: ['适配器实现', '选择 LoRA、LoHa 或 LoKR 等网络模块。', '决定可训练矩阵的结构、参数量和支持的专用选项。', '必须与架构及已有 Adapter 权重相匹配；DoRA / DoKr、Factor、LoRA+ 不能对所有模块通用。'],
+  network_dim: ['全局 Rank', '低秩适配器的容量参数。', '较大通常带来更多参数、优化器显存及存储开销，但不保证更好。', 'LoKR Full Matrix 忽略 Rank；启用 layer_configs 后 DiT Block 使用分层配置，全局输入被锁定。'],
+  network_alpha: ['适配器 Alpha', '适配器实现用于调整更新缩放的系数。', '普通 LoRA 通常通过 Alpha / Rank 缩放；其他模块以各自实现为准。', '不是推理 LoRA 强度；Full Matrix 缩放固定为 1，分层 Alpha 可覆盖全局值。'],
+  factor: ['LoKR 分解因子', '控制 Kronecker 因子的尺寸分解方式。', '改变参数矩阵的形状、容量和参数量。', '-1 表示自动，否则为正整数，不能为 0；只对 LoKR / DoKr 生效，改变后可能无法加载原检查点。'],
+  full_matrix: ['LoKR 完整因子', '直接训练完整的 Kronecker 因子矩阵。', '不再使用该路径的低秩 Rank / Alpha 缩放。', '不是完整底模微调；Rank 与 Alpha 不生效，Factor、分层训练开关仍有效。'],
+  network_train_unet_only: ['仅训练图像主干 Adapter', '限制适配器只作用于图像去噪主干。', '在 Anima 中实际对应 DiT，UNet 是历史命名。', '不等于训练所有底模权重；开启文本输出缓存时不应同时训练文本编码器。'],
+  network_dropout: ['网络 Dropout', '适配器实现对中间激活使用的随机丢弃概率。', '提供正则化，过大可能使学习不足。', '与 Rank / Module Dropout 作用位置不同；是否生效取决于模块实现，Krea 2 / MOSS 要求小于 1。'],
+  use_dora: ['DoRA / DoKr 幅度分解', '将更新拆分为方向与幅度相关的参数。', '为支持的 LoRA / LoKR 模块增加幅度学习，并保存 dora_scale。', '仅在支持的模块下生效；下游推理工具也需支持相应权重结构。不是所有 LoHa / LoRA 实现都可开启。'],
+  dora_scale_fp32: ['FP32 幅度权重保存', '单独以 FP32 保存 DoRA / DoKr 的幅度缩放参数。', '降低保存低精度幅度时的舍入损失。', '仅启用 use_dora 时有效；不意味着全部模型或全部计算改为 FP32。'],
+  mod_dim: ['调制层 Rank', '为支持的 LyCORIS 模块指定 AdaLN modulation 的容量。', '单独控制调制层是否参与及其参数量。', '留空时该专用配置排除调制层；与全局 Rank 不同，只影响支持此参数的模块。'],
+  rank_dropout: ['Rank / 通道 Dropout', '适配器实现中对低秩成分或通道进行的随机丢弃。', '对适配器施加结构层面的正则化。', '具体轴由模块决定；本项目 LyCORIS LoHa / LoKR 为输出通道 dropout，不可统一理解成 Rank 维。'],
+  module_dropout: ['整模块 Dropout', '以给定概率跳过某个适配器模块的更新贡献。', '减少对单个模块的依赖，过大可能学习不足。', '不等于从检查点删除该层；与训练开关及 Network Dropout 不同。'],
+  use_tucker: ['Tucker 分解', '对支持的卷积适配器使用 Tucker 参数分解。', '改变部分卷积模块的结构及参数量。', '主要用于 Conv2d 3×3；Anima DiT 的 Linear 层不会因此获得额外效果。'],
+  network_args: ['网络附加参数', '传给适配器构造函数的 key=value 参数列表。', '设置目标层、分解方式及分层覆盖等高级行为。', '专用字段优先；JSON 形式须为字符串数组。不要重复键，也不能把其他模块专有参数直接混入。'],
+  network_weights: ['初始 Adapter 权重', '从已有适配器检查点初始化可训练权重。', '用于继续优化已有 Adapter 或做增量训练。', '需同架构、同模块及兼容矩阵形状；仅加载权重不会恢复 optimizer、scheduler 和步数，后者应使用 Resume。'],
+  freeze_llm_adapter: ['冻结 LLM Adapter', '完整微调时不更新 Anima 预训练的文本嵌入适配层。', '保留文字条件映射能力，减少不必要的退化风险。', '它不是 LoRA Adapter，也不是冻结整个图像主干；此选项只在对应完整微调路径下使用。'],
+  auto_resume_last_state: ['自动恢复训练状态', '自动寻找任务中最近保存的完整训练状态。', '恢复优化器、调度器和训练进度，而不只是 Adapter 权重。', '开启时手动 Resume 目录被忽略；需要已有有效状态，且结构、环境与配置兼容。'],
+  resume: ['手动恢复状态目录', '指定训练器保存的完整状态文件夹。', '恢复参数、optimizer、scheduler 及训练进度。', '不能填写单个 .safetensors 文件；自动恢复开启时此字段禁用。修改模型结构或优化器可能无法恢复。'],
+  layer_configs: ['高级分层设置', '按 DiT 层类型或具体层配置训练开关及容量。', '将参数预算分配给不同注意力、MLP 与调制模块。', '优先于全局 Rank / Alpha / Factor 的对应设置，只应用当前模式；Full Matrix 下 Rank / Alpha 不生效。'],
+  layer_mode: ['分层配置模式', '选择按层类型统一设置，或逐个层单独设置。', '在简洁控制与细粒度定制之间切换。', '只应用当前模式；另一模式是页面草稿，不会同时叠加。'],
+  layer_rank: ['分层 Rank', '为选中的层或层类型指定低秩容量。', '覆盖该层的默认 Rank，并改变可训练参数量。', '必须为正整数；Full Matrix 下不生效，关闭训练的层也不会使用此值。'],
+  layer_alpha: ['分层 Alpha', '为选中层指定适配器缩放系数。', '覆盖该层缩放；未单独设置时默认随 Rank。', '必须为正数；Full Matrix 下不生效。不是推理侧的 LoRA 权重。'],
+  layer_factor: ['分层 Factor', '为 LoKR 的选中层指定 Kronecker 分解因子。', '覆盖默认 Factor，改变该层矩阵结构。', '-1 自动，否则为正整数；Full Matrix 下仍有效，改变结构需检查权重兼容。'],
+  layer_enabled: ['此层参与训练', '决定是否为当前层创建并训练适配器。', '关闭可以排除此层并减少参数开销。', '关闭后该层 Rank / Alpha / Factor 不再参与；不是冻结整个底模或删除模型原有层。'],
+};
+
+// ===== Representative Anima 2B DiT layers (Blocks 0, 1, 2 shown in per-layer mode) =====
+const ANIMA_LAYERS = [0, 1, 2].flatMap(b => [
+  `blocks.${b}.self_attn.q_proj`,
+  `blocks.${b}.self_attn.k_proj`,
+  `blocks.${b}.self_attn.v_proj`,
+  `blocks.${b}.self_attn.output_proj`,
+  `blocks.${b}.cross_attn.q_proj`,
+  `blocks.${b}.cross_attn.k_proj`,
+  `blocks.${b}.cross_attn.v_proj`,
+  `blocks.${b}.mlp.layer1`,
+  `blocks.${b}.mlp.layer2`,
+  `blocks.${b}.adaln_modulation_self_attn.1`,
+]);
+
+// ===== Reactive Workbench State =====
+const state = {
+  locked: false,
+  demoLokrActive: false,
+  savedBeforeDemo: null,
+  adapterDraft: null,
+  resumeDraft: '',
+  layerDraft: null,
+  network: {
+    network_module: 'networks.lora_anima',
+    network_dim: 16,
+    network_alpha: 16,
+    network_train_unet_only: true,
+    network_dropout: 0,
+    network_args: [],
+    network_weights: '',
+    auto_resume_last_state: false,
+    resume: '',
+  },
+  training: {
+    freeze_llm_adapter: true,
+  },
+};
+
+function markDirty() {
+  document.getElementById('dirty-dot').hidden = false;
+}
+
+function argumentValue(args, key) {
+  if (!Array.isArray(args)) return undefined;
+  for (const token of args) {
+    const eq = token.indexOf('=');
+    if (eq > 0 && token.slice(0, eq).trim() === key) return token.slice(eq + 1).trim();
+  }
+  return undefined;
+}
+
+function replaceArgument(args, key, value) {
+  const list = Array.isArray(args) ? args.filter(t => {
+    const eq = t.indexOf('=');
+    return !(eq > 0 && t.slice(0, eq).trim() === key);
+  }) : [];
+  if (value !== undefined && value !== '' && value !== null) {
+    list.push(`${key}=${value}`);
+  }
+  return list;
+}
+
+function enabledArg(key) {
+  return /^(true|1|yes|y|on)$/i.test((argumentValue(state.network.network_args, key) || '').trim());
+}
+
+function getDerived() {
+  const n = state.network;
+  const moduleName = n.network_module || '';
+  const trainingType = moduleName ? 'lora' : 'full_finetune';
+  const lokr = moduleName.endsWith('.lokr');
+  const lycoris = ['networks.loha', 'networks.lokr'].includes(moduleName);
+  const dora = ['networks.lora_anima', 'networks.lokr'].includes(moduleName);
+  const full = lokr && enabledArg('full_matrix');
+  const layered = ['networks.lora_anima', 'networks.loha', 'networks.lokr'].includes(moduleName);
+  const layerActive = layered && argumentValue(n.network_args, 'layer_configs') !== undefined;
+  const rankDisabled = full || layerActive;
+  const previewSupported = trainingType === 'lora' && layered;
+  const dedicated = [
+    ...(lokr ? ['factor', 'full_matrix'] : []),
+    ...(lycoris ? ['rank_dropout', 'module_dropout', 'mod_dim', 'use_tucker'] : []),
+    ...(dora ? ['use_dora', 'dora_scale_fp32'] : []),
+    ...(layered ? ['layer_configs'] : []),
+  ];
+  return { moduleName, trainingType, lokr, lycoris, dora, full, layered, layerActive, rankDisabled, previewSupported, dedicated };
+}
+
+function syncLayerDraftFromArgs() {
+  const raw = argumentValue(state.network.network_args, 'layer_configs');
+  if (raw === undefined) {
+    state.layerDraft = null;
+    return '';
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || !['type', 'layer'].includes(parsed.mode)) throw Error('不支持的分层配置');
+    if (!state.layerDraft) {
+      state.layerDraft = { version: 1, mode: parsed.mode, default_rank: parsed.default_rank ?? 16, default_factor: parsed.default_factor ?? -1, types: parsed.types || {}, layers: parsed.layers || {} };
+    }
+    return '';
+  } catch (err) {
+    return `layer_configs JSON 无效：${err.message}。原值已保留，可在下方 Network Args 修正或重置。`;
+  }
+}
+
+function commitLayerDraft() {
+  if (!state.layerDraft) return;
+  const d = getDerived();
+  const compacted = LayerRank.compact(state.layerDraft, d.lokr);
+  state.network.network_args = replaceArgument(state.network.network_args, 'layer_configs', JSON.stringify(compacted));
+}
+
+// ===== Rendering =====
+function renderAll() {
+  const n = state.network;
+  const d = getDerived();
+
+  // Fieldset lock state
+  document.getElementById('nt-fieldset').disabled = state.locked;
+  document.getElementById('demo-lock-btn').setAttribute('aria-pressed', String(state.locked));
+  document.getElementById('demo-lokr-btn').setAttribute('aria-pressed', String(state.demoLokrActive));
+
+  // Training Type segmented buttons
+  document.querySelectorAll('[data-type]').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.type === d.trainingType));
+  });
+
+  // Left column visibility
+  document.getElementById('nt-adapter-core').hidden = d.trainingType !== 'lora';
+  document.getElementById('nt-fullft-core').hidden = d.trainingType === 'lora';
+  document.getElementById('nt-left-meta').textContent = d.trainingType === 'lora' ? `Anima DiT · Adapter` : 'Anima DiT · Full Finetune';
+
+  // Right column visibility
+  document.getElementById('nt-mod-specific-wrap').hidden = d.trainingType !== 'lora';
+  document.getElementById('nt-weights-card').hidden = d.trainingType !== 'lora';
+  document.getElementById('nt-wr-section').style.borderTop = d.trainingType === 'lora' ? '' : '0';
+  document.getElementById('nt-wr-section').style.paddingTop = d.trainingType === 'lora' ? '' : '0';
+
+  // Row 2 & Row 3 visibility
+  document.getElementById('nt-layer-sec').hidden = !(d.trainingType === 'lora' && d.layered);
+  document.getElementById('nt-args-sec').hidden = d.trainingType !== 'lora';
+
+  if (d.trainingType === 'lora') {
+    document.getElementById('f-module').value = d.moduleName;
+    const rankInput = document.getElementById('f-rank');
+    rankInput.value = n.network_dim ?? 16;
+    rankInput.disabled = d.rankDisabled;
+
+    document.querySelectorAll('[data-step="rank"], [data-rank-preset]').forEach(el => {
+      el.disabled = d.rankDisabled;
+    });
+    document.querySelectorAll('[data-rank-preset]').forEach(el => {
+      el.classList.toggle('active', Number(el.dataset.rankPreset) === Number(n.network_dim));
+    });
+
+    const lockBadge = document.getElementById('rank-lock-badge');
+    const rankHint = document.getElementById('rank-hint');
+    if (d.full) {
+      lockBadge.hidden = false;
+      lockBadge.textContent = 'Full Matrix 下 Rank 不生效';
+      rankHint.textContent = 'Full Matrix 模式下直接训练完整 Kronecker 因子，忽略全局 Rank。';
+    } else if (d.layerActive) {
+      lockBadge.hidden = false;
+      lockBadge.textContent = '已由高级分层设置接管；全局值保留';
+      rankHint.textContent = 'DiT Block 层采用下方高级分层设置；关闭分层后恢复此全局值。';
+    } else {
+      lockBadge.hidden = true;
+      rankHint.textContent = '更高 Rank 增加容量与显存。';
+    }
+
+    const alphaInput = document.getElementById('f-alpha');
+    alphaInput.value = n.network_alpha ?? 16;
+    const rankNum = Number(n.network_dim) || 16;
+    const alphaNum = Number(n.network_alpha) || 16;
+    const scalePill = document.getElementById('alpha-scale-pill');
+    if (d.full) {
+      scalePill.textContent = 'Full Matrix 缩放固定 ×1.00';
+    } else {
+      scalePill.textContent = `缩放 Alpha/Rank = ${(alphaNum / rankNum).toFixed(2)}×`;
+    }
+    document.querySelectorAll('[data-alpha-ratio]').forEach(el => {
+      const ratio = Number(el.dataset.alphaRatio);
+      el.classList.toggle('active', Math.abs(alphaNum - rankNum * ratio) < 0.001);
+    });
+
+    document.getElementById('f-unet-only').checked = !!n.network_train_unet_only;
+    document.getElementById('f-dropout').value = n.network_dropout ?? 0;
+
+    // Module-specific options
+    const modBadges = [];
+    if (d.lokr) modBadges.push('LoKR');
+    if (d.dora) modBadges.push(d.lokr ? 'DoKr' : 'DoRA');
+    if (d.lycoris) modBadges.push('LyCORIS');
+    document.getElementById('nt-mod-meta').textContent = modBadges.length ? `${d.moduleName} · ${modBadges.join(' + ')}` : d.moduleName;
+
+    document.getElementById('nt-opt-lokr').hidden = !d.lokr;
+    document.getElementById('nt-opt-dora').hidden = !d.dora;
+    document.getElementById('nt-opt-lycoris').hidden = !d.lycoris;
+    document.getElementById('nt-opt-empty').hidden = d.lokr || d.dora || d.lycoris;
+
+    if (d.lokr) {
+      const fVal = argumentValue(n.network_args, 'factor') ?? '';
+      document.getElementById('f-factor').value = fVal;
+      document.querySelectorAll('[data-factor-preset]').forEach(el => {
+        const p = el.dataset.factorPreset;
+        el.classList.toggle('active', (fVal === '' && p === '-1') || fVal === p);
+      });
+      document.getElementById('f-full-matrix').checked = d.full;
+    }
+
+    if (d.dora) {
+      const doraOn = enabledArg('use_dora');
+      document.getElementById('f-use-dora').checked = doraOn;
+      document.getElementById('f-use-dora-label').textContent = d.lokr ? 'Use DoKr（幅度分解）' : 'Use DoRA（幅度分解）';
+      document.getElementById('nt-opt-dora-fp32').hidden = !doraOn;
+      document.getElementById('f-dora-fp32').checked = enabledArg('dora_scale_fp32');
+    }
+
+    if (d.lycoris) {
+      document.getElementById('f-mod-dim').value = argumentValue(n.network_args, 'mod_dim') ?? '';
+      document.getElementById('f-rank-dropout').value = argumentValue(n.network_args, 'rank_dropout') ?? '';
+      document.getElementById('f-mod-dropout').value = argumentValue(n.network_args, 'module_dropout') ?? '';
+      document.getElementById('f-use-tucker').checked = enabledArg('use_tucker');
+    }
+
+    document.getElementById('f-weights').value = n.network_weights || '';
+
+    // Free args & JSON
+    const freeTokens = (n.network_args || []).filter(t => !d.dedicated.includes(t.split('=')[0].trim()));
+    const freeEl = document.getElementById('f-free-args');
+    if (document.activeElement !== freeEl) freeEl.value = freeTokens.join(' ');
+    document.getElementById('nt-args-count').textContent = `${(n.network_args || []).length} 项总参数（${freeTokens.length} 项自由参数）`;
+
+    const jsonEl = document.getElementById('f-args-json');
+    if (document.activeElement !== jsonEl) {
+      jsonEl.value = JSON.stringify(n.network_args || [], null, 2);
+      document.getElementById('nt-json-status').textContent = '有效 JSON 数组';
+    }
+  } else {
+    document.getElementById('f-freeze-llm').checked = !!state.training.freeze_llm_adapter;
+  }
+
+  // Resume fields
+  document.getElementById('f-auto-resume').checked = !!n.auto_resume_last_state;
+  const resumeInput = document.getElementById('f-resume');
+  resumeInput.disabled = !!n.auto_resume_last_state;
+  resumeInput.value = n.auto_resume_last_state ? '' : (n.resume || '');
+  document.getElementById('resume-lock-badge').hidden = !n.auto_resume_last_state;
+
+  renderRecipeStrip(d);
+  renderHeroPreview(d);
+  renderLayerEditor(d);
+}
+
+function renderRecipeStrip(d) {
+  const n = state.network;
+  const el = document.getElementById('nt-recipe-strip');
+  if (d.trainingType === 'full_finetune') {
+    const freezeOn = !!state.training.freeze_llm_adapter;
+    const autoRes = !!n.auto_resume_last_state;
+    el.innerHTML = `
+      <div class="nt-recipe-items">
+        <span class="nt-recipe-chip is-warn">Full Finetune</span>
+        <span class="nt-recipe-sep">·</span>
+        <span class="nt-recipe-key">完整底模微调</span>
+        <span class="nt-recipe-sep">·</span>
+        <span class="nt-recipe-chip ${freezeOn ? 'is-ok' : 'is-warn'}">Freeze LLM Adapter ${freezeOn ? '开' : '关'}</span>
+        <span class="nt-recipe-sep">·</span>
+        <span class="nt-recipe-chip ${autoRes ? 'is-ok' : 'is-off'}">自动恢复 ${autoRes ? '开' : '关'}</span>
+      </div>
+      <span class="nt-sec-meta">高显存模式</span>
+    `;
+    return;
+  }
+
+  const rank = Number(n.network_dim ?? 16);
+  const alpha = Number(n.network_alpha ?? 16);
+  const scaleStr = d.full ? '缩放 ×1.00' : `缩放 ×${(alpha / (rank || 1)).toFixed(2)}`;
+  const doraOn = d.dora && enabledArg('use_dora');
+  const doraLabel = d.lokr ? 'DoKr' : 'DoRA';
+  const layerText = d.layerActive
+    ? `分层覆盖 开 (${state.layerDraft?.mode === 'layer' ? '按单个层' : '按层类型'})`
+    : '分层覆盖 关';
+
+  const capText = d.full
+    ? `Full Matrix (Factor ${argumentValue(n.network_args, 'factor') ?? -1}) · ${scaleStr}`
+    : `Rank ${rank} / Alpha ${alpha} (${scaleStr})`;
+
+  el.innerHTML = `
+    <div class="nt-recipe-items">
+      <span class="nt-recipe-chip">Adapter</span>
+      <span class="nt-recipe-sep">·</span>
+      <span class="nt-recipe-key">${d.moduleName}</span>
+      <span class="nt-recipe-sep">·</span>
+      <span class="mono">${capText}</span>
+      <span class="nt-recipe-sep">·</span>
+      <span>${n.network_train_unet_only ? '仅训练 DiT 主干' : 'DiT + 文本编码器'}</span>
+      ${d.dora ? `<span class="nt-recipe-sep">·</span><span class="nt-recipe-chip ${doraOn ? 'is-ok' : 'is-off'}">${doraLabel} ${doraOn ? '开' : '关'}</span>` : ''}
+      ${d.layered ? `<span class="nt-recipe-sep">·</span><span class="nt-recipe-chip ${d.layerActive ? 'is-ok' : 'is-off'}">${layerText}</span>` : ''}
+    </div>
+    <span class="nt-sec-meta">实时配方</span>
+  `;
+}
+
+function renderHeroPreview(d) {
+  const hero = document.getElementById('nt-hero');
+  const unsup = document.getElementById('nt-preview-unsupported');
+
+  if (d.trainingType !== 'lora') {
+    hero.hidden = true;
+    unsup.hidden = true;
+    return;
+  }
+  if (!d.previewSupported) {
+    hero.hidden = true;
+    unsup.hidden = false;
+    document.getElementById('nt-unsupported-mod').textContent = d.moduleName;
+    return;
+  }
+
+  hero.hidden = false;
+  unsup.hidden = true;
+
+  const n = state.network;
+  const doraOn = d.dora && enabledArg('use_dora');
+  const kind = d.moduleName.endsWith('.lokr') ? 'lokr' : d.moduleName.endsWith('.loha') ? 'loha' : 'lora';
+
+  // Schematic formula
+  const formulaEl = document.getElementById('nt-formula-strip');
+  let eqHtml = '';
+  let kindLabel = '';
+  if (kind === 'lora') {
+    eqHtml = `
+      <span class="nt-f-lhs">ΔW</span><span class="nt-f-op">=</span>
+      <span class="nt-f-mat">up<small>[out × r]</small></span>
+      <span class="nt-f-op">·</span>
+      <span class="nt-f-mat">down<small>[r × in]</small></span>
+      <span class="nt-f-scale">× (α / r)</span>
+    `;
+    kindLabel = doraOn ? 'DoRA 低秩方向 + 幅度分解' : '标准低秩矩阵分解';
+  } else if (kind === 'loha') {
+    eqHtml = `
+      <span class="nt-f-lhs">ΔW</span><span class="nt-f-op">=</span>
+      <span class="nt-f-op">(</span><span class="nt-f-mat">W1a<small>[out × r]</small></span><span class="nt-f-op">·</span><span class="nt-f-mat">W1b<small>[r × in]</small></span><span class="nt-f-op">)</span>
+      <span class="nt-f-op">⊙</span>
+      <span class="nt-f-op">(</span><span class="nt-f-mat">W2a<small>[out × r]</small></span><span class="nt-f-op">·</span><span class="nt-f-mat">W2b<small>[r × in]</small></span><span class="nt-f-op">)</span>
+    `;
+    kindLabel = 'Hadamard 乘积双低秩分解';
+  } else if (d.full) {
+    eqHtml = `
+      <span class="nt-f-lhs">ΔW</span><span class="nt-f-op">=</span>
+      <span class="nt-f-mat">W1<small>[ol × im]</small></span>
+      <span class="nt-f-op">⊗</span>
+      <span class="nt-f-mat">W2<small>[ok × inn]</small></span>
+      <span class="nt-f-scale">Full Matrix · 缩放 ×1</span>
+    `;
+    kindLabel = doraOn ? 'DoKr 完整 Kronecker 因子 + 幅度分解' : 'Kronecker 完整因子分解';
+  } else {
+    eqHtml = `
+      <span class="nt-f-lhs">ΔW</span><span class="nt-f-op">=</span>
+      <span class="nt-f-mat">W1<small>[ol × im]</small></span>
+      <span class="nt-f-op">⊗</span>
+      <span class="nt-f-op">(</span><span class="nt-f-mat">W2a<small>[ok × r]</small></span><span class="nt-f-op">·</span><span class="nt-f-mat">W2b<small>[r × inn]</small></span><span class="nt-f-op">)</span>
+    `;
+    kindLabel = doraOn ? 'DoKr Kronecker 低秩 + 幅度分解' : 'Kronecker 低秩分解';
+  }
+
+  if (doraOn) {
+    eqHtml += `<span class="nt-f-op">+</span><span class="nt-f-mat is-dora">magnitude<small>[out × 1]</small></span>`;
+  }
+
+  formulaEl.innerHTML = `<div class="nt-formula-eq">${eqHtml}</div><span class="nt-formula-kind">${kindLabel}</span>`;
+
+  // Compute preview rows
+  const errEl = document.getElementById('nt-preview-error');
+  const tbody = document.getElementById('nt-matrix-tbody');
+  const totalsEl = document.getElementById('nt-hero-totals');
+  try {
+    const rows = AdapterMatrix.preview({
+      architecture: 'anima',
+      networkModule: d.moduleName,
+      rank: Number(n.network_dim ?? 16),
+      args: n.network_args || [],
+    });
+    errEl.hidden = true;
+
+    const totalCount = rows.reduce((s, r) => s + r.count, 0);
+    const totalBase = rows.reduce((s, r) => s + r.base, 0);
+    const totalPct = totalBase ? (totalCount / totalBase * 100) : 0;
+    totalsEl.innerHTML = `
+      <span class="nt-stat-inline">3 样例层合计 <strong>${totalCount.toLocaleString('en-US')}</strong> 参数</span>
+      <span class="nt-stat-inline">平均占比 <strong>${totalPct.toFixed(4)}%</strong></span>
+    `;
+
+    // Scale micro-bars proportionally against the highest sample layer so relative differences read clearly
+    const maxPct = Math.max(0.0001, ...rows.map(r => r.percent));
+    const typeLabels = { self_attn: 'Self Attn', cross_attn: 'Cross Attn', mlp: 'MLP' };
+
+    tbody.innerHTML = rows.map(row => {
+      const tKey = LayerRank.typeOf(row.name);
+      const isOff = row.count === 0;
+      const isFullRow = row.mode.includes('Full');
+      const barW = isOff ? 0 : Math.max(4, Math.min(100, (row.percent / maxPct) * 100));
+      const matHtml = row.matrices.length
+        ? `<div class="nt-mat-list">${row.matrices.map(([mn, sh]) =>
+            `<span class="nt-mat-chip ${mn === 'magnitude' ? 'is-mag' : ''}"><b>${mn}</b> ${sh.join(' × ')}</span>`
+          ).join('')}</div>`
+        : '<span class="muted">—</span>';
+
+      return `
+        <tr class="${isOff ? 'is-disabled' : ''}">
+          <td><span class="nt-layer-name">${row.name}</span><span class="nt-layer-type-tag">${typeLabels[tKey] || ''}</span></td>
+          <td class="nt-dim-cell">${row.output} × ${row.input}</td>
+          <td><span class="nt-mode-pill ${isOff ? 'is-off' : isFullRow ? 'is-full' : ''}">${row.mode}</span></td>
+          <td>${matHtml}</td>
+          <td class="nt-num-cell">${row.count.toLocaleString('en-US')}</td>
+          <td class="nt-pct-cell">
+            <div class="nt-pct-wrap">
+              <div class="nt-bar-track" title="占原始层 ${row.percent.toFixed(4)}%"><div class="nt-bar-fill" style="width:${barW.toFixed(1)}%"></div></div>
+              <span class="nt-pct-val">${row.percent.toFixed(4)}%</span>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    errEl.hidden = false;
+    errEl.textContent = `暂无法计算：${err.message}`;
+    tbody.innerHTML = '';
+    totalsEl.innerHTML = '';
+  }
+}
+
+function renderLayerEditor(d) {
+  if (!(d.trainingType === 'lora' && d.layered)) return;
+
+  const parseErr = syncLayerDraftFromArgs();
+  const active = d.layerActive;
+  document.getElementById('f-layer-enable').checked = active;
+  document.getElementById('nt-layer-controls').hidden = !active;
+  document.getElementById('nt-layer-body').hidden = !active;
+
+  if (!active) return;
+
+  const errEl = document.getElementById('nt-layer-error');
+  if (parseErr) {
+    errEl.hidden = false;
+    errEl.textContent = parseErr;
+    document.getElementById('nt-layer-matrix-container').innerHTML = '';
+    return;
+  }
+
+  const draft = state.layerDraft;
+  if (!draft) return;
+
+  // Validate draft
+  try {
+    LayerRank.validate(LayerRank.compact(draft, d.lokr), ANIMA_LAYERS);
+    errEl.hidden = true;
+  } catch (err) {
+    errEl.hidden = false;
+    errEl.textContent = err.message;
+  }
+
+  // Mode segmented control
+  document.querySelectorAll('[data-layer-mode]').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.layerMode === draft.mode));
+  });
+
+  // Defaults
+  const defRankEl = document.getElementById('f-default-rank');
+  if (document.activeElement !== defRankEl) defRankEl.value = draft.default_rank;
+  defRankEl.disabled = state.locked || d.full;
+
+  const defFactorWrap = document.getElementById('nt-default-factor-wrap');
+  defFactorWrap.hidden = !d.lokr;
+  const defFactorEl = document.getElementById('f-default-factor');
+  if (document.activeElement !== defFactorEl) defFactorEl.value = draft.default_factor ?? -1;
+
+  document.getElementById('nt-layer-hint').textContent = d.full
+    ? 'Full Matrix 下 Rank / Alpha 不生效；训练开关和 Factor 仍生效。切换模式只应用当前模式，另一模式草稿暂存于此页面。'
+    : '仅配置 DiT Block，优先于全局 Alpha、Factor 和旧的 Block 配置。Alpha 默认随 Rank 变化；切换模式只应用当前模式，另一模式草稿暂存于此页面。';
+
+  const container = document.getElementById('nt-layer-matrix-container');
+
+  function rowHtml(name, label, isType, maxRankForBar) {
+    const val = LayerRank.resolve(draft, name, isType);
+    const groupObj = isType ? (draft.types?.[name] || {}) : (draft.layers?.[name] || {});
+    const alphaExplicit = 'alpha' in groupObj && groupObj.alpha !== null && groupObj.alpha !== undefined;
+    const disabledInputs = state.locked || !val.enabled;
+    const rankAlphaDisabled = disabledInputs || d.full;
+    const budgetPct = !val.enabled ? 0 : d.full ? 100 : Math.min(100, (val.rank / maxRankForBar) * 100);
+    const budgetLabel = !val.enabled ? '已关闭' : d.full ? 'Full' : `r=${val.rank}`;
+
+    return `
+      <tr class="${!val.enabled ? 'is-off' : ''}">
+        <td class="${isType ? '' : 'mono'}" style="font-weight:${isType ? 600 : 500}">
+          ${label}
+          ${isType ? `<span class="nt-layer-type-tag mono">${name}</span>` : ''}
+        </td>
+        <td>
+          <div class="nt-check-item">
+            <input type="checkbox" data-lr-name="${name}" data-lr-key="enabled" ${val.enabled ? 'checked' : ''} ${state.locked ? 'disabled' : ''}>
+            <span style="font-size:12px;color:var(--muted-foreground)">${val.enabled ? '启用' : '跳过'}</span>
+          </div>
+        </td>
+        <td>
+          <input type="number" min="1" step="1" class="nt-input mono" data-lr-name="${name}" data-lr-key="rank" value="${val.rank}" ${rankAlphaDisabled ? 'disabled' : ''} aria-label="${name} rank">
+        </td>
+        <td>
+          <div class="nt-alpha-wrap">
+            <input type="number" min="0.000001" step="any" class="nt-input mono" data-lr-name="${name}" data-lr-key="alpha" value="${val.alpha}" ${rankAlphaDisabled ? 'disabled' : ''} aria-label="${name} alpha">
+            <span class="nt-alpha-auto">${alphaExplicit ? '自定义' : '随 Rank'}</span>
+          </div>
+        </td>
+        ${d.lokr ? `
+        <td>
+          <input type="number" min="-1" step="1" class="nt-input mono" data-lr-name="${name}" data-lr-key="factor" value="${val.factor}" ${disabledInputs ? 'disabled' : ''} aria-label="${name} factor">
+        </td>` : ''}
+        <td class="nt-budget-cell">
+          <div class="nt-budget-wrap">
+            <div class="nt-budget-track"><div class="nt-budget-fill" style="width:${budgetPct.toFixed(1)}%"></div></div>
+            <span class="nt-budget-val">${budgetLabel}</span>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  const headHtml = `
+    <thead>
+      <tr>
+        <th>${draft.mode === 'type' ? '层类型' : '层名称'}</th>
+        <th>训练 <button type="button" class="nt-help-btn" data-help="layer_enabled" aria-label="训练开关帮助">?</button></th>
+        <th>rank <button type="button" class="nt-help-btn" data-help="layer_rank" aria-label="分层 rank 帮助">?</button></th>
+        <th>alpha <button type="button" class="nt-help-btn" data-help="layer_alpha" aria-label="分层 alpha 帮助">?</button></th>
+        ${d.lokr ? '<th>factor <button type="button" class="nt-help-btn" data-help="layer_factor" aria-label="分层 factor 帮助">?</button></th>' : ''}
+        <th>相对容量预算</th>
+      </tr>
+    </thead>
+  `;
+
+  if (draft.mode === 'type') {
+    const typeKeys = Object.keys(LayerRank.types);
+    const maxR = Math.max(16, ...typeKeys.map(k => LayerRank.resolve(draft, k, true).rank || 0));
+    container.innerHTML = `
+      <div class="nt-table-scroll" style="margin-top:8px">
+        <table class="nt-layer-table">
+          ${headHtml}
+          <tbody>${typeKeys.map(k => rowHtml(k, LayerRank.types[k], true, maxR)).join('')}</tbody>
+        </table>
+      </div>
+    `;
+  } else {
+    const blocks = new Map();
+    for (const name of ANIMA_LAYERS) {
+      const b = name.split('.')[1] || '0';
+      if (!blocks.has(b)) blocks.set(b, []);
+      blocks.get(b).push(name);
+    }
+    const maxR = Math.max(16, ...ANIMA_LAYERS.map(name => LayerRank.resolve(draft, name, false).rank || 0));
+    container.innerHTML = [...blocks].map(([block, names], idx) => {
+      const enabledCount = names.filter(nm => LayerRank.resolve(draft, nm, false).enabled).length;
+      return `
+        <details class="nt-block-details" ${idx === 0 ? 'open' : ''}>
+          <summary>
+            <span>Block ${block} <span class="nt-layer-type-tag">${idx === 0 ? '同步至上方样例层图解' : '示例块'}</span></span>
+            <span class="nt-sec-meta">${enabledCount} / ${names.length} 层启用</span>
+          </summary>
+          <div class="nt-table-scroll" style="border:0">
+            <table class="nt-layer-table">
+              ${headHtml}
+              <tbody>${names.map(nm => rowHtml(nm, nm, false, maxR)).join('')}</tbody>
+            </table>
+          </div>
+        </details>
+      `;
+    }).join('') + `<p class="nt-field-hint" style="margin:8px 0 0">原型展示 Block 0 – 2（共 28 个 Block，224 个可配置层）。编辑 Block 0 中的样例层会实时更新顶部矩阵分解图解。</p>`;
+  }
+}
+
+// ===== Event Bindings =====
+// Training Type toggle
+document.querySelectorAll('[data-type]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.type;
+    const current = getDerived().trainingType;
+    if (target === current) return;
+    const adapterKeys = ['network_module', 'network_dim', 'network_alpha', 'network_train_unet_only', 'network_dropout', 'network_args', 'network_weights'];
+    if (target === 'full_finetune') {
+      state.adapterDraft = {};
+      for (const k of adapterKeys) {
+        if (Object.hasOwn(state.network, k)) state.adapterDraft[k] = structuredClone(state.network[k]);
+        delete state.network[k];
+      }
+      state.training.freeze_llm_adapter ??= true;
+    } else {
+      Object.assign(state.network, state.adapterDraft || { network_module: 'networks.lora_anima', network_dim: 16, network_alpha: 16, network_train_unet_only: true, network_dropout: 0, network_args: [], network_weights: '' });
+    }
+    markDirty();
+    renderAll();
+  });
+});
+
+// Network Module select
+document.getElementById('f-module').addEventListener('change', e => {
+  const value = e.target.value;
+  state.network.network_module = value;
+  if (!['networks.lora_anima', 'networks.lokr'].includes(value)) {
+    state.network.network_args = replaceArgument(state.network.network_args, 'use_dora', undefined);
+    state.network.network_args = replaceArgument(state.network.network_args, 'dora_scale_fp32', undefined);
+  }
+  if (state.layerDraft && ['networks.lora_anima', 'networks.loha', 'networks.lokr'].includes(value)) {
+    commitLayerDraft();
+  }
+  markDirty();
+  renderAll();
+});
+
+// Rank & Alpha inputs + steppers + presets
+document.getElementById('f-rank').addEventListener('input', e => {
+  const v = Math.max(1, parseInt(e.target.value, 10) || 1);
+  state.network.network_dim = v;
+  markDirty();
+  renderAll();
+});
+document.getElementById('f-alpha').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  if (Number.isFinite(v) && v > 0) state.network.network_alpha = v;
+  markDirty();
+  renderAll();
+});
+document.querySelectorAll('[data-step]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const field = btn.dataset.step;
+    const delta = Number(btn.dataset.delta);
+    if (field === 'rank') {
+      state.network.network_dim = Math.max(1, (Number(state.network.network_dim) || 16) + delta);
+    } else {
+      state.network.network_alpha = Math.max(1, (Number(state.network.network_alpha) || 16) + delta);
+    }
+    markDirty();
+    renderAll();
+  });
+});
+document.querySelectorAll('[data-rank-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.network.network_dim = Number(btn.dataset.rankPreset);
+    markDirty();
+    renderAll();
+  });
+});
+document.querySelectorAll('[data-alpha-ratio]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const r = Number(state.network.network_dim) || 16;
+    state.network.network_alpha = Number((r * Number(btn.dataset.alphaRatio)).toFixed(4));
+    markDirty();
+    renderAll();
+  });
+});
+
+// Train UNet Only & Dropout & Freeze LLM
+document.getElementById('f-unet-only').addEventListener('change', e => {
+  state.network.network_train_unet_only = e.target.checked;
+  markDirty();
+  renderAll();
+});
+document.getElementById('f-dropout').addEventListener('input', e => {
+  state.network.network_dropout = Math.max(0, Math.min(1, parseFloat(e.target.value) || 0));
+  markDirty();
+  renderAll();
+});
+document.getElementById('f-freeze-llm').addEventListener('change', e => {
+  state.training.freeze_llm_adapter = e.target.checked;
+  markDirty();
+  renderAll();
+});
+
+// Module-specific inputs
+document.getElementById('f-factor').addEventListener('input', e => {
+  const raw = e.target.value.trim();
+  state.network.network_args = replaceArgument(state.network.network_args, 'factor', raw === '' ? undefined : raw);
+  markDirty();
+  renderAll();
+});
+document.querySelectorAll('[data-factor-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const v = btn.dataset.factorPreset;
+    state.network.network_args = replaceArgument(state.network.network_args, 'factor', v === '-1' ? '-1' : v);
+    markDirty();
+    renderAll();
+  });
+});
+document.getElementById('f-full-matrix').addEventListener('change', e => {
+  state.network.network_args = replaceArgument(state.network.network_args, 'full_matrix', e.target.checked ? 'true' : undefined);
+  markDirty();
+  renderAll();
+});
+document.getElementById('f-use-dora').addEventListener('change', e => {
+  state.network.network_args = replaceArgument(state.network.network_args, 'use_dora', e.target.checked ? 'true' : undefined);
+  if (!e.target.checked) {
+    state.network.network_args = replaceArgument(state.network.network_args, 'dora_scale_fp32', undefined);
+  }
+  markDirty();
+  renderAll();
+});
+document.getElementById('f-dora-fp32').addEventListener('change', e => {
+  state.network.network_args = replaceArgument(state.network.network_args, 'dora_scale_fp32', e.target.checked ? 'true' : undefined);
+  markDirty();
+  renderAll();
+});
+document.getElementById('f-mod-dim').addEventListener('input', e => {
+  const raw = e.target.value.trim();
+  state.network.network_args = replaceArgument(state.network.network_args, 'mod_dim', raw === '' ? undefined : raw);
+  markDirty();
+  renderAll();
+});
+document.getElementById('f-rank-dropout').addEventListener('input', e => {
+  const raw = e.target.value.trim();
+  state.network.network_args = replaceArgument(state.network.network_args, 'rank_dropout', raw === '' ? undefined : raw);
+  markDirty();
+  renderAll();
+});
+document.getElementById('f-mod-dropout').addEventListener('input', e => {
+  const raw = e.target.value.trim();
+  state.network.network_args = replaceArgument(state.network.network_args, 'module_dropout', raw === '' ? undefined : raw);
+  markDirty();
+  renderAll();
+});
+document.getElementById('f-use-tucker').addEventListener('change', e => {
+  state.network.network_args = replaceArgument(state.network.network_args, 'use_tucker', e.target.checked ? 'true' : undefined);
+  markDirty();
+  renderAll();
+});
+
+// Weights & Resume
+document.getElementById('f-weights').addEventListener('input', e => {
+  state.network.network_weights = e.target.value;
+  markDirty();
+});
+document.getElementById('f-auto-resume').addEventListener('change', e => {
+  state.network.auto_resume_last_state = e.target.checked;
+  if (e.target.checked) {
+    if (state.network.resume) state.resumeDraft = state.network.resume;
+    state.network.resume = '';
+  } else if (state.resumeDraft) {
+    state.network.resume = state.resumeDraft;
+  }
+  markDirty();
+  renderAll();
+});
+document.getElementById('f-resume').addEventListener('input', e => {
+  state.network.resume = e.target.value;
+  state.resumeDraft = e.target.value;
+  markDirty();
+});
+
+// LayerRankEditor controls
+document.getElementById('f-layer-enable').addEventListener('change', e => {
+  if (!e.target.checked) {
+    state.network.network_args = replaceArgument(state.network.network_args, 'layer_configs', undefined);
+  } else {
+    if (!state.layerDraft) {
+      state.layerDraft = LayerRank.create(state.network.network_dim ?? 16, Number(argumentValue(state.network.network_args, 'factor') ?? -1));
+    }
+    commitLayerDraft();
+  }
+  markDirty();
+  renderAll();
+});
+
+document.querySelectorAll('[data-layer-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!state.layerDraft) return;
+    state.layerDraft.mode = btn.dataset.layerMode;
+    commitLayerDraft();
+    markDirty();
+    renderAll();
+  });
+});
+
+document.getElementById('btn-refresh-layers').addEventListener('click', () => {
+  const pill = document.getElementById('layer-status-pill');
+  pill.textContent = '正在读取模型层列表…';
+  setTimeout(() => {
+    pill.textContent = '已读取 28 个 Block，224 个可配置层';
+  }, 260);
+});
+
+document.getElementById('btn-reset-layers').addEventListener('click', () => {
+  state.layerDraft = LayerRank.create(state.network.network_dim ?? 16, Number(argumentValue(state.network.network_args, 'factor') ?? -1));
+  commitLayerDraft();
+  markDirty();
+  renderAll();
+});
+
+document.getElementById('f-default-rank').addEventListener('input', e => {
+  if (!state.layerDraft) return;
+  const v = parseInt(e.target.value, 10);
+  if (Number.isInteger(v) && v >= 1) {
+    state.layerDraft.default_rank = v;
+    commitLayerDraft();
+    markDirty();
+    renderAll();
+  }
+});
+
+document.getElementById('f-default-factor').addEventListener('input', e => {
+  if (!state.layerDraft) return;
+  const v = parseInt(e.target.value, 10);
+  if (Number.isInteger(v) && (v === -1 || v >= 1)) {
+    state.layerDraft.default_factor = v;
+    commitLayerDraft();
+    markDirty();
+    renderAll();
+  }
+});
+
+// Delegated editing inside LayerRankEditor table
+document.getElementById('nt-layer-matrix-container').addEventListener('change', handleLayerInput);
+document.getElementById('nt-layer-matrix-container').addEventListener('input', handleLayerInput);
+function handleLayerInput(e) {
+  const target = e.target;
+  if (!target.dataset.lrName || !state.layerDraft) return;
+  const name = target.dataset.lrName;
+  const key = target.dataset.lrKey;
+  if (e.type === 'input' && key === 'enabled') return;
+  const group = state.layerDraft.mode === 'type' ? 'types' : 'layers';
+  state.layerDraft[group] ||= {};
+  state.layerDraft[group][name] ||= {};
+  if (key === 'enabled') {
+    state.layerDraft[group][name].enabled = target.checked;
+  } else {
+    const raw = target.value.trim();
+    if (raw === '') {
+      delete state.layerDraft[group][name][key];
+    } else {
+      const num = Number(raw);
+      if (Number.isFinite(num)) {
+        state.layerDraft[group][name][key] = num;
+        if (key === 'alpha' && num === LayerRank.resolve(state.layerDraft, name, state.layerDraft.mode === 'type').rank) {
+          delete state.layerDraft[group][name].alpha;
+        }
+      }
+    }
+  }
+  commitLayerDraft();
+  markDirty();
+  // Avoid clobbering active numeric input focus; update hero, recipe, and JSON live
+  const d = getDerived();
+  renderRecipeStrip(d);
+  renderHeroPreview(d);
+  const jsonEl = document.getElementById('f-args-json');
+  if (document.activeElement !== jsonEl) jsonEl.value = JSON.stringify(state.network.network_args || [], null, 2);
+  if (key === 'enabled') renderLayerEditor(d);
+}
+
+// Free Network Args textarea
+document.getElementById('f-free-args').addEventListener('input', e => {
+  const d = getDerived();
+  const tokens = LayerRank.tokenize(e.target.value);
+  const preserved = (state.network.network_args || []).filter(t => d.dedicated.includes(t.split('=')[0].trim()));
+  state.network.network_args = [...preserved, ...tokens.filter(t => !d.dedicated.includes(t.split('=')[0].trim()))];
+  markDirty();
+  renderRecipeStrip(d);
+  renderHeroPreview(d);
+  const jsonEl = document.getElementById('f-args-json');
+  if (document.activeElement !== jsonEl) jsonEl.value = JSON.stringify(state.network.network_args || [], null, 2);
+  document.getElementById('nt-args-count').textContent = `${state.network.network_args.length} 项总参数（${tokens.length} 项自由参数）`;
+});
+
+// Raw JSON editor
+document.getElementById('f-args-json').addEventListener('input', e => {
+  const statusEl = document.getElementById('nt-json-status');
+  try {
+    const parsed = JSON.parse(e.target.value);
+    if (!Array.isArray(parsed) || parsed.some(x => typeof x !== 'string')) throw Error('必须为字符串数组');
+    state.network.network_args = parsed;
+    state.layerDraft = null;
+    statusEl.textContent = '有效 JSON 数组';
+    markDirty();
+    renderAll();
+  } catch (err) {
+    statusEl.textContent = `JSON 错误：${err.message}`;
+  }
+});
+
+// Demo Toggles
+document.getElementById('demo-lock-btn').addEventListener('click', () => {
+  state.locked = !state.locked;
+  renderAll();
+});
+
+document.getElementById('demo-lokr-btn').addEventListener('click', () => {
+  if (!state.demoLokrActive) {
+    state.savedBeforeDemo = {
+      network: structuredClone(state.network),
+      layerDraft: structuredClone(state.layerDraft),
+    };
+    state.demoLokrActive = true;
+    state.layerDraft = {
+      version: 1,
+      mode: 'type',
+      default_rank: 16,
+      default_factor: 8,
+      types: {
+        self_attn: { rank: 32, alpha: 32, factor: 8 },
+        cross_attn: { rank: 16, factor: 8 },
+        mlp: { rank: 8, alpha: 8, factor: 16 },
+        modulation: { enabled: false },
+      },
+      layers: {},
+    };
+    state.network = {
+      ...state.network,
+      network_module: 'networks.lokr',
+      network_dim: 16,
+      network_alpha: 16,
+      network_train_unet_only: true,
+      network_dropout: 0,
+      network_args: [
+        'factor=8',
+        'use_dora=true',
+        'dora_scale_fp32=true',
+        'rank_dropout=0.05',
+        `layer_configs=${JSON.stringify(LayerRank.compact(state.layerDraft, true))}`,
+      ],
+    };
+  } else {
+    state.demoLokrActive = false;
+    if (state.savedBeforeDemo) {
+      state.network = state.savedBeforeDemo.network;
+      state.layerDraft = state.savedBeforeDemo.layerDraft;
+    }
+  }
+  renderAll();
+});
+
+document.getElementById('btn-save').addEventListener('click', () => {
+  document.getElementById('dirty-dot').hidden = true;
+});
+
+// ===== Floating FieldHelp Popover =====
+const popover = document.getElementById('nt-help-popover');
+let activeHelpBtn = null;
+
+function closeHelp() {
+  popover.hidden = true;
+  if (activeHelpBtn) {
+    activeHelpBtn.setAttribute('aria-expanded', 'false');
+    activeHelpBtn = null;
+  }
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.nt-help-btn');
+  if (btn) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (activeHelpBtn === btn && !popover.hidden) {
+      closeHelp();
+      return;
+    }
+    const key = btn.dataset.help;
+    const entry = NETWORK_HELP[key];
+    if (!entry) return;
+    if (activeHelpBtn) activeHelpBtn.setAttribute('aria-expanded', 'false');
+    activeHelpBtn = btn;
+    btn.setAttribute('aria-expanded', 'true');
+
+    const [title, meaning, effect, ...notes] = entry;
+    document.getElementById('hp-title').textContent = title;
+    document.getElementById('hp-key').textContent = key;
+    document.getElementById('hp-meaning').textContent = meaning;
+    document.getElementById('hp-effect').textContent = effect;
+    document.getElementById('hp-notes').innerHTML = notes.map(n => `<li>${n}</li>`).join('');
+
+    popover.hidden = false;
+    const rect = btn.getBoundingClientRect();
+    const pw = popover.offsetWidth;
+    const ph = popover.offsetHeight;
+    let left = rect.left + rect.width / 2 - pw / 2;
+    left = Math.max(12, Math.min(window.innerWidth - pw - 12, left));
+    let top = rect.bottom + 8;
+    if (top + ph > window.innerHeight - 12) top = Math.max(12, rect.top - ph - 8);
+    popover.style.left = `${left}px`;
+    popover.style.top = `${top}px`;
+    return;
+  }
+  if (!popover.hidden && !popover.contains(e.target)) {
+    closeHelp();
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeHelp();
+});
+
+// Initial render
+renderAll();
+</script>
+</body>
+</html>

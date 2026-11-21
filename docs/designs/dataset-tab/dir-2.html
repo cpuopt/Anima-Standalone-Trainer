@@ -1,0 +1,3341 @@
+<!doctype html>
+<html lang="zh-CN" class="dark" data-theme="github-dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dataset tab · Direction B (Outliner Tree + Structured Inspector)</title>
+<style>
+/* ===== Existing app shell (copied from training-ui/frontend/src/style.css). DO NOT EDIT this block. ===== */
+:root { --background:#f5f7fa; --foreground:#202b40; --card:#fff; --primary:#326cd4; --primary-foreground:#fff; --secondary:#e9edf4; --muted:#edf0f5; --muted-foreground:#677389; --accent:#e0e9fc; --destructive:#bc364a; --border:#dbe1eb; font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif; color-scheme:light; }
+.dark { --background:#10151f; --foreground:#e0e7f2; --card:#171e2b; --primary:#86aafa; --primary-foreground:#111b32; --secondary:#222d40; --muted:#1b2434; --muted-foreground:#94a3bb; --accent:#253650; --destructive:#db4e67; --border:#2b374c; color-scheme:dark; }
+[data-theme="midnight-blue"] { --background:#0c172b; --card:#10213b; --border:#263f61; --primary:#6ec1eb; }
+[data-theme="cherry-pink"] { --background:#241622; --card:#2d1e2c; --border:#513347; --primary:#e8a0c1; }
+* { box-sizing:border-box; border-color:var(--border); }
+body { margin:0; background:var(--background); color:var(--foreground); font-size:14px; line-height:1.55; }
+button { cursor:pointer; font:inherit; color:inherit; background:none; border:0; } button:disabled { cursor:not-allowed; opacity:.45; }
+input,select,textarea { max-width:100%; font:inherit; }
+:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+a { color:var(--primary); text-decoration:none; } h1,h2,h3,p { margin-top:0; } small { display:block; }
+.studio-shell { display:grid; grid-template-columns:245px minmax(0,1fr); min-height:100dvh; }
+.sidebar { position:sticky; top:0; height:100dvh; border-right:1px solid var(--border); padding:26px 18px 16px; background:color-mix(in srgb,var(--card) 94%,transparent); display:flex; flex-direction:column; gap:16px; }
+.brand { display:flex; gap:11px; align-items:center; color:var(--foreground); font-size:16px; font-weight:650; margin-bottom:12px; }.brand small { font-weight:400; font-size:11px; color:var(--muted-foreground); letter-spacing:.06em; }
+.brand-mark { background:linear-gradient(140deg,#8cadff,#9c7ae3); color:#14213a; display:grid; place-items:center; font-weight:800; border-radius:10px; width:36px; height:40px; }
+.sidebar-heading { display:flex; align-items:center; justify-content:space-between; }.sidebar-heading h2 { margin:0; font-size:12px; color:var(--muted-foreground); letter-spacing:.1em; }
+.subtle { border:0; background:none; padding:3px; color:var(--muted-foreground); }
+.shell-input { width:100%; height:36px; border:1px solid var(--border); border-radius:6px; padding:4px 12px; background:color-mix(in srgb,var(--border) 30%,transparent); color:var(--foreground); }
+.job-list { flex:1; min-height:100px; overflow:auto; display:flex; flex-direction:column; gap:6px; }.job-item { border:1px solid transparent; border-radius:7px; display:flex; gap:10px; align-items:center; padding:10px; background:transparent; text-align:left; }.job-item.selected { background:var(--accent); border-color:var(--border); }.job-name small { font-size:10px; color:var(--muted-foreground); }.job-dot { width:6px; height:6px; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }.job-dot.running { background:#5ace9d; box-shadow:0 0 7px #5ace9d66; }
+.new-job { display:grid; gap:9px; border-top:1px solid var(--border); padding-top:18px; }.new-job label { font-size:12px; color:var(--muted-foreground); }.new-job select { height:36px; border:1px solid var(--border); border-radius:6px; padding:0 10px; background:var(--background); color:var(--foreground); }
+.sidebar footer { display:flex; flex-direction:column; align-items:flex-start; gap:6px; font-size:11px; }.connection-on { color:#70be9d; }
+main { min-width:0; }
+.toolbar { min-height:115px; padding:25px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:color-mix(in srgb,var(--background) 90%,transparent); }
+.eyebrow { font-size:9px; font-weight:650; letter-spacing:.18em; color:var(--muted-foreground); } h1 { font-size:22px; font-weight:650; margin:2px 0; } .dirty-dot { font-size:10px; color:#e3b76a; margin-left:9px; }
+.toolbar-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.sbtn { display:inline-flex; align-items:center; height:36px; padding:0 16px; border-radius:6px; font-size:14px; font-weight:500; background:var(--primary); color:var(--primary-foreground); }
+.sbtn.outline { background:color-mix(in srgb,var(--border) 30%,transparent); border:1px solid var(--border); color:var(--foreground); }
+.sbtn.ghost { background:none; color:var(--foreground); } .sbtn.train { background:#599e7d; color:#071e15; }
+.tabs { display:flex; gap:3px; padding:0 25px; border-bottom:1px solid var(--border); overflow:auto; }.tabs button { white-space:nowrap; padding:15px 13px; border-bottom:2px solid transparent; color:var(--muted-foreground); font-size:12px; }.tabs button.active { color:var(--primary); border-bottom-color:var(--primary); }
+.workspace { padding:26px 32px 60px; margin:auto; }
+.muted { color:var(--muted-foreground); }
+/* demo-only theme switcher */
+.theme-dock { position:fixed; right:14px; bottom:14px; z-index:999; display:flex; gap:4px; padding:5px; border:1px solid var(--border); border-radius:8px; background:var(--card); box-shadow:0 6px 20px #0005; font-size:11px; }
+.theme-dock button { padding:4px 8px; border-radius:5px; color:var(--muted-foreground); } .theme-dock button[aria-pressed=true] { background:var(--accent); color:var(--foreground); }
+@media(max-width:1000px) { .studio-shell{grid-template-columns:205px minmax(0,1fr)} .toolbar,.workspace{padding-left:20px;padding-right:20px} .tabs{padding:0 10px} }
+@media(max-width:680px) { .studio-shell{display:block}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding:16px}.job-list{max-height:150px}.toolbar{padding:18px}.workspace{padding:18px 12px} }
+/* ===== end of shell ===== */
+
+/* ===== Direction B styles: Figma / DaVinci Resolve Outliner Tree + Structured Inspector Split ===== */
+.dt2-wrap {
+  --dt2-mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+  --dt2-green: #22c55e;
+  --dt2-green-soft: color-mix(in srgb, #22c55e 16%, var(--card));
+  --dt2-green-text: #15803d;
+  --dt2-amber: #f59e0b;
+  --dt2-amber-soft: color-mix(in srgb, #f59e0b 16%, var(--card));
+  --dt2-amber-text: #b45309;
+  --dt2-red: var(--destructive);
+  --dt2-red-soft: color-mix(in srgb, var(--destructive) 16%, var(--card));
+  --dt2-purple: #8b5cf6;
+  --dt2-purple-soft: color-mix(in srgb, #8b5cf6 16%, var(--card));
+  --dt2-surface-2: color-mix(in srgb, var(--secondary) 55%, var(--card));
+  --dt2-surface-3: color-mix(in srgb, var(--muted) 75%, var(--card));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1620px;
+}
+.dark .dt2-wrap {
+  --dt2-green-text: #6ee7b7;
+  --dt2-amber-text: #fcd34d;
+}
+
+/* Demo State Bar */
+.dt2-demobar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--secondary) 45%, var(--card));
+  font-size: 13px;
+}
+.dt2-demobar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dt2-demobar-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 5px;
+  background: var(--accent);
+  color: var(--foreground);
+  font-weight: 600;
+  font-size: 12px;
+}
+.dt2-demobar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dt2-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background .15s, border-color .15s;
+}
+.dt2-toggle-btn:hover {
+  background: var(--secondary);
+}
+.dt2-toggle-btn[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.dt2-toggle-btn.warn[aria-pressed="true"] {
+  background: var(--destructive);
+  color: #fff;
+  border-color: var(--destructive);
+}
+
+/* Top LBAI Target & Diagnostic Header (Outside fieldset) */
+.dt2-lbai-banner {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  overflow: hidden;
+}
+.dt2-lbai-main {
+  display: grid;
+  grid-template-columns: 245px minmax(0, 1fr) 310px;
+  gap: 20px;
+  padding: 16px 20px;
+  align-items: center;
+}
+@media (max-width: 1280px) {
+  .dt2-lbai-main {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+.dt2-lbai-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 16px;
+  border-right: 1px solid var(--border);
+}
+@media (max-width: 1280px) {
+  .dt2-lbai-readout {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding-right: 0;
+    padding-bottom: 12px;
+  }
+}
+.dt2-lbai-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.dt2-lbai-num-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.dt2-lbai-big {
+  font-family: var(--dt2-mono);
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  line-height: 1.15;
+}
+.dt2-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dt2-status-pill.ok {
+  background: var(--dt2-green-soft);
+  color: var(--dt2-green-text);
+  border: 1px solid color-mix(in srgb, var(--dt2-green) 38%, transparent);
+}
+.dt2-status-pill.low {
+  background: var(--dt2-amber-soft);
+  color: var(--dt2-amber-text);
+  border: 1px solid color-mix(in srgb, var(--dt2-amber) 38%, transparent);
+}
+.dt2-status-pill.high {
+  background: var(--dt2-red-soft);
+  color: var(--destructive);
+  border: 1px solid color-mix(in srgb, var(--destructive) 38%, transparent);
+}
+.dt2-lbai-sub {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Visual Target Range Bar */
+.dt2-lbai-meter-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.dt2-meter-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.dt2-meter-zones-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dt2-zone-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.dt2-zone-tag.active {
+  background: var(--accent);
+  color: var(--foreground);
+  border-color: var(--primary);
+  font-weight: 600;
+}
+.dt2-meter-track-wrap {
+  position: relative;
+  padding: 6px 0 18px;
+}
+.dt2-meter-track {
+  position: relative;
+  height: 16px;
+  border-radius: 6px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.dt2-meter-target-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--dt2-green) 24%, transparent);
+  border-left: 2px dashed var(--dt2-green);
+  border-right: 2px dashed var(--dt2-green);
+  pointer-events: none;
+  transition: left .2s, width .2s;
+}
+.dt2-meter-bars {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+.dt2-meter-seg {
+  height: 100%;
+  transition: width .2s;
+}
+.dt2-meter-seg.ds1 {
+  background: var(--primary);
+}
+.dt2-meter-seg.ds2 {
+  background: #8b5cf6;
+}
+.dt2-meter-seg.ds3 {
+  background: #14b8a6;
+}
+.dt2-meter-marker {
+  position: absolute;
+  top: 2px;
+  width: 3px;
+  height: 22px;
+  background: var(--foreground);
+  border-radius: 2px;
+  transform: translateX(-50%);
+  z-index: 3;
+  box-shadow: 0 0 0 2px var(--card);
+  transition: left .2s;
+}
+.dt2-meter-ticks {
+  position: relative;
+  height: 14px;
+  margin-top: 4px;
+  font-family: var(--dt2-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.dt2-meter-tick {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.dt2-meter-breakdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.dt2-contrib-pills {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dt2-contrib-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--foreground);
+}
+.dt2-dot-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* Target Selector Column */
+.dt2-lbai-target-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 16px;
+  border-left: 1px solid var(--border);
+}
+@media (max-width: 1280px) {
+  .dt2-lbai-target-col {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 12px;
+  }
+}
+.dt2-field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.dt2-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.dt2-select, .dt2-input {
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  width: 100%;
+}
+.dt2-input.mono {
+  font-family: var(--dt2-mono);
+}
+.dt2-input.error {
+  border-color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 8%, var(--background));
+}
+.dt2-formula-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--secondary);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+.dt2-formula-toggle:hover {
+  background: var(--accent);
+}
+
+/* Expandable Formula Breakdown Drawer */
+.dt2-formula-drawer {
+  border-top: 1px solid var(--border);
+  background: var(--dt2-surface-3);
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dt2-formula-drawer[hidden] {
+  display: none;
+}
+.dt2-formula-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 960px) {
+  .dt2-formula-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.dt2-formula-cell {
+  padding: 9px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dt2-formula-cell-label {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dt2-formula-cell-val {
+  font-family: var(--dt2-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+.dt2-formula-cell-note {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.dt2-formula-footnote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.dt2-formula-code {
+  font-family: var(--dt2-mono);
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+
+/* Read-only Locked Preview Bar (Outside fieldset, revealed when locked) */
+.dt2-readonly-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 55%, var(--card));
+}
+.dt2-readonly-bar[hidden] {
+  display: none;
+}
+.dt2-readonly-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.dt2-readonly-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Master-Detail Outliner + Inspector Split Layout */
+.dt2-split-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 1120px) {
+  .dt2-split-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Left Sticky Hierarchy Outliner Rail (280px) */
+.dt2-outliner {
+  position: sticky;
+  top: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+@media (max-width: 1120px) {
+  .dt2-outliner {
+    position: static;
+  }
+}
+.dt2-outliner-head {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--dt2-surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dt2-outliner-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dt2-outliner-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dt2-view-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--background);
+  border: 1px solid var(--border);
+}
+.dt2-view-mode-btn {
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+.dt2-view-mode-btn.active {
+  background: var(--accent);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.dt2-tree-body {
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: calc(100dvh - 280px);
+  overflow-y: auto;
+}
+@media (max-width: 1120px) {
+  .dt2-tree-body {
+    max-height: none;
+  }
+}
+.dt2-tree-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  text-align: left;
+  font-size: 13px;
+  color: var(--foreground);
+  transition: background .12s, border-color .12s;
+  cursor: pointer;
+}
+.dt2-tree-node:hover {
+  background: var(--secondary);
+}
+.dt2-tree-node.active {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+}
+.dt2-tree-node-main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+}
+.dt2-tree-node-label {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dt2-tree-pill {
+  font-family: var(--dt2-mono);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dt2-tree-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 4px;
+}
+.dt2-tree-ds-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 7px 8px 7px 10px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.dt2-tree-ds-row:hover {
+  background: var(--secondary);
+}
+.dt2-tree-ds-row.active {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+.dt2-tree-ds-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.dt2-tree-ds-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.dt2-tree-ds-meta {
+  font-family: var(--dt2-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.dt2-tree-inline-add {
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--secondary);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.dt2-tree-inline-add:hover:not(:disabled) {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+.dt2-tree-children {
+  margin-left: 14px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dt2-tree-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background .12s;
+}
+.dt2-tree-sub:hover {
+  background: var(--secondary);
+}
+.dt2-tree-sub.active {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+.dt2-tree-sub-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+}
+.dt2-tree-sub-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--foreground);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dt2-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dt2-status-dot.ok { background: var(--dt2-green); }
+.dt2-status-dot.empty { background: var(--dt2-amber); }
+.dt2-status-dot.err { background: var(--destructive); box-shadow: 0 0 0 2px color-mix(in srgb, var(--destructive) 30%, transparent); }
+
+.dt2-tree-sub-meta {
+  font-family: var(--dt2-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.dt2-tree-sub-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dt2-mini-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--secondary);
+  overflow: hidden;
+}
+.dt2-mini-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 99px;
+}
+.dt2-mini-bar-fill.reg {
+  background: var(--muted-foreground);
+  opacity: 0.4;
+}
+.dt2-mini-lbai {
+  font-family: var(--dt2-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* Outliner Footer Summary Card */
+.dt2-outliner-foot {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--dt2-surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dt2-summary-title {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dt2-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.dt2-summary-box {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.dt2-summary-box small {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.dt2-summary-box strong {
+  font-family: var(--dt2-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+.dt2-add-ds-btn {
+  width: 100%;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.dt2-add-ds-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+/* Right Structured Inspector Canvas */
+.dt2-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.dt2-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* Inspector Section Cards */
+.dt2-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  overflow: hidden;
+  scroll-margin-top: 20px;
+  transition: box-shadow .2s, border-color .2s;
+}
+.dt2-card.flash-focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+.dt2-card-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--dt2-surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dt2-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dt2-card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dt2-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--secondary);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+.dt2-badge.mono {
+  font-family: var(--dt2-mono);
+}
+.dt2-badge.reg {
+  background: var(--dt2-purple-soft);
+  color: #a78bfa;
+  border-color: color-mix(in srgb, #8b5cf6 40%, var(--border));
+}
+:root:not(.dark) .dt2-badge.reg {
+  color: #6d28d9;
+}
+.dt2-badge.primary {
+  background: var(--accent);
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+}
+
+/* Global Bucketing & Progressive Schedule Card */
+.dt2-global-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+}
+@media (max-width: 960px) {
+  .dt2-global-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.dt2-prop-col {
+  display: flex;
+  flex-direction: column;
+}
+.dt2-prop-col:first-child {
+  border-right: 1px solid var(--border);
+}
+@media (max-width: 960px) {
+  .dt2-prop-col:first-child {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}
+.dt2-prop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.dt2-prop-row:last-child {
+  border-bottom: 0;
+}
+.dt2-prop-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dt2-prop-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.dt2-prop-ctrl {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dt2-prop-ctrl .dt2-input {
+  width: 110px;
+  text-align: right;
+}
+
+/* Switch Toggle */
+.dt2-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.dt2-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.dt2-switch-track {
+  width: 40px;
+  height: 22px;
+  border-radius: 99px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  position: relative;
+  transition: background .15s, border-color .15s;
+}
+.dt2-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  transition: transform .15s, background .15s;
+}
+.dt2-switch input:checked + .dt2-switch-track {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.dt2-switch input:checked + .dt2-switch-track::after {
+  transform: translateX(18px);
+  background: var(--primary-foreground);
+}
+
+/* Progressive Schedule Section */
+.dt2-schedule-zone {
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+}
+@media (max-width: 960px) {
+  .dt2-schedule-zone {
+    grid-template-columns: 1fr;
+  }
+}
+.dt2-schedule-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dt2-schedule-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dt2-preset-chip {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: var(--dt2-mono);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.dt2-preset-chip:hover:not(:disabled) {
+  background: var(--accent);
+}
+.dt2-schedule-visual {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--dt2-surface-3);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dt2-schedule-bar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.dt2-stage-bar {
+  display: flex;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--background);
+}
+.dt2-stage-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--dt2-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-foreground);
+  background: var(--primary);
+  border-right: 1px solid var(--card);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dt2-stage-seg:nth-child(2) {
+  background: color-mix(in srgb, var(--primary) 75%, #6366f1);
+}
+.dt2-stage-seg:nth-child(3) {
+  background: #8b5cf6;
+}
+
+/* Dataset Card */
+.dt2-ds-params-bar {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (max-width: 820px) {
+  .dt2-ds-params-bar {
+    grid-template-columns: 1fr;
+  }
+}
+.dt2-param-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dt2-param-hint {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Subsets Container inside Dataset */
+.dt2-subsets-list {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: color-mix(in srgb, var(--background) 55%, var(--card));
+}
+.dt2-subset-card {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  overflow: hidden;
+  scroll-margin-top: 20px;
+  transition: box-shadow .2s, border-color .2s;
+}
+.dt2-subset-card.flash-focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+.dt2-subset-head {
+  padding: 11px 16px;
+  background: var(--dt2-surface-2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dt2-subset-head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dt2-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--foreground);
+  padding: 3px 6px;
+  border-radius: 5px;
+}
+.dt2-collapse-btn:hover {
+  background: var(--secondary);
+}
+.dt2-subset-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 3 Functional Modules inside Subset */
+.dt2-subset-body {
+  display: flex;
+  flex-direction: column;
+}
+.dt2-subset-body[hidden] {
+  display: none;
+}
+.dt2-module {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.dt2-module:last-child {
+  border-bottom: 0;
+}
+.dt2-module-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dt2-module-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dt2-module-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--accent);
+  color: var(--primary);
+}
+
+/* Module A: Directory & Exposure Weight */
+.dt2-mod-a-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.05fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .dt2-mod-a-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.dt2-dir-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dt2-dir-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dt2-action-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dt2-btn-sm {
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.dt2-btn-sm:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+}
+.dt2-btn-sm.danger {
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 10%, var(--card));
+  border-color: color-mix(in srgb, var(--destructive) 30%, var(--border));
+}
+.dt2-btn-sm.danger:hover:not(:disabled) {
+  background: var(--destructive);
+  color: #fff;
+}
+
+.dt2-exposure-card {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--dt2-surface-3);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dt2-exposure-inputs {
+  display: grid;
+  grid-template-columns: 105px minmax(0, 1fr);
+  gap: 12px;
+}
+.dt2-exposure-result {
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.dt2-exposure-result strong {
+  font-family: var(--dt2-mono);
+  font-size: 14px;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+/* Module B: Caption Split & 4-Affix Sandbox */
+.dt2-sandbox-pipeline {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 14px;
+}
+@media (max-width: 1024px) {
+  .dt2-sandbox-pipeline {
+    grid-template-columns: 1fr;
+  }
+}
+.dt2-zone-box {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--dt2-surface-3);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dt2-zone-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.dt2-zone-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dt2-zone-flow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.dt2-flow-step {
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  font-size: 12px;
+}
+.dt2-flow-step.keep {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  background: var(--accent);
+}
+.dt2-zone-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .dt2-zone-fields {
+    grid-template-columns: 1fr;
+  }
+}
+.dt2-zone-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+.dt2-inline-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dt2-inline-control .dt2-input {
+  width: 78px;
+  height: 32px;
+}
+
+/* Live Caption Preview Strip */
+.dt2-caption-preview {
+  padding: 11px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.dt2-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.dt2-preview-tokens {
+  font-family: var(--dt2-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.dt2-tok {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+}
+.dt2-tok.locked {
+  background: var(--accent);
+  border-color: var(--primary);
+  font-weight: 600;
+}
+.dt2-tok.merged {
+  background: var(--dt2-amber-soft);
+  border-color: var(--dt2-amber);
+  color: var(--dt2-amber-text);
+  font-weight: 600;
+}
+.dt2-tok.suffix, .dt2-tok.nl-pre {
+  background: var(--secondary);
+  border-style: dashed;
+}
+.dt2-tok.nl-body {
+  color: var(--muted-foreground);
+}
+.dt2-comma-warn {
+  font-size: 12px;
+  color: var(--dt2-amber-text);
+  background: var(--dt2-amber-soft);
+  border: 1px solid color-mix(in srgb, var(--dt2-amber) 40%, transparent);
+  padding: 5px 10px;
+  border-radius: 5px;
+}
+.dt2-comma-warn[hidden] {
+  display: none;
+}
+
+/* Module C: Dropout & Image Augmentations */
+.dt2-mod-c-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .dt2-mod-c-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.dt2-dropout-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .dt2-dropout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.dt2-aug-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dt2-aug-tile {
+  padding: 9px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--dt2-surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dt2-aug-tile-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.dt2-aug-tile-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+/* FieldHelp (?) Trigger & Popover */
+.dt2-help-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.dt2-help-btn:hover, .dt2-help-btn[aria-expanded="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.dt2-popover {
+  position: fixed;
+  z-index: 1200;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dt2-popover[hidden] {
+  display: none;
+}
+.dt2-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.dt2-pop-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+.dt2-pop-key {
+  font-family: var(--dt2-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.dt2-pop-sec {
+  margin-bottom: 7px;
+}
+.dt2-pop-sec strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+.dt2-pop-notes {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.dt2-pop-notes li {
+  margin-bottom: 3px;
+}
+
+/* Simulated Modal Toast */
+.dt2-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 1300;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--primary);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dt2-toast[hidden] {
+  display: none;
+}
+</style>
+</head>
+<body>
+<div class="studio-shell">
+  <aside class="sidebar">
+    <a class="brand" href="#"><span class="brand-mark">A</span><span>Training Studio<small>Anima · Krea 2 · MOSS</small></span></a>
+    <div class="sidebar-heading"><h2>任务</h2><button class="subtle" title="刷新任务">↻</button></div>
+    <input class="shell-input" placeholder="搜索任务…" aria-label="搜索任务">
+    <nav class="job-list" aria-label="任务列表">
+      <button class="job-item selected"><span class="job-dot"></span><span class="job-name">rin_style_v3<small>anima</small></span></button>
+      <button class="job-item"><span class="job-dot running"></span><span class="job-name">kurosawa_char<small>anima</small></span></button>
+      <button class="job-item"><span class="job-dot"></span><span class="job-name">krea_lighting<small>krea2</small></span></button>
+      <button class="job-item"><span class="job-dot"></span><span class="job-name">moss_product_sft<small>moss_image</small></span></button>
+    </nav>
+    <form class="new-job" onsubmit="return false"><label>新建任务</label><input class="shell-input" placeholder="任务名称"><select aria-label="模型架构"><option>Anima</option><option>Krea 2</option><option>MOSS-Image</option></select><button class="sbtn" disabled>创建任务</button></form>
+    <footer><button class="subtle">全局设置</button><a href="#">打开旧界面 ↗</a><span class="connection-on">实时连接正常</span></footer>
+  </aside>
+  <main>
+    <header class="toolbar">
+      <div class="title"><span class="eyebrow">TRAINING WORKSPACE</span><h1>rin_style_v3<span class="dirty-dot" id="dirty-dot" hidden>●</span></h1><span class="muted">anima · 就绪</span></div>
+      <div class="toolbar-actions"><button class="sbtn outline">复制</button><button class="sbtn outline">删除</button><button class="sbtn">保存</button><button class="sbtn train">开始训练</button></div>
+    </header>
+    <nav class="tabs" aria-label="配置页面"><button>训练</button><button class="active">数据集</button><button>网络</button><button>多 GPU</button><button>提示词与生成</button><button>样例</button><button>控制台</button><button>TensorBoard</button><button>训练产出</button><button>设置</button></nav>
+    <div class="workspace">
+      <!-- ===== Direction B Content: Outliner Tree + Structured Inspector Split ===== -->
+      <div class="dt2-wrap dt2" id="dt2-app">
+
+        <!-- Demo Control Bar -->
+        <div class="dt2-demobar" role="region" aria-label="原型交互状态切换">
+          <div class="dt2-demobar-left">
+            <span class="dt2-demobar-tag">方向 B · 层级大纲树 + 结构化检视器</span>
+            <span class="muted">点击左侧节点快速定位或筛选，右侧三段式子集面板实时联动 LBAI 与 Caption 组装预览</span>
+          </div>
+          <div class="dt2-demobar-actions">
+            <button type="button" class="dt2-toggle-btn" id="btn-toggle-lock" aria-pressed="false">
+              <span>预览锁定状态 (Locked)</span>
+            </button>
+            <button type="button" class="dt2-toggle-btn warn" id="btn-toggle-error" aria-pressed="false">
+              <span>模拟路径与比例异常</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 1. Top LBAI Target & Diagnostic Header (Outside fieldset so selector works when locked) -->
+        <section class="dt2-lbai-banner" aria-label="LBAI 训练程度估算与诊断">
+          <div class="dt2-lbai-main">
+            <!-- Left: Total LBAI Readout -->
+            <div class="dt2-lbai-readout">
+              <div class="dt2-lbai-title-row">
+                <span>总 LBAI (训练程度估算)</span>
+                <button type="button" class="dt2-help-btn" data-help="lbai_target" aria-label="查看 LBAI 比较目标帮助">?</button>
+              </div>
+              <div class="dt2-lbai-num-row">
+                <span class="dt2-lbai-big" id="lbai-total-val">0.0152</span>
+                <span class="dt2-status-pill ok" id="lbai-status-pill">目标范围内 · 113%</span>
+              </div>
+              <div class="dt2-lbai-sub" id="lbai-status-sub">基准中位值 0.0135 · 角色 LoRA 推荐区 (0.009–0.018)</div>
+            </div>
+
+            <!-- Middle: Visual Target Range Scale & Contribution Breakdown -->
+            <div class="dt2-lbai-meter-col">
+              <div class="dt2-meter-top">
+                <div class="dt2-meter-zones-legend" id="lbai-zone-pills">
+                  <button type="button" class="dt2-zone-tag active" data-target="character">角色 0.009–0.018</button>
+                  <button type="button" class="dt2-zone-tag" data-target="style_general">一般风格 0.02–0.05</button>
+                  <button type="button" class="dt2-zone-tag" data-target="style_complex">复杂风格 0.05–0.09</button>
+                </div>
+                <span class="muted">绿色虚线框 = 当前目标区间</span>
+              </div>
+
+              <div class="dt2-meter-track-wrap">
+                <div class="dt2-meter-track">
+                  <div class="dt2-meter-target-band" id="lbai-target-band" style="left: 9%; width: 9%;"></div>
+                  <div class="dt2-meter-bars" id="lbai-meter-bars"></div>
+                </div>
+                <div class="dt2-meter-marker" id="lbai-meter-marker" style="left: 15.2%;"></div>
+                <div class="dt2-meter-ticks">
+                  <span class="dt2-meter-tick" style="left: 0%;">0</span>
+                  <span class="dt2-meter-tick" style="left: 18%;">0.018</span>
+                  <span class="dt2-meter-tick" style="left: 50%;">0.050</span>
+                  <span class="dt2-meter-tick" style="left: 90%;">0.090</span>
+                </div>
+              </div>
+
+              <div class="dt2-meter-breakdown-row">
+                <div class="dt2-contrib-pills" id="lbai-contrib-legend"></div>
+                <span>注：正则化子集 (REG) 不计入 LBAI 暴露量</span>
+              </div>
+            </div>
+
+            <!-- Right: LBAI Target Select & Formula Breakdown Drawer Toggle -->
+            <div class="dt2-lbai-target-col">
+              <div class="dt2-field-label-row">
+                <label class="dt2-label" for="lbai-target-select">
+                  <span>LBAI 比较目标</span>
+                  <button type="button" class="dt2-help-btn" data-help="lbai_target" aria-label="查看 LBAI 比较目标帮助">?</button>
+                </label>
+                <span class="muted" style="font-size:12px;">锁定时仍可切换</span>
+              </div>
+              <select id="lbai-target-select" class="dt2-select" aria-label="LBAI 比较目标">
+                <option value="character">角色 LoRA 推荐区：0.009–0.018</option>
+                <option value="style_general">一般风格 LoRA 推荐区：0.02–0.05</option>
+                <option value="style_complex">复杂风格 LoRA 实验区：0.05–0.09</option>
+              </select>
+              <button type="button" class="dt2-formula-toggle" id="btn-toggle-formula" aria-expanded="true">
+                <span>计算明细抽屉 (跨页联动参数)</span>
+                <span id="formula-chevron">▴ 收起</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Expandable 4-Cell Formula Breakdown Strip -->
+          <div class="dt2-formula-drawer" id="lbai-formula-drawer">
+            <div class="dt2-formula-strip">
+              <div class="dt2-formula-cell">
+                <div class="dt2-formula-cell-label"><span>① 每轮有效样本</span><span>∑ 非 REG 子集</span></div>
+                <div class="dt2-formula-cell-val" id="formula-samples-val">176 样本/轮</div>
+                <div class="dt2-formula-cell-note" id="formula-samples-note">DS1: 144 + DS2: 32 (排除 120 REG)</div>
+              </div>
+              <div class="dt2-formula-cell">
+                <div class="dt2-formula-cell-label"><span>② × 训练轮数</span><span>来自「训练」页</span></div>
+                <div class="dt2-formula-cell-val">20 Epochs</div>
+                <div class="dt2-formula-cell-note" id="formula-exposure-note">总有效曝光 3,520 样本次</div>
+              </div>
+              <div class="dt2-formula-cell">
+                <div class="dt2-formula-cell-label"><span>③ × 有效学习率 × Rank因子</span><span>训练 / 网络页</span></div>
+                <div class="dt2-formula-cell-val">2.5e-5 × 1.00</div>
+                <div class="dt2-formula-cell-note">LR 5e-5 × cosine(0.5) · Rank 32/32</div>
+              </div>
+              <div class="dt2-formula-cell">
+                <div class="dt2-formula-cell-label"><span>④ ÷ 有效批量</span><span>按各 Dataset 独立计算</span></div>
+                <div class="dt2-formula-cell-val" id="formula-batch-val">DS1: ÷2 · DS2: ÷1 (×步幅归一)</div>
+                <div class="dt2-formula-cell-note">Batch Size × 梯度累积(1) · DS1=0.0112 + DS2=0.0040</div>
+              </div>
+            </div>
+            <div class="dt2-formula-footnote">
+              <span>单 Dataset 计算公式：<code class="dt2-formula-code">LBAI_d = (每轮非REG样本 × 训练轮数) × (学习率 × 调度系数) × (Rank / 32) ÷ (BatchSize × 梯度累积)</code></span>
+              <span>总 LBAI 为各分辨率 Dataset 独立估算之和</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Read-only Preview Section (Revealed outside fieldset when store.locked is true) -->
+        <section class="dt2-readonly-bar" id="readonly-preview-section" aria-label="数据集只读预览" hidden>
+          <div class="dt2-readonly-info">
+            <span class="dt2-badge primary">任务运行 / 锁定中</span>
+            <span>当前数据集配置处于只读锁定状态。你仍可直接打开任意子集的图片与 Caption 切分预览：</span>
+          </div>
+          <div class="dt2-readonly-btns" id="readonly-preview-btns"></div>
+        </section>
+
+        <!-- 2. Master-Detail Hierarchy Outliner + Structured Inspector Split -->
+        <div class="dt2-split-layout">
+
+          <!-- Left Sticky Hierarchy Outliner Rail (280px) -->
+          <aside class="dt2-outliner" aria-label="数据集层级大纲导航">
+            <div class="dt2-outliner-head">
+              <div class="dt2-outliner-title-row">
+                <span class="dt2-outliner-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h12M3 18h18"/></svg>
+                  <span>数据集层级大纲</span>
+                </span>
+                <span class="dt2-tree-pill" id="outliner-count-pill">2 DS · 3 子集</span>
+              </div>
+              <div class="dt2-view-mode-switch" role="group" aria-label="检视器视图模式">
+                <button type="button" class="dt2-view-mode-btn active" data-viewmode="all" id="viewmode-all">全部展开平铺</button>
+                <button type="button" class="dt2-view-mode-btn" data-viewmode="focus" id="viewmode-focus">仅聚焦选中项</button>
+              </div>
+            </div>
+
+            <!-- Dynamic Outliner Tree -->
+            <div class="dt2-tree-body" id="outliner-tree"></div>
+
+            <!-- Bottom Exposure & REG Balance Summary Card -->
+            <div class="dt2-outliner-foot">
+              <div class="dt2-summary-title">
+                <span>样本暴露与配比摘要</span>
+                <span id="summary-reg-ratio" class="muted">REG 占比 40.5%</span>
+              </div>
+              <div class="dt2-summary-grid">
+                <div class="dt2-summary-box">
+                  <small>有效样本/轮</small>
+                  <strong id="summary-nonreg">176</strong>
+                </div>
+                <div class="dt2-summary-box">
+                  <small>正则 REG/轮</small>
+                  <strong id="summary-reg">120</strong>
+                </div>
+                <div class="dt2-summary-box">
+                  <small>总 LBAI</small>
+                  <strong id="summary-lbai">0.0152</strong>
+                </div>
+              </div>
+              <button type="button" class="dt2-add-ds-btn" id="btn-outliner-add-ds">
+                <span>+ 添加 Dataset</span>
+              </button>
+            </div>
+          </aside>
+
+          <!-- Right Structured Inspector Canvas (Wrapped in fieldset for lock support) -->
+          <fieldset class="dt2-fieldset" id="inspector-fieldset">
+            <div class="dt2-inspector" id="inspector-canvas">
+
+              <!-- Global Bucketing & Progressive Schedule Card -->
+              <section class="dt2-card" id="card-global" aria-label="全局分桶与渐进计划">
+                <header class="dt2-card-header">
+                  <div class="dt2-card-title-group">
+                    <h2 class="dt2-card-title">全局分桶与渐进分辨率计划</h2>
+                    <span class="dt2-badge mono" id="global-summary-pill">Bucket 512–1536 (步长 64) · 2 阶段渐进</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="muted" style="font-size:12px;">作用于全部 Dataset 与子集</span>
+                    <button type="button" class="dt2-btn-sm" id="btn-header-add-ds">+ 添加 Dataset</button>
+                  </div>
+                </header>
+
+                <!-- 2-Column Structured Property Rows -->
+                <div class="dt2-global-grid">
+                  <!-- Left Column: Switches -->
+                  <div class="dt2-prop-col">
+                    <div class="dt2-prop-row">
+                      <div class="dt2-prop-meta">
+                        <div class="dt2-label">
+                          <span>启用 Bucket</span>
+                          <button type="button" class="dt2-help-btn" data-help="enable_bucket" aria-label="启用 Bucket 帮助">?</button>
+                        </div>
+                        <span class="dt2-prop-desc">按相似宽高比分桶组批，减少强制正方形裁剪</span>
+                      </div>
+                      <div class="dt2-prop-ctrl">
+                        <label class="dt2-switch" aria-label="启用 Bucket">
+                          <input type="checkbox" id="g-enable-bucket" checked>
+                          <span class="dt2-switch-track"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="dt2-prop-row">
+                      <div class="dt2-prop-meta">
+                        <div class="dt2-label">
+                          <span>不放大小图</span>
+                          <button type="button" class="dt2-help-btn" data-help="bucket_no_upscale" aria-label="不放大小图帮助">?</button>
+                        </div>
+                        <span class="dt2-prop-desc">避免低分辨率原图被插值放大，保留原生像素密度</span>
+                      </div>
+                      <div class="dt2-prop-ctrl">
+                        <label class="dt2-switch" aria-label="不放大小图">
+                          <input type="checkbox" id="g-bucket-no-upscale" checked>
+                          <span class="dt2-switch-track"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="dt2-prop-row">
+                      <div class="dt2-prop-meta">
+                        <div class="dt2-label">
+                          <span>平衡正则化图片</span>
+                          <button type="button" class="dt2-help-btn" data-help="balance_regularization_images" aria-label="平衡正则化图片帮助">?</button>
+                        </div>
+                        <span class="dt2-prop-desc">自动平衡 is_reg 正则化子集与普通训练样本的重复配比</span>
+                      </div>
+                      <div class="dt2-prop-ctrl">
+                        <label class="dt2-switch" aria-label="平衡正则化图片">
+                          <input type="checkbox" id="g-balance-reg">
+                          <span class="dt2-switch-track"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="dt2-prop-row">
+                      <div class="dt2-prop-meta">
+                        <div class="dt2-label">
+                          <span>Disable Bucket Shuffle</span>
+                          <button type="button" class="dt2-help-btn" data-help="disable_bucket_shuffle" aria-label="Disable Bucket Shuffle 帮助">?</button>
+                        </div>
+                        <span class="dt2-prop-desc">固定 Bucket 调度顺序（不影响 Caption 标签打乱）</span>
+                      </div>
+                      <div class="dt2-prop-ctrl">
+                        <label class="dt2-switch" aria-label="Disable Bucket Shuffle">
+                          <input type="checkbox" id="g-disable-bucket-shuffle">
+                          <span class="dt2-switch-track"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Right Column: Numeric Bucket Bounds -->
+                  <div class="dt2-prop-col">
+                    <div class="dt2-prop-row">
+                      <div class="dt2-prop-meta">
+                        <div class="dt2-label">
+                          <label for="g-min-reso">最小 Bucket 分辨率</label>
+                          <button type="button" class="dt2-help-btn" data-help="min_bucket_reso" aria-label="最小 Bucket 分辨率帮助">?</button>
+                        </div>
+                        <span class="dt2-prop-desc">生成宽高比分桶时的最小短边像素边界 (步长 64)</span>
+                      </div>
+                      <div class="dt2-prop-ctrl">
+                        <input type="number" id="g-min-reso" class="dt2-input mono" value="512" step="64" min="64">
+                      </div>
+                    </div>
+
+                    <div class="dt2-prop-row">
+                      <div class="dt2-prop-meta">
+                        <div class="dt2-label">
+                          <label for="g-max-reso">最大 Bucket 分辨率</label>
+                          <button type="button" class="dt2-help-btn" data-help="max_bucket_reso" aria-label="最大 Bucket 分辨率帮助">?</button>
+                        </div>
+                        <span class="dt2-prop-desc">限制桶的长边上限，较大尺寸需更高显存 (步长 64)</span>
+                      </div>
+                      <div class="dt2-prop-ctrl">
+                        <input type="number" id="g-max-reso" class="dt2-input mono" value="1536" step="64" min="64">
+                      </div>
+                    </div>
+
+                    <div class="dt2-prop-row">
+                      <div class="dt2-prop-meta">
+                        <div class="dt2-label">
+                          <label for="g-reso-steps">Bucket 步长</label>
+                          <button type="button" class="dt2-help-btn" data-help="bucket_reso_steps" aria-label="Bucket 步长帮助">?</button>
+                        </div>
+                        <span class="dt2-prop-desc">相邻桶尺寸的像素间隔，越小分桶越细但增加编译形状</span>
+                      </div>
+                      <div class="dt2-prop-ctrl">
+                        <input type="number" id="g-reso-steps" class="dt2-input mono" value="64" step="16" min="16">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Progressive Resolution Schedule Builder Row -->
+                <div class="dt2-schedule-zone">
+                  <div class="dt2-schedule-left">
+                    <div class="dt2-field-label-row">
+                      <div class="dt2-label">
+                        <label for="g-res-schedule">Progressive Resolution Schedule (渐进式分辨率计划)</label>
+                        <button type="button" class="dt2-help-btn" data-help="resolution_schedule" aria-label="渐进式分辨率计划帮助">?</button>
+                      </div>
+                      <span class="muted" style="font-size:12px;">格式：分辨率:比例,分辨率:比例（留空关闭）</span>
+                    </div>
+                    <div class="dt2-schedule-input-row">
+                      <input type="text" id="g-res-schedule" class="dt2-input mono" value="512:0.3,1024:0.7" placeholder="例如 512:0.3,1024:0.7（留空关闭）">
+                      <button type="button" class="dt2-preset-chip" data-sched="512:0.3,1024:0.7">512(30%)→1024(70%)</button>
+                      <button type="button" class="dt2-preset-chip" data-sched="512:0.2,1024:0.5,1536:0.3">三阶渐进</button>
+                      <button type="button" class="dt2-preset-chip" data-sched="">清空</button>
+                    </div>
+                  </div>
+
+                  <div class="dt2-schedule-visual">
+                    <div class="dt2-schedule-bar-head">
+                      <span style="font-weight:600;">阶段比例预览与校验</span>
+                      <span id="sched-status-badge" class="dt2-status-pill ok">比例之和 = 1.00 (有效)</span>
+                    </div>
+                    <div class="dt2-stage-bar" id="sched-stage-bar"></div>
+                    <div class="muted" id="sched-stage-caption" style="font-size:12px;">阶段 1: 512px (前 30% 更新步) → 阶段 2: 1024px (后 70% 更新步)</div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Dynamic Dataset Cards Container -->
+              <div id="datasets-container" style="display:flex;flex-direction:column;gap:20px;"></div>
+
+            </div>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Floating FieldHelp Popover -->
+<div class="dt2-popover" id="dt2-help-popover" role="dialog" aria-label="字段帮助说明" hidden></div>
+
+<!-- Simulated Action Toast -->
+<div class="dt2-toast" id="dt2-toast" role="status" aria-live="polite" hidden></div>
+
+<div class="theme-dock" role="group" aria-label="主题预览">
+  <button data-theme="github-dark" aria-pressed="true">Dark</button><button data-theme="github-light">Light</button><button data-theme="midnight-blue">Midnight</button><button data-theme="cherry-pink">Cherry</button>
+</div>
+<script>
+document.querySelectorAll('.theme-dock button').forEach(b => b.onclick = () => {
+  const t = b.dataset.theme; document.documentElement.dataset.theme = t
+  document.documentElement.classList.toggle('dark', t !== 'github-light')
+  document.querySelectorAll('.theme-dock button').forEach(x => x.setAttribute('aria-pressed', x === b))
+})
+
+/* ===== URL Theme Param Support (?theme=github-light) ===== */
+;(function applyUrlTheme() {
+  const params = new URLSearchParams(window.location.search)
+  const t = params.get('theme')
+  if (t) {
+    document.documentElement.dataset.theme = t
+    document.documentElement.classList.toggle('dark', t !== 'github-light')
+    document.querySelectorAll('.theme-dock button').forEach(x => {
+      x.setAttribute('aria-pressed', x.dataset.theme === t ? 'true' : 'false')
+    })
+  }
+})()
+
+/* ===== Exact Chinese FieldHelp Catalog from field-help.ts (dataset scope) ===== */
+const DATASET_HELP = {
+  enable_bucket: ['宽高比分桶', '将相似宽高比的图片分配到相应分辨率桶。', '减少强制正方形裁剪，并把同形状样本组成批次。', ['仍会按桶缩放或裁剪；更多形状可能增加 Compile 重编译次数。']],
+  bucket_no_upscale: ['禁止桶放大小图', '分桶时避免将低分辨率原图放大。', '保留小图原生信息，减少无意义插值。', ['需要 Bucket；Anima 此模式下 min/max Bucket 范围不按通常的固定边界解释，实际桶由图片决定。']],
+  balance_regularization_images: ['平衡正则化图片', '在数据集实现中平衡正则化样本的重复次数。', '避免 REG 与训练样本的数量比例过于失衡。', ['需要存在 is_reg 子集；正则化样本不同于普通训练样本，也不同于 weight decay。']],
+  min_bucket_reso: ['最小桶边长', '构造宽高比分桶时使用的最小分辨率边界。', '影响可生成的桶形状以及裁剪。', ['需要 Bucket；与最大值、桶步长及不放大小图选项共同决定实际尺寸，必须符合架构对齐要求。']],
+  max_bucket_reso: ['最大桶边长', '构造桶时使用的最大分辨率边界。', '限制桶的长边候选，不等同于强制所有图像为此正方形。', ['bucket_no_upscale 或渐进分辨率覆盖可能改变其作用；较大桶需要更多显存。']],
+  bucket_reso_steps: ['桶分辨率步长', '生成相邻桶尺寸时使用的像素间隔。', '较小可细分宽高比，但产生更多桶。', ['不是训练步数；必须满足模型下采样对齐约束，MOSS 当前校验要求为 16 的倍数。']],
+  resolution_schedule: ['渐进式分辨率计划', '按训练进度顺序切换图像分辨率档位。', '例如 512:0.4,1024:0.6 表示前 40% 更新步用 512 档，后 60% 用 1024 档。', ['比例之和应为 1；留空关闭。优先使用同分辨率 Dataset，否则覆盖分辨率。', '多阶段 Latent 缓存占用更多磁盘；高分辨率阶段仍需足够显存，并可能使 Compile 重编译。']],
+  disable_bucket_shuffle: ['禁止 Bucket 顺序打乱', '禁用数据集对应的 Bucket shuffle 路径。', '使桶调度顺序更固定，具体样本顺序仍受其他随机设置影响。', ['不是打乱 Caption 的开关，也不意味着所有训练过程完全确定。']],
+  resolution: ['训练分辨率', '此 Dataset 的目标分辨率，支持单值或 [宽,高]。', '控制图像缩放、裁剪与分桶面积基准；尺寸越大通常越占显存。', ['开启 Bucket 时实际尺寸可以变化；渐进计划可能覆盖。Krea 2 / MOSS 要求边长为 16 的倍数。']],
+  batch_size: ['训练微批量', '单设备一次前向处理的样本数量。', '增大可提高吞吐量，但增加激活显存。', ['与梯度累积和设备数共同决定有效批量；不是 VAE / 文本缓存批量。']],
+  caption_extension: ['标注文件扩展名', '同名图像标注文件使用的后缀，例如 .txt。', '让加载器找到每张图片的文字描述。', ['修改后应确认对应文件存在，缓存中的旧文本不会因此自动保证有效。']],
+  image_dir: ['图片目录', '训练服务器上存放此子集图片的路径。', '指定参与训练的数据来源。', ['不是浏览器电脑的上传路径；预览计数只统计当前目录支持的图片，不代表递归扫描结果。']],
+  num_repeats: ['样本重复次数', '每轮对该子集样本重复使用的次数。', '提高子集的相对训练权重，并改变每轮长度。', ['增大可能增加过拟合；Steps 模式固定总更新步时，主要改变抽样配比。']],
+  epoch_sample_rate: ['每轮图片采样比例', '每轮从此子集中选择的原始图片比例，取值 0～1。', '轮换使用部分图片，控制单轮数据量。', ['与 repeats 相乘影响样本暴露量；1 为全部。该扩展不提供给 Krea 2 / MOSS。']],
+  keep_tokens: ['Caption 保留项数', '打乱或丢弃逗号分隔标签时保护开头的若干项。', '保留触发词等关键信息。', ['Caption 前缀也计入这些标签项；前缀末尾没有逗号时，会通过空格与第一个 Tag 合成一项，设为 1 可固定这一整项。', '这里不是分词器 Token 数；不阻止整个 Caption Dropout。Shuffle / Tag Dropout 与文本缓存存在限制。']],
+  caption_dropout_rate: ['整段文本丢弃概率', '随机将整段 Caption 条件置空的比例。', '让训练不总是依赖完整文字条件。', ['与逐标签丢弃不同；Anima 使用 embedding 级 dropout 支持缓存，并将子集设置迁移到全局，不能假定各子集概率始终独立。']],
+  caption_tag_dropout_rate: ['标签丢弃概率', '随机移除 Caption 中的部分逗号分隔标签。', '减少对固定标签组合的依赖。', ['与整段 Caption Dropout 不同；缓存文本输出时不能动态重新编码丢弃后的标注。']],
+  caption_dropout_every_n_epochs: ['周期性丢弃 Caption', '每隔指定轮数对文本条件执行周期性丢弃。', '引入不依赖完整 Caption 的训练轮；0 关闭。', ['与随机丢弃概率不同；缓存文本时须确认后端支持，不应视为 Anima embedding dropout 的同义开关。']],
+  caption_prefix: ['Caption 前缀', '为该子集的文字标注添加固定前缀。', '统一添加触发词或描述。', ['开启“打乱 Caption”时，前缀参与 Tags 处理，并非自动固定；“保留 Token”可保护开头的若干标签项。前缀末尾没有逗号时，会通过空格与第一个 Tag 合成一项，保留 1 项即可固定这一整项。', '这是训练文本，不是文件名前缀；改动后应重新检查文本缓存和 Token 长度。']],
+  natural_language_prefix: ['自然语言部分前缀', '在识别出的自然语言部分前添加固定文本。', '为描述添加引导语。', ['不参与 Tags 随机打乱和 Tag Dropout，固定在自然语言部分前；自然语言内容本身也保持内部顺序。', '无自然语言时不添加；修改后请重新生成文本缓存。']],
+  tags_suffix: ['tags部分后缀', '在 Tags 部分之后添加固定文本。', '在标签与自然语言之间添加提示。', ['不参与 Tags 随机打乱和 Tag Dropout，固定在处理后的 Tags 与自然语言部分之间；无 Tags 时不添加。']],
+  caption_suffix: ['Caption 后缀', '为该子集的文字标注追加固定文本。', '统一补充风格或其他描述。', ['开启“打乱 Caption”时，不参与 Tags 随机打乱和 Tag Dropout，固定在完整提示词最后。', '需留意 Token 截断；改动后应重新检查文本缓存。']],
+  shuffle_caption: ['打乱 Caption 标签', '仅打乱 Tags：多行 TXT 的第一行作为 Tags，后续行全部保留为自然语言；单行自动识别自然语言描述。', '降低对标签固定顺序的依赖；keep_tokens 保护开头标签，浏览 / 预览中可检查切分结果。', ['Caption 前缀参与 Tags 处理；“保留 Token”指定的开头标签项不打乱。tags部分后缀、自然语言部分前缀、自然语言内容和 Caption 后缀均不参与打乱，保持各自位置及内部顺序。', '单行识别采用保守规则，建议用换行明确划分 Tags 与描述；Anima 可用逐次文本变体缓存保留打乱效果。']],
+  flip_aug: ['水平翻转增强', '为训练图片引入左右翻转。', '增加构图变化，但不增加真实样本信息。', ['文字、左右不对称角色或方向标签可能失真；缓存需包含对应翻转 Latent。']],
+  is_reg: ['正则化子集', '将此子集标记为正则化样本，而非普通训练目标。', '通过额外数据帮助保留通用概念，具体权重由训练器决定。', ['与普通样本配比要匹配；LBAI 训练程度估算不将其作为普通训练图片计算。']],
+  alpha_mask: ['透明度损失遮罩', '将图像 Alpha 信息用作训练损失的遮罩。', '让透明或低 Alpha 区域减少对损失的贡献。', ['需要实际带 Alpha 的图像及后端支持；不是自动抠图，也不是仅改变预览背景。']],
+  lbai_target: ['LBAI 比较目标', '选择用于对照训练程度估算的自定义目标区间。', '只改变显示的比较基准，不改变训练参数。', ['LBAI 是启发式估算，不是模型质量、收敛或过拟合的保证。']]
+}
+
+/* ===== Demo Linked Training Context & Targets ===== */
+const LINKED_TRAINING = {
+  epochs: 20,
+  learningRate: 5e-5,
+  schedulerFactor: 0.5, // cosine -> 2.5e-5
+  rank: 32,             // rank/32 -> 1.0
+  gradAccum: 1,
+  // Resolution & step normalization factor so DS1 (144 samples, B2) = 0.0112 and DS2 (32 samples, B1) = 0.0040 (Total = 0.0152)
+  resNormByBatch: { 2: 0.3111111111, 1: 0.25 },
+  defaultResNorm: 0.3111111111
+}
+
+const LBAI_TARGETS = {
+  character: { label: '角色 LoRA 推荐区', min: 0.009, max: 0.018 },
+  style_general: { label: '一般风格 LoRA 推荐区', min: 0.02, max: 0.05 },
+  style_complex: { label: '复杂风格 LoRA 实验区', min: 0.05, max: 0.09 }
+}
+
+/* ===== State ===== */
+const state = {
+  locked: false,
+  errorSim: false,
+  viewMode: 'all', // 'all' | 'focus'
+  selectedNode: 'ds-0', // 'global' | 'ds-0' | 'sub-0-0' etc.
+  focusedDatasetIdx: 0,
+  lbaiTarget: 'character',
+  formulaOpen: true,
+  global: {
+    enable_bucket: true,
+    bucket_no_upscale: true,
+    balance_regularization_images: false,
+    disable_bucket_shuffle: false,
+    min_bucket_reso: 512,
+    max_bucket_reso: 1536,
+    bucket_reso_steps: 64,
+    resolution_schedule: '512:0.3,1024:0.7'
+  },
+  datasets: [
+    {
+      resolution: '[1024, 1024]',
+      batch_size: 2,
+      caption_extension: '.txt',
+      subsets: [
+        {
+          collapsed: false,
+          image_dir: 'datasets/dataset-9f2a/rin_core',
+          image_count: 48,
+          path_error: false,
+          num_repeats: 3,
+          epoch_sample_rate: 1,
+          keep_tokens: 1,
+          caption_dropout_rate: 0.05,
+          caption_tag_dropout_rate: 0,
+          caption_dropout_every_n_epochs: 0,
+          caption_prefix: 'rin_style, ',
+          tags_suffix: '',
+          natural_language_prefix: 'In the style of Rin, ',
+          caption_suffix: '',
+          shuffle_caption: true,
+          flip_aug: false,
+          is_reg: false,
+          alpha_mask: false,
+          sample_tags: ['1girl', 'silver_hair', 'blue_eyes', 'pleated_skirt'],
+          sample_nl: 'standing under neon rain at night.'
+        },
+        {
+          collapsed: false,
+          image_dir: 'datasets/dataset-9f2a/reg_illustration',
+          image_count: 120,
+          path_error: false,
+          num_repeats: 1,
+          epoch_sample_rate: 1,
+          keep_tokens: 1,
+          caption_dropout_rate: 0,
+          caption_tag_dropout_rate: 0,
+          caption_dropout_every_n_epochs: 0,
+          caption_prefix: '',
+          tags_suffix: '',
+          natural_language_prefix: '',
+          caption_suffix: '',
+          shuffle_caption: false,
+          flip_aug: true,
+          is_reg: true,
+          alpha_mask: false,
+          sample_tags: ['1girl', 'anime_coloring', 'upper_body'],
+          sample_nl: 'clean digital illustration portrait.'
+        }
+      ]
+    },
+    {
+      resolution: '[1536, 1536]',
+      batch_size: 1,
+      caption_extension: '.txt',
+      subsets: [
+        {
+          collapsed: false,
+          image_dir: 'datasets/dataset-9f2a/rin_keyart_hd',
+          image_count: 16,
+          path_error: false,
+          num_repeats: 2,
+          epoch_sample_rate: 1,
+          keep_tokens: 2,
+          caption_dropout_rate: 0.05,
+          caption_tag_dropout_rate: 0.1,
+          caption_dropout_every_n_epochs: 0,
+          caption_prefix: 'rin_style, masterpiece, ',
+          tags_suffix: 'high detail,',
+          natural_language_prefix: '',
+          caption_suffix: '',
+          shuffle_caption: true,
+          flip_aug: false,
+          is_reg: false,
+          alpha_mask: false,
+          sample_tags: ['1girl', 'dynamic_angle', 'glowing_sword', 'wind_effects'],
+          sample_nl: 'cinematic key visual with dramatic rim lighting.'
+        }
+      ]
+    }
+  ]
+}
+
+/* ===== LBAI Calculation Logic ===== */
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v))
+}
+
+function computeSubsetMetrics(sub, dsBatchSize) {
+  const validCount = (!sub.image_dir || sub.path_error) ? 0 : (Number(sub.image_count) || 0)
+  const repeats = Math.max(1, Number(sub.num_repeats) || 1)
+  const rate = clamp(Number(sub.epoch_sample_rate) ?? 1, 0, 1)
+  const rawSamples = Math.round(validCount * repeats * rate)
+  if (sub.is_reg) {
+    return { validCount, rawSamples, effectiveSamples: 0, regSamples: rawSamples, lbai: 0 }
+  }
+  const exposure = rawSamples * LINKED_TRAINING.epochs
+  const effectiveLr = LINKED_TRAINING.learningRate * LINKED_TRAINING.schedulerFactor
+  const rankFactor = LINKED_TRAINING.rank / 32
+  const bSize = Math.max(1, Number(dsBatchSize) || 1)
+  const denom = bSize * LINKED_TRAINING.gradAccum
+  const norm = LINKED_TRAINING.resNormByBatch[bSize] || LINKED_TRAINING.defaultResNorm
+  const lbai = ((exposure * effectiveLr * rankFactor) / denom) * norm
+  return { validCount, rawSamples, effectiveSamples: rawSamples, regSamples: 0, lbai }
+}
+
+function computeAllMetrics() {
+  let totalNonReg = 0
+  let totalReg = 0
+  let totalLbai = 0
+  const dsMetrics = state.datasets.map((ds, di) => {
+    let dsNonReg = 0
+    let dsReg = 0
+    let dsLbai = 0
+    const subMetrics = ds.subsets.map(sub => {
+      const m = computeSubsetMetrics(sub, ds.batch_size)
+      dsNonReg += m.effectiveSamples
+      dsReg += m.regSamples
+      dsLbai += m.lbai
+      return m
+    })
+    totalNonReg += dsNonReg
+    totalReg += dsReg
+    totalLbai += dsLbai
+    return { dsNonReg, dsReg, dsLbai, subMetrics }
+  })
+  return { totalNonReg, totalReg, totalLbai, dsMetrics }
+}
+
+/* ===== Caption Sandbox Assembly Preview ===== */
+function buildCaptionPreviewHTML(sub) {
+  const prefixRaw = sub.caption_prefix || ''
+  const hasPrefix = prefixRaw.trim().length > 0
+  const prefixNoTrailingComma = hasPrefix && !/,\s*$/.test(prefixRaw)
+  const baseTags = sub.sample_tags || ['1girl', 'silver_hair', 'blue_eyes']
+
+  let tagItems = []
+  let mergedFirst = false
+  if (hasPrefix) {
+    const parts = prefixRaw.split(',').map(s => s.trim()).filter(Boolean)
+    if (prefixNoTrailingComma && parts.length > 0) {
+      const lastPrefixPart = parts.pop()
+      tagItems.push(...parts.map(t => ({ text: t, merged: false })))
+      const firstTag = baseTags[0] || 'tag1'
+      tagItems.push({ text: `${lastPrefixPart} ${firstTag}`, merged: true })
+      tagItems.push(...baseTags.slice(1).map(t => ({ text: t, merged: false })))
+      mergedFirst = true
+    } else {
+      tagItems.push(...parts.map(t => ({ text: t, merged: false })))
+      tagItems.push(...baseTags.map(t => ({ text: t, merged: false })))
+    }
+  } else {
+    tagItems = baseTags.map(t => ({ text: t, merged: false }))
+  }
+
+  const keepN = Math.max(0, parseInt(sub.keep_tokens, 10) || 0)
+  const tokensHtml = []
+
+  tagItems.forEach((item, idx) => {
+    const isProtected = idx < keepN
+    if (item.merged) {
+      tokensHtml.push(`<span class="dt2-tok merged" title="前缀无末尾逗号，与首个 Tag 合并为 1 项">${escapeHtml(item.text)}, ${isProtected ? '[保]' : '[乱]'}</span>`)
+    } else if (isProtected) {
+      tokensHtml.push(`<span class="dt2-tok locked" title="受 keep_tokens 保护，固定不打乱">${escapeHtml(item.text)}, [保#${idx + 1}]</span>`)
+    } else {
+      tokensHtml.push(`<span class="dt2-tok" title="${sub.shuffle_caption ? '参与 Tags 随机打乱' : '未开启打乱，保持顺序'}">${escapeHtml(item.text)}, ${sub.shuffle_caption ? '[乱]' : ''}</span>`)
+    }
+  })
+
+  if (sub.tags_suffix && sub.tags_suffix.trim()) {
+    tokensHtml.push(`<span class="dt2-tok suffix" title="tags部分后缀：固定在 Tags 之后">${escapeHtml(sub.tags_suffix.trim())}</span>`)
+  }
+  if (sub.natural_language_prefix && sub.natural_language_prefix.trim()) {
+    tokensHtml.push(`<span class="dt2-tok nl-pre" title="自然语言部分前缀：固定在描述正文前">${escapeHtml(sub.natural_language_prefix.trim())}</span>`)
+  }
+  if (sub.sample_nl) {
+    tokensHtml.push(`<span class="dt2-tok nl-body" title="自然语言描述正文：保持原文语序">${escapeHtml(sub.sample_nl)}</span>`)
+  }
+  if (sub.caption_suffix && sub.caption_suffix.trim()) {
+    tokensHtml.push(`<span class="dt2-tok suffix" title="Caption 后缀：固定在完整提示词末尾">${escapeHtml(sub.caption_suffix.trim())}</span>`)
+  }
+
+  return {
+    html: tokensHtml.join(''),
+    mergedWarning: mergedFirst
+  }
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function getFolderShortName(dir) {
+  if (!dir || !dir.trim()) return '未绑定目录'
+  const parts = dir.replace(/\\/g, '/').split('/').filter(Boolean)
+  return parts[parts.length - 1] || dir
+}
+
+/* ===== Update Top LBAI Header & Progressive Schedule Bar ===== */
+function updateHeaderAndSummary() {
+  const metrics = computeAllMetrics()
+  const target = LBAI_TARGETS[state.lbaiTarget] || LBAI_TARGETS.character
+  const midpoint = (target.min + target.max) / 2
+  const pct = midpoint > 0 ? Math.round((metrics.totalLbai / midpoint) * 100) : 0
+
+  document.getElementById('lbai-total-val').textContent = metrics.totalLbai.toFixed(4)
+
+  const statusPill = document.getElementById('lbai-status-pill')
+  statusPill.className = 'dt2-status-pill'
+  let statusWord = '目标范围内'
+  if (metrics.totalLbai < target.min) {
+    statusWord = '低于目标'
+    statusPill.classList.add('low')
+  } else if (metrics.totalLbai > target.max) {
+    statusWord = '高于目标'
+    statusPill.classList.add('high')
+  } else {
+    statusPill.classList.add('ok')
+  }
+  statusPill.textContent = `${statusWord} · ${pct}%`
+
+  document.getElementById('lbai-status-sub').textContent =
+    `基准中位值 ${midpoint.toFixed(4)} · ${target.label} (${target.min}–${target.max})`
+
+  // Scale max 0.10
+  const scaleMax = 0.10
+  const bandLeft = clamp((target.min / scaleMax) * 100, 0, 100)
+  const bandWidth = clamp(((target.max - target.min) / scaleMax) * 100, 1, 100 - bandLeft)
+  const bandEl = document.getElementById('lbai-target-band')
+  bandEl.style.left = `${bandLeft}%`
+  bandEl.style.width = `${bandWidth}%`
+
+  const markerPos = clamp((metrics.totalLbai / scaleMax) * 100, 0, 100)
+  document.getElementById('lbai-meter-marker').style.left = `${markerPos}%`
+
+  // Stacked bars per Dataset
+  const barsContainer = document.getElementById('lbai-meter-bars')
+  const legendContainer = document.getElementById('lbai-contrib-legend')
+  const colors = ['var(--primary)', '#8b5cf6', '#14b8a6', '#f59e0b']
+
+  barsContainer.innerHTML = metrics.dsMetrics.map((dm, di) => {
+    const w = clamp((dm.dsLbai / scaleMax) * 100, 0, 100)
+    return `<div class="dt2-meter-seg ds${di + 1}" style="width:${w}%;background:${colors[di % colors.length]};" title="Dataset ${di + 1}: LBAI ${dm.dsLbai.toFixed(4)}"></div>`
+  }).join('')
+
+  legendContainer.innerHTML = metrics.dsMetrics.map((dm, di) => {
+    const share = metrics.totalLbai > 0 ? Math.round((dm.dsLbai / metrics.totalLbai) * 100) : 0
+    return `<span class="dt2-contrib-item"><span class="dt2-dot-swatch" style="background:${colors[di % colors.length]}"></span>Dataset ${di + 1}: <strong>${dm.dsLbai.toFixed(4)}</strong> (${share}%)</span>`
+  }).join('')
+
+  // Formula strip cells
+  document.getElementById('formula-samples-val').textContent = `${metrics.totalNonReg} 样本/轮`
+  const dsNotes = metrics.dsMetrics.map((d, i) => `DS${i + 1}: ${d.dsNonReg}`).join(' + ')
+  document.getElementById('formula-samples-note').textContent = `${dsNotes} (排除 ${metrics.totalReg} REG)`
+  document.getElementById('formula-exposure-note').textContent = `总有效曝光 ${(metrics.totalNonReg * LINKED_TRAINING.epochs).toLocaleString()} 样本次`
+  document.getElementById('formula-batch-val').textContent = state.datasets.map((d, i) => `DS${i + 1}: ÷${d.batch_size}`).join(' · ')
+
+  // Outliner bottom summary
+  document.getElementById('summary-nonreg').textContent = metrics.totalNonReg
+  document.getElementById('summary-reg').textContent = metrics.totalReg
+  document.getElementById('summary-lbai').textContent = metrics.totalLbai.toFixed(4)
+  const totalAll = metrics.totalNonReg + metrics.totalReg
+  const regPct = totalAll > 0 ? ((metrics.totalReg / totalAll) * 100).toFixed(1) : '0.0'
+  document.getElementById('summary-reg-ratio').textContent = `REG 占比 ${regPct}%`
+
+  const totalSubsets = state.datasets.reduce((acc, d) => acc + d.subsets.length, 0)
+  document.getElementById('outliner-count-pill').textContent = `${state.datasets.length} DS · ${totalSubsets} 子集`
+
+  // Active zone pill highlight
+  document.querySelectorAll('#lbai-zone-pills .dt2-zone-tag').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.target === state.lbaiTarget)
+  })
+}
+
+function updateScheduleVisual() {
+  const raw = (state.global.resolution_schedule || '').trim()
+  const inputEl = document.getElementById('g-res-schedule')
+  const badgeEl = document.getElementById('sched-status-badge')
+  const barEl = document.getElementById('sched-stage-bar')
+  const capEl = document.getElementById('sched-stage-caption')
+  const pillEl = document.getElementById('global-summary-pill')
+
+  if (!raw) {
+    inputEl.classList.remove('error')
+    badgeEl.className = 'dt2-status-pill ok'
+    badgeEl.textContent = '已关闭 (使用固定分辨率)'
+    barEl.innerHTML = `<div class="dt2-stage-seg" style="width:100%;background:var(--secondary);color:var(--muted-foreground);">全程按各 Dataset 目标分辨率训练 (100%)</div>`
+    capEl.textContent = '未启用渐进式分辨率计划'
+    pillEl.textContent = `Bucket ${state.global.min_bucket_reso}–${state.global.max_bucket_reso} (步长 ${state.global.bucket_reso_steps}) · 无渐进`
+    return
+  }
+
+  const segments = raw.split(',').map(s => s.trim()).filter(Boolean)
+  const parsed = []
+  let formatErr = false
+  let sum = 0
+
+  segments.forEach(seg => {
+    const parts = seg.split(':')
+    if (parts.length !== 2) { formatErr = true; return }
+    const res = parseInt(parts[0].trim(), 10)
+    const ratio = parseFloat(parts[1].trim())
+    if (!Number.isFinite(res) || res <= 0 || !Number.isFinite(ratio) || ratio <= 0) {
+      formatErr = true
+      return
+    }
+    parsed.push({ res, ratio })
+    sum += ratio
+  })
+
+  const sumOk = !formatErr && parsed.length > 0 && Math.abs(sum - 1.0) < 0.005
+
+  if (!sumOk) {
+    inputEl.classList.add('error')
+    badgeEl.className = 'dt2-status-pill high'
+    badgeEl.textContent = formatErr
+      ? '格式错误 (应为 分辨率:比例)'
+      : `比例之和为 ${sum.toFixed(2)}，应为 1.0`
+  } else {
+    inputEl.classList.remove('error')
+    badgeEl.className = 'dt2-status-pill ok'
+    badgeEl.textContent = `比例之和 = ${sum.toFixed(2)} (有效)`
+  }
+
+  if (parsed.length > 0) {
+    barEl.innerHTML = parsed.map(p => {
+      const pct = Math.round(p.ratio * 100)
+      return `<div class="dt2-stage-seg" style="width:${pct}%">${p.res}px (${pct}%)</div>`
+    }).join('')
+    capEl.textContent = parsed.map((p, idx) => `阶段 ${idx + 1}: ${p.res}px (${Math.round(p.ratio * 100)}% 更新步)`).join(' → ')
+  } else {
+    barEl.innerHTML = ''
+    capEl.textContent = '无法解析渐进阶段，请检查输入格式'
+  }
+
+  pillEl.textContent = `Bucket ${state.global.min_bucket_reso}–${state.global.max_bucket_reso} (步长 ${state.global.bucket_reso_steps}) · ${parsed.length} 阶段渐进`
+}
+
+/* ===== Render Left Outliner Tree ===== */
+function renderOutlinerTree() {
+  const metrics = computeAllMetrics()
+  const treeEl = document.getElementById('outliner-tree')
+
+  const schedStages = (state.global.resolution_schedule || '').split(',').filter(Boolean).length
+  const schedLabel = schedStages > 0 ? `${schedStages}阶段` : '固定'
+
+  let html = `
+    <div class="dt2-tree-node ${state.selectedNode === 'global' ? 'active' : ''}" data-nav="global" role="button" tabindex="0">
+      <div class="dt2-tree-node-main">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span class="dt2-tree-node-label">全局分桶与渐进计划</span>
+      </div>
+      <span class="dt2-tree-pill">${state.global.min_bucket_reso}–${state.global.max_bucket_reso} · ${schedLabel}</span>
+    </div>
+  `
+
+  state.datasets.forEach((ds, di) => {
+    const dm = metrics.dsMetrics[di]
+    const dsNodeId = `ds-${di}`
+    const isDsActive = state.selectedNode === dsNodeId
+
+    html += `
+      <div class="dt2-tree-group">
+        <div class="dt2-tree-ds-row ${isDsActive ? 'active' : ''}" data-nav="${dsNodeId}" data-ds="${di}">
+          <div class="dt2-tree-ds-info">
+            <div class="dt2-tree-ds-title">
+              <span>Dataset ${di + 1}</span>
+              <span class="dt2-tree-pill">${escapeHtml(ds.resolution)} · B${ds.batch_size}</span>
+            </div>
+            <div class="dt2-tree-ds-meta">LBAI ${dm.dsLbai.toFixed(4)} · ${dm.dsNonReg} 样本/轮</div>
+          </div>
+          <button type="button" class="dt2-tree-inline-add" data-action="tree-add-subset" data-ds="${di}" ${state.locked ? 'disabled' : ''} title="向 Dataset ${di + 1} 添加子集">+ 子集</button>
+        </div>
+        <div class="dt2-tree-children">
+    `
+
+    ds.subsets.forEach((sub, si) => {
+      const sm = dm.subMetrics[si]
+      const subNodeId = `sub-${di}-${si}`
+      const isSubActive = state.selectedNode === subNodeId
+      const folderName = getFolderShortName(sub.image_dir)
+
+      let dotClass = 'ok'
+      let countLabel = `${sub.image_count}张 ×${sub.num_repeats}`
+      if (!sub.image_dir || !sub.image_dir.trim()) {
+        dotClass = 'empty'
+        countLabel = '未绑定 —'
+      } else if (sub.path_error) {
+        dotClass = 'err'
+        countLabel = '路径不存在'
+      } else if (sub.is_reg) {
+        countLabel = `${sub.image_count}张 · REG`
+      }
+
+      const barPct = metrics.totalLbai > 0 && !sub.is_reg
+        ? clamp(Math.round((sm.lbai / metrics.totalLbai) * 100), 4, 100)
+        : (sub.is_reg ? 100 : 0)
+
+      html += `
+        <div class="dt2-tree-sub ${isSubActive ? 'active' : ''}" data-nav="${subNodeId}" data-ds="${di}" data-sub="${si}">
+          <div class="dt2-tree-sub-top">
+            <span class="dt2-tree-sub-name">
+              <span class="dt2-status-dot ${dotClass}"></span>
+              <span>子集 ${si + 1} · ${escapeHtml(folderName)}</span>
+            </span>
+            <span class="dt2-tree-sub-meta">${countLabel}</span>
+          </div>
+          <div class="dt2-tree-sub-bar-row">
+            <div class="dt2-mini-bar">
+              <div class="dt2-mini-bar-fill ${sub.is_reg ? 'reg' : ''}" style="width:${barPct}%"></div>
+            </div>
+            <span class="dt2-mini-lbai">${sub.is_reg ? 'REG 不计入' : sm.lbai.toFixed(4)}</span>
+          </div>
+        </div>
+      `
+    })
+
+    html += `
+        </div>
+      </div>
+    `
+  })
+
+  treeEl.innerHTML = html
+}
+
+/* ===== Render Right Structured Inspector Datasets & Subsets ===== */
+function renderInspectorDatasets() {
+  const metrics = computeAllMetrics()
+  const container = document.getElementById('datasets-container')
+  const canDeleteDs = state.datasets.length > 1
+
+  // Read-only locked preview buttons update
+  const readonlyBtns = document.getElementById('readonly-preview-btns')
+  const previewBtnHtml = []
+  state.datasets.forEach((ds, di) => {
+    ds.subsets.forEach((sub, si) => {
+      previewBtnHtml.push(`
+        <button type="button" class="dt2-btn-sm" data-action="readonly-preview" data-ds="${di}" data-sub="${si}">
+          预览 Dataset ${di + 1} / 子集 ${si + 1} (${escapeHtml(getFolderShortName(sub.image_dir))})
+        </button>
+      `)
+    })
+  })
+  readonlyBtns.innerHTML = previewBtnHtml.join('')
+
+  // Global card visibility in focus mode
+  const globalCard = document.getElementById('card-global')
+  if (state.viewMode === 'focus' && state.selectedNode !== 'global') {
+    globalCard.style.display = 'none'
+  } else {
+    globalCard.style.display = ''
+  }
+
+  let html = ''
+  state.datasets.forEach((ds, di) => {
+    if (state.viewMode === 'focus' && state.selectedNode !== 'global' && state.focusedDatasetIdx !== di) {
+      return
+    }
+    const dm = metrics.dsMetrics[di]
+    const sharePct = metrics.totalLbai > 0 ? Math.round((dm.dsLbai / metrics.totalLbai) * 100) : 0
+    const canDeleteSub = ds.subsets.length > 1
+
+    html += `
+      <section class="dt2-card" id="card-ds-${di}" aria-label="Dataset ${di + 1}">
+        <header class="dt2-card-header">
+          <div class="dt2-card-title-group">
+            <h2 class="dt2-card-title">Dataset ${di + 1}</h2>
+            <span class="dt2-badge mono">${escapeHtml(ds.resolution)}</span>
+            <span class="dt2-badge mono">Batch ${ds.batch_size}</span>
+            <span class="dt2-badge primary mono">LBAI ${dm.dsLbai.toFixed(4)} (${sharePct}%)</span>
+            <span class="dt2-badge">${dm.dsNonReg} 有效样本/轮${dm.dsReg > 0 ? ` · ${dm.dsReg} REG` : ''}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button type="button" class="dt2-btn-sm" data-action="add-subset" data-ds="${di}">+ 添加子集</button>
+            <button type="button" class="dt2-btn-sm danger" data-action="remove-ds" data-ds="${di}" ${!canDeleteDs ? 'disabled' : ''}>删除 Dataset</button>
+          </div>
+        </header>
+
+        <!-- Dataset Level 3 Fields -->
+        <div class="dt2-ds-params-bar">
+          <div class="dt2-param-box">
+            <div class="dt2-label">
+              <label for="ds-${di}-res">分辨率 [宽, 高] 或单值</label>
+              <button type="button" class="dt2-help-btn" data-help="resolution" aria-label="训练分辨率帮助">?</button>
+            </div>
+            <input type="text" id="ds-${di}-res" class="dt2-input mono" data-ds-field="resolution" data-ds="${di}" value="${escapeHtml(ds.resolution)}">
+            <span class="dt2-param-hint">目标基准尺寸，支持 [1024, 1024] 或单值 1024</span>
+          </div>
+
+          <div class="dt2-param-box">
+            <div class="dt2-label">
+              <label for="ds-${di}-batch">Batch Size</label>
+              <button type="button" class="dt2-help-btn" data-help="batch_size" aria-label="Batch Size 帮助">?</button>
+            </div>
+            <input type="number" id="ds-${di}-batch" class="dt2-input mono" data-ds-field="batch_size" data-ds="${di}" value="${ds.batch_size}" min="1" step="1">
+            <span class="dt2-param-hint">单卡前向微批量；直接作为此 Dataset LBAI 的分母</span>
+          </div>
+
+          <div class="dt2-param-box">
+            <div class="dt2-label">
+              <label for="ds-${di}-ext">Caption 扩展名</label>
+              <button type="button" class="dt2-help-btn" data-help="caption_extension" aria-label="Caption 扩展名帮助">?</button>
+            </div>
+            <input type="text" id="ds-${di}-ext" class="dt2-input mono" data-ds-field="caption_extension" data-ds="${di}" value="${escapeHtml(ds.caption_extension)}">
+            <span class="dt2-param-hint">同名标注文件后缀，默认 .txt</span>
+          </div>
+        </div>
+
+        <!-- Subsets inside Dataset -->
+        <div class="dt2-subsets-list">
+    `
+
+    ds.subsets.forEach((sub, si) => {
+      const sm = dm.subMetrics[si]
+      const preview = buildCaptionPreviewHTML(sub)
+      const hasDir = Boolean(sub.image_dir && sub.image_dir.trim())
+
+      let countPillClass = 'ok'
+      let countPillText = `图片：${sub.image_count} 张`
+      if (!hasDir) {
+        countPillClass = 'low'
+        countPillText = '图片：— (未绑定目录)'
+      } else if (sub.path_error) {
+        countPillClass = 'high'
+        countPillText = '图片：路径不存在'
+      }
+
+      html += `
+        <article class="dt2-subset-card" id="card-sub-${di}-${si}" aria-label="Dataset ${di + 1} 子集 ${si + 1}">
+          <!-- Subset Collapsible Header -->
+          <div class="dt2-subset-head">
+            <div class="dt2-subset-head-left">
+              <button type="button" class="dt2-collapse-btn" data-action="toggle-subset" data-ds="${di}" data-sub="${si}" aria-expanded="${!sub.collapsed}">
+                <span>${sub.collapsed ? '▸' : '▾'}</span>
+                <span>子集 ${si + 1}</span>
+              </button>
+              <span class="dt2-badge mono">${escapeHtml(getFolderShortName(sub.image_dir))}</span>
+              ${sub.is_reg ? '<span class="dt2-badge reg">REG 正则化子集</span>' : ''}
+              <span class="dt2-status-pill ${countPillClass}">${countPillText}</span>
+            </div>
+            <div class="dt2-subset-head-right">
+              <span class="dt2-badge mono">${sub.is_reg ? `每轮 ${sm.regSamples} 次正则样本 (不计入 LBAI)` : `每轮 ${sm.effectiveSamples} 次有效样本 · LBAI ${sm.lbai.toFixed(4)}`}</span>
+              <button type="button" class="dt2-btn-sm danger" data-action="remove-subset" data-ds="${di}" data-sub="${si}" ${!canDeleteSub ? 'disabled' : ''}>删除子集</button>
+            </div>
+          </div>
+
+          <div class="dt2-subset-body" ${sub.collapsed ? 'hidden' : ''}>
+            <!-- 模块 A · 数据源与样本曝光 -->
+            <div class="dt2-module">
+              <div class="dt2-module-head">
+                <div class="dt2-module-title">
+                  <span class="dt2-module-tag">模块 A</span>
+                  <span>数据源与样本曝光权重 (Directory & Exposure Weight)</span>
+                </div>
+                <span class="muted" style="font-size:12px;">绑定服务器目录并设定单轮重复与抽样配比</span>
+              </div>
+
+              <div class="dt2-mod-a-grid">
+                <div class="dt2-dir-col">
+                  <div class="dt2-field-label-row">
+                    <div class="dt2-label">
+                      <label for="sub-${di}-${si}-dir">服务器图片目录</label>
+                      <button type="button" class="dt2-help-btn" data-help="image_dir" aria-label="服务器图片目录帮助">?</button>
+                    </div>
+                    <span class="muted" style="font-size:12px;">训练服务器相对或绝对路径</span>
+                  </div>
+                  <div class="dt2-dir-input-wrap">
+                    <input type="text" id="sub-${di}-${si}-dir" class="dt2-input mono ${sub.path_error ? 'error' : ''}" data-sub-field="image_dir" data-ds="${di}" data-sub="${si}" value="${escapeHtml(sub.image_dir)}" placeholder="例如 datasets/my_char/core">
+                  </div>
+                  <div class="dt2-action-toolbar">
+                    <button type="button" class="dt2-btn-sm" data-action="open-dir" data-ds="${di}" data-sub="${si}" ${!hasDir ? 'disabled' : ''}>打开目录</button>
+                    <button type="button" class="dt2-btn-sm" data-action="import-ds" data-ds="${di}" data-sub="${si}">导入数据集</button>
+                    <button type="button" class="dt2-btn-sm" data-action="browse-preview" data-ds="${di}" data-sub="${si}" ${!hasDir ? 'disabled' : ''}>浏览 / 预览</button>
+                    <button type="button" class="dt2-btn-sm" data-action="recount" data-ds="${di}" data-sub="${si}">重新计数</button>
+                  </div>
+                </div>
+
+                <div class="dt2-exposure-card">
+                  <div class="dt2-exposure-inputs">
+                    <div class="dt2-param-box">
+                      <div class="dt2-label">
+                        <label for="sub-${di}-${si}-repeats">重复次数</label>
+                        <button type="button" class="dt2-help-btn" data-help="num_repeats" aria-label="重复次数帮助">?</button>
+                      </div>
+                      <input type="number" id="sub-${di}-${si}-repeats" class="dt2-input mono" data-sub-field="num_repeats" data-ds="${di}" data-sub="${si}" value="${sub.num_repeats}" min="1" step="1">
+                    </div>
+                    <div class="dt2-param-box">
+                      <div class="dt2-label">
+                        <label for="sub-${di}-${si}-rate">每轮图片采样比例</label>
+                        <button type="button" class="dt2-help-btn" data-help="epoch_sample_rate" aria-label="每轮图片采样比例帮助">?</button>
+                      </div>
+                      <input type="number" id="sub-${di}-${si}-rate" class="dt2-input mono" data-sub-field="epoch_sample_rate" data-ds="${di}" data-sub="${si}" value="${sub.epoch_sample_rate}" min="0" max="1" step="0.01">
+                    </div>
+                  </div>
+                  <div class="dt2-exposure-result">
+                    <span class="muted">${sm.validCount} 张 × ${sub.num_repeats} 次重复 × ${Math.round(clamp(sub.epoch_sample_rate, 0, 1) * 100)}% 采样</span>
+                    <strong>= 每轮贡献 ${sm.rawSamples} 次${sub.is_reg ? '正则' : '训练'}样本</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 模块 B · Caption 切分与四段修饰沙盒 -->
+            <div class="dt2-module">
+              <div class="dt2-module-head">
+                <div class="dt2-module-title">
+                  <span class="dt2-module-tag">模块 B</span>
+                  <span>Caption 切分与四段修饰沙盒 (Caption Split & 4-Affix Sandbox)</span>
+                </div>
+                <span class="muted" style="font-size:12px;">直观展示 [Tags 标签区] 与 [自然语言描述区] 的修饰挂载位置及保留项边界</span>
+              </div>
+
+              <div class="dt2-sandbox-pipeline">
+                <!-- Zone 1: Tags Zone -->
+                <div class="dt2-zone-box">
+                  <div class="dt2-zone-header">
+                    <span class="dt2-zone-title">① Tags 标签区 (参与打乱与 Tag Dropout)</span>
+                    <div class="dt2-zone-flow">
+                      <span class="dt2-flow-step">Caption 前缀</span>
+                      <span>→</span>
+                      <span class="dt2-flow-step keep">保留首 ${sub.keep_tokens} 项</span>
+                      <span>→</span>
+                      <span class="dt2-flow-step">${sub.shuffle_caption ? '其余随机打乱' : '其余原序'}</span>
+                      <span>→</span>
+                      <span class="dt2-flow-step">tags部分后缀</span>
+                    </div>
+                  </div>
+
+                  <div class="dt2-zone-fields">
+                    <div class="dt2-param-box">
+                      <div class="dt2-label">
+                        <label for="sub-${di}-${si}-cprefix">Caption 前缀</label>
+                        <button type="button" class="dt2-help-btn" data-help="caption_prefix" aria-label="Caption 前缀帮助">?</button>
+                      </div>
+                      <input type="text" id="sub-${di}-${si}-cprefix" class="dt2-input mono" data-sub-field="caption_prefix" data-ds="${di}" data-sub="${si}" value="${escapeHtml(sub.caption_prefix)}" placeholder="例: rin_style, ">
+                    </div>
+
+                    <div class="dt2-param-box">
+                      <div class="dt2-label">
+                        <label for="sub-${di}-${si}-tsuffix">tags部分后缀</label>
+                        <button type="button" class="dt2-help-btn" data-help="tags_suffix" aria-label="tags部分后缀帮助">?</button>
+                      </div>
+                      <input type="text" id="sub-${di}-${si}-tsuffix" class="dt2-input mono" data-sub-field="tags_suffix" data-ds="${di}" data-sub="${si}" value="${escapeHtml(sub.tags_suffix)}" placeholder="固定在 Tags 尾部">
+                    </div>
+                  </div>
+
+                  <div class="dt2-zone-controls-bar">
+                    <div class="dt2-inline-control">
+                      <div class="dt2-label">
+                        <label for="sub-${di}-${si}-keep">保留 Token</label>
+                        <button type="button" class="dt2-help-btn" data-help="keep_tokens" aria-label="保留 Token 帮助">?</button>
+                      </div>
+                      <input type="number" id="sub-${di}-${si}-keep" class="dt2-input mono" data-sub-field="keep_tokens" data-ds="${di}" data-sub="${si}" value="${sub.keep_tokens}" min="0" step="1">
+                    </div>
+
+                    <div class="dt2-inline-control">
+                      <div class="dt2-label">
+                        <span>打乱 Caption</span>
+                        <button type="button" class="dt2-help-btn" data-help="shuffle_caption" aria-label="打乱 Caption 帮助">?</button>
+                      </div>
+                      <label class="dt2-switch" aria-label="打乱 Caption">
+                        <input type="checkbox" data-sub-bool="shuffle_caption" data-ds="${di}" data-sub="${si}" ${sub.shuffle_caption ? 'checked' : ''}>
+                        <span class="dt2-switch-track"></span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Zone 2: Natural Language Zone -->
+                <div class="dt2-zone-box">
+                  <div class="dt2-zone-header">
+                    <span class="dt2-zone-title">② 自然语言描述区 (固定语序 · 不参与 Tag 打乱)</span>
+                    <div class="dt2-zone-flow">
+                      <span class="dt2-flow-step">自然语言部分前缀</span>
+                      <span>→</span>
+                      <span class="dt2-flow-step">描述正文</span>
+                      <span>→</span>
+                      <span class="dt2-flow-step">Caption 后缀</span>
+                    </div>
+                  </div>
+
+                  <div class="dt2-zone-fields">
+                    <div class="dt2-param-box">
+                      <div class="dt2-label">
+                        <label for="sub-${di}-${si}-nlprefix">自然语言部分前缀</label>
+                        <button type="button" class="dt2-help-btn" data-help="natural_language_prefix" aria-label="自然语言部分前缀帮助">?</button>
+                      </div>
+                      <input type="text" id="sub-${di}-${si}-nlprefix" class="dt2-input mono" data-sub-field="natural_language_prefix" data-ds="${di}" data-sub="${si}" value="${escapeHtml(sub.natural_language_prefix)}" placeholder="例: In the style of Rin, ">
+                    </div>
+
+                    <div class="dt2-param-box">
+                      <div class="dt2-label">
+                        <label for="sub-${di}-${si}-csuffix">Caption 后缀</label>
+                        <button type="button" class="dt2-help-btn" data-help="caption_suffix" aria-label="Caption 后缀帮助">?</button>
+                      </div>
+                      <input type="text" id="sub-${di}-${si}-csuffix" class="dt2-input mono" data-sub-field="caption_suffix" data-ds="${di}" data-sub="${si}" value="${escapeHtml(sub.caption_suffix)}" placeholder="追加在完整提示词末尾">
+                    </div>
+                  </div>
+
+                  <div class="dt2-zone-controls-bar">
+                    <span class="muted" style="font-size:12px;">多行 TXT 首行识别为 Tags，后续行识别为自然语言描述；保持内部语序不打乱。</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live Assembled Output Line -->
+              <div class="dt2-caption-preview">
+                <div class="dt2-preview-head">
+                  <span>实时合成标注预览 (样本示例：<code style="font-family:var(--dt2-mono)">001${escapeHtml(ds.caption_extension)}</code>)</span>
+                  <span><strong style="color:var(--primary)">[保#N]</strong> = 受 keep_tokens 保护固定在开头 · <strong>[乱]</strong> = 参与随机打乱</span>
+                </div>
+                <div class="dt2-preview-tokens" id="sub-${di}-${si}-preview-tokens">${preview.html}</div>
+                <div class="dt2-comma-warn" id="sub-${di}-${si}-comma-warn" ${preview.mergedWarning ? '' : 'hidden'}>
+                  提示：当前「Caption 前缀」末尾没有逗号，将通过空格与第 1 个 Tag 合并为同一标签项（设 保留 Token = 1 即可同时锁定前缀与首个 Tag）。若希望前缀独立成项，请在末尾加上英文逗号。
+                </div>
+              </div>
+            </div>
+
+            <!-- 模块 C · 丢弃正则与图像增强 -->
+            <div class="dt2-module">
+              <div class="dt2-module-head">
+                <div class="dt2-module-title">
+                  <span class="dt2-module-tag">模块 C</span>
+                  <span>丢弃正则与图像增强 (Dropout & Image Augmentations)</span>
+                </div>
+                <span class="muted" style="font-size:12px;">左侧控制文本与标签随机丢弃率，右侧控制图像翻转、正则标记与透明遮罩</span>
+              </div>
+
+              <div class="dt2-mod-c-grid">
+                <!-- Left: 3 Dropout Numeric Inputs -->
+                <div class="dt2-dropout-grid">
+                  <div class="dt2-param-box">
+                    <div class="dt2-label">
+                      <label for="sub-${di}-${si}-cdrop">Caption Dropout</label>
+                      <button type="button" class="dt2-help-btn" data-help="caption_dropout_rate" aria-label="Caption Dropout 帮助">?</button>
+                    </div>
+                    <input type="number" id="sub-${di}-${si}-cdrop" class="dt2-input mono" data-sub-field="caption_dropout_rate" data-ds="${di}" data-sub="${si}" value="${sub.caption_dropout_rate}" min="0" max="1" step="0.01">
+                    <span class="dt2-param-hint">整段置空概率 (0–1)</span>
+                  </div>
+
+                  <div class="dt2-param-box">
+                    <div class="dt2-label">
+                      <label for="sub-${di}-${si}-tdrop">Tag Dropout</label>
+                      <button type="button" class="dt2-help-btn" data-help="caption_tag_dropout_rate" aria-label="Tag Dropout 帮助">?</button>
+                    </div>
+                    <input type="number" id="sub-${di}-${si}-tdrop" class="dt2-input mono" data-sub-field="caption_tag_dropout_rate" data-ds="${di}" data-sub="${si}" value="${sub.caption_tag_dropout_rate}" min="0" max="1" step="0.01">
+                    <span class="dt2-param-hint">单标签随机丢弃率 (0–1)</span>
+                  </div>
+
+                  <div class="dt2-param-box">
+                    <div class="dt2-label">
+                      <label for="sub-${di}-${si}-edrop">每 N 轮 Caption Dropout</label>
+                      <button type="button" class="dt2-help-btn" data-help="caption_dropout_every_n_epochs" aria-label="每 N 轮 Caption Dropout 帮助">?</button>
+                    </div>
+                    <input type="number" id="sub-${di}-${si}-edrop" class="dt2-input mono" data-sub-field="caption_dropout_every_n_epochs" data-ds="${di}" data-sub="${si}" value="${sub.caption_dropout_every_n_epochs}" min="0" step="1">
+                    <span class="dt2-param-hint">周期丢弃轮数 (0 关闭)</span>
+                  </div>
+                </div>
+
+                <!-- Right: 3 Augmentation / Subset Switches -->
+                <div class="dt2-aug-switches">
+                  <div class="dt2-aug-tile">
+                    <div class="dt2-aug-tile-top">
+                      <div class="dt2-label">
+                        <span>水平翻转</span>
+                        <button type="button" class="dt2-help-btn" data-help="flip_aug" aria-label="水平翻转帮助">?</button>
+                      </div>
+                      <span class="dt2-aug-tile-desc">随机左右镜像训练图</span>
+                    </div>
+                    <label class="dt2-switch" aria-label="水平翻转">
+                      <input type="checkbox" data-sub-bool="flip_aug" data-ds="${di}" data-sub="${si}" ${sub.flip_aug ? 'checked' : ''}>
+                      <span class="dt2-switch-track"></span>
+                    </label>
+                  </div>
+
+                  <div class="dt2-aug-tile">
+                    <div class="dt2-aug-tile-top">
+                      <div class="dt2-label">
+                        <span>正则化数据集</span>
+                        <button type="button" class="dt2-help-btn" data-help="is_reg" aria-label="正则化数据集帮助">?</button>
+                      </div>
+                      <span class="dt2-aug-tile-desc">标记为 REG，不计入 LBAI</span>
+                    </div>
+                    <label class="dt2-switch" aria-label="正则化数据集">
+                      <input type="checkbox" data-sub-bool="is_reg" data-ds="${di}" data-sub="${si}" ${sub.is_reg ? 'checked' : ''}>
+                      <span class="dt2-switch-track"></span>
+                    </label>
+                  </div>
+
+                  <div class="dt2-aug-tile">
+                    <div class="dt2-aug-tile-top">
+                      <div class="dt2-label">
+                        <span>Alpha Mask</span>
+                        <button type="button" class="dt2-help-btn" data-help="alpha_mask" aria-label="Alpha Mask 帮助">?</button>
+                      </div>
+                      <span class="dt2-aug-tile-desc">按透明通道加权损失</span>
+                    </div>
+                    <label class="dt2-switch" aria-label="Alpha Mask">
+                      <input type="checkbox" data-sub-bool="alpha_mask" data-ds="${di}" data-sub="${si}" ${sub.alpha_mask ? 'checked' : ''}>
+                      <span class="dt2-switch-track"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      `
+    })
+
+    html += `
+        </div>
+      </section>
+    `
+  })
+
+  container.innerHTML = html
+}
+
+/* ===== Full Render Pass ===== */
+function renderAll() {
+  updateHeaderAndSummary()
+  updateScheduleVisual()
+  renderOutlinerTree()
+  renderInspectorDatasets()
+  document.getElementById('inspector-fieldset').disabled = state.locked
+  document.getElementById('btn-outliner-add-ds').disabled = state.locked
+  document.getElementById('readonly-preview-section').hidden = !state.locked
+}
+
+/* ===== Toast Helper ===== */
+let toastTimer = null
+function showToast(msg) {
+  const el = document.getElementById('dt2-toast')
+  el.textContent = msg
+  el.hidden = false
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { el.hidden = true }, 3000)
+}
+
+/* ===== Event Listeners & Interactions ===== */
+// 1. Demo Control Toggles
+document.getElementById('btn-toggle-lock').addEventListener('click', (e) => {
+  state.locked = !state.locked
+  e.currentTarget.setAttribute('aria-pressed', String(state.locked))
+  renderAll()
+  showToast(state.locked ? '已切换至「运行锁定状态」：表单禁用，LBAI 目标与只读预览保持可用' : '已解除锁定状态')
+})
+
+document.getElementById('btn-toggle-error').addEventListener('click', (e) => {
+  state.errorSim = !state.errorSim
+  e.currentTarget.setAttribute('aria-pressed', String(state.errorSim))
+  if (state.errorSim) {
+    state.datasets[0].subsets[1].path_error = true
+    state.global.resolution_schedule = '512:0.4,1024:0.4'
+  } else {
+    state.datasets[0].subsets[1].path_error = false
+    state.global.resolution_schedule = '512:0.3,1024:0.7'
+  }
+  document.getElementById('g-res-schedule').value = state.global.resolution_schedule
+  renderAll()
+  showToast(state.errorSim ? '已模拟：子集 2 路径不存在 + 渐进比例之和为 0.80 异常诊断' : '已恢复正常路径与渐进比例 1.00')
+})
+
+// 2. LBAI Target Select & Zone Pills & Formula Drawer
+document.getElementById('lbai-target-select').addEventListener('change', (e) => {
+  state.lbaiTarget = e.target.value
+  updateHeaderAndSummary()
+})
+
+document.getElementById('lbai-zone-pills').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-target]')
+  if (!btn) return
+  state.lbaiTarget = btn.dataset.target
+  document.getElementById('lbai-target-select').value = state.lbaiTarget
+  updateHeaderAndSummary()
+})
+
+document.getElementById('btn-toggle-formula').addEventListener('click', (e) => {
+  state.formulaOpen = !state.formulaOpen
+  document.getElementById('lbai-formula-drawer').hidden = !state.formulaOpen
+  e.currentTarget.setAttribute('aria-expanded', String(state.formulaOpen))
+  document.getElementById('formula-chevron').textContent = state.formulaOpen ? '▴ 收起' : '▾ 展开'
+})
+
+// 3. Outliner View Mode Switch ('all' vs 'focus')
+document.querySelectorAll('.dt2-view-mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.viewMode = btn.dataset.viewmode
+    document.querySelectorAll('.dt2-view-mode-btn').forEach(b => b.classList.toggle('active', b === btn))
+    renderAll()
+  })
+})
+
+// 4. Outliner Tree Navigation & Inline Add Subset
+document.getElementById('outliner-tree').addEventListener('click', (e) => {
+  const addSubBtn = e.target.closest('[data-action="tree-add-subset"]')
+  if (addSubBtn) {
+    e.stopPropagation()
+    const di = parseInt(addSubBtn.dataset.ds, 10)
+    addSubsetToDataset(di)
+    return
+  }
+
+  const navEl = e.target.closest('[data-nav]')
+  if (!navEl) return
+  const navId = navEl.dataset.nav
+  state.selectedNode = navId
+  if (navEl.dataset.ds !== undefined) {
+    state.focusedDatasetIdx = parseInt(navEl.dataset.ds, 10)
+  }
+
+  renderOutlinerTree()
+  if (state.viewMode === 'focus') {
+    renderInspectorDatasets()
+  }
+
+  // Smooth scroll & flash highlight target card
+  let targetCardId = 'card-global'
+  if (navId.startsWith('ds-')) targetCardId = `card-${navId}`
+  if (navId.startsWith('sub-')) {
+    const [_, di, si] = navId.split('-')
+    state.datasets[Number(di)].subsets[Number(si)].collapsed = false
+    renderInspectorDatasets()
+    targetCardId = `card-${navId}`
+  }
+
+  const cardEl = document.getElementById(targetCardId)
+  if (cardEl) {
+    cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    cardEl.classList.remove('flash-focus')
+    void cardEl.offsetWidth
+    cardEl.classList.add('flash-focus')
+    setTimeout(() => cardEl.classList.remove('flash-focus'), 1200)
+  }
+})
+
+// 5. Global Fields
+document.getElementById('g-enable-bucket').addEventListener('change', e => { state.global.enable_bucket = e.target.checked; markDirty() })
+document.getElementById('g-bucket-no-upscale').addEventListener('change', e => { state.global.bucket_no_upscale = e.target.checked; markDirty() })
+document.getElementById('g-balance-reg').addEventListener('change', e => { state.global.balance_regularization_images = e.target.checked; markDirty() })
+document.getElementById('g-disable-bucket-shuffle').addEventListener('change', e => { state.global.disable_bucket_shuffle = e.target.checked; markDirty() })
+
+;['min-reso', 'max-reso', 'reso-steps'].forEach(k => {
+  document.getElementById(`g-${k}`).addEventListener('input', () => {
+    state.global.min_bucket_reso = parseInt(document.getElementById('g-min-reso').value, 10) || 512
+    state.global.max_bucket_reso = parseInt(document.getElementById('g-max-reso').value, 10) || 1536
+    state.global.bucket_reso_steps = parseInt(document.getElementById('g-reso-steps').value, 10) || 64
+    updateScheduleVisual()
+    renderOutlinerTree()
+    markDirty()
+  })
+})
+
+document.getElementById('g-res-schedule').addEventListener('input', (e) => {
+  state.global.resolution_schedule = e.target.value
+  updateScheduleVisual()
+  renderOutlinerTree()
+  markDirty()
+})
+
+document.querySelectorAll('[data-sched]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.global.resolution_schedule = btn.dataset.sched
+    document.getElementById('g-res-schedule').value = state.global.resolution_schedule
+    updateScheduleVisual()
+    renderOutlinerTree()
+    markDirty()
+  })
+})
+
+// 6. Add Dataset Actions
+function addNewDataset() {
+  if (state.locked) return
+  state.datasets.push({
+    resolution: '[1024, 1024]',
+    batch_size: 1,
+    caption_extension: '.txt',
+    subsets: [
+      {
+        collapsed: false,
+        image_dir: 'datasets/dataset-9f2a/new_subset',
+        image_count: 24,
+        path_error: false,
+        num_repeats: 1,
+        epoch_sample_rate: 1,
+        keep_tokens: 1,
+        caption_dropout_rate: 0,
+        caption_tag_dropout_rate: 0,
+        caption_dropout_every_n_epochs: 0,
+        caption_prefix: '',
+        tags_suffix: '',
+        natural_language_prefix: '',
+        caption_suffix: '',
+        shuffle_caption: true,
+        flip_aug: false,
+        is_reg: false,
+        alpha_mask: false,
+        sample_tags: ['1girl', 'solo', 'portrait'],
+        sample_nl: 'high quality character illustration.'
+      }
+    ]
+  })
+  const newIdx = state.datasets.length - 1
+  state.selectedNode = `ds-${newIdx}`
+  state.focusedDatasetIdx = newIdx
+  markDirty()
+  renderAll()
+  showToast(`已添加 Dataset ${newIdx + 1} ([1024, 1024], Batch 1)`)
+}
+
+function addSubsetToDataset(di) {
+  if (state.locked) return
+  const ds = state.datasets[di]
+  if (!ds) return
+  ds.subsets.push({
+    collapsed: false,
+    image_dir: '',
+    image_count: 0,
+    path_error: false,
+    num_repeats: 1,
+    epoch_sample_rate: 1,
+    keep_tokens: 1,
+    caption_dropout_rate: 0,
+    caption_tag_dropout_rate: 0,
+    caption_dropout_every_n_epochs: 0,
+    caption_prefix: '',
+    tags_suffix: '',
+    natural_language_prefix: '',
+    caption_suffix: '',
+    shuffle_caption: true,
+    flip_aug: false,
+    is_reg: false,
+    alpha_mask: false,
+    sample_tags: ['1girl', 'new_subset_tag'],
+    sample_nl: 'sample natural language caption.'
+  })
+  const si = ds.subsets.length - 1
+  state.selectedNode = `sub-${di}-${si}`
+  state.focusedDatasetIdx = di
+  markDirty()
+  renderAll()
+  showToast(`已在 Dataset ${di + 1} 下添加 子集 ${si + 1}`)
+}
+
+document.getElementById('btn-outliner-add-ds').addEventListener('click', addNewDataset)
+document.getElementById('btn-header-add-ds').addEventListener('click', addNewDataset)
+
+// 7. Inspector Delegated Input & Button Handlers
+document.getElementById('datasets-container').addEventListener('input', (e) => {
+  const t = e.target
+  const di = parseInt(t.dataset.ds, 10)
+  if (Number.isNaN(di)) return
+
+  if (t.dataset.dsField) {
+    const field = t.dataset.dsField
+    state.datasets[di][field] = field === 'batch_size' ? (Math.max(1, parseInt(t.value, 10) || 1)) : t.value
+    markDirty()
+    updateHeaderAndSummary()
+    renderOutlinerTree()
+    // Re-render only when batch_size changes so subset LBAI badges update smoothly
+    if (field === 'batch_size') renderInspectorDatasets()
+    return
+  }
+
+  if (t.dataset.subField) {
+    const si = parseInt(t.dataset.sub, 10)
+    const field = t.dataset.subField
+    const sub = state.datasets[di].subsets[si]
+    if (!sub) return
+
+    if (['num_repeats', 'keep_tokens', 'caption_dropout_every_n_epochs'].includes(field)) {
+      sub[field] = Math.max(field === 'num_repeats' ? 1 : 0, parseInt(t.value, 10) || 0)
+    } else if (['epoch_sample_rate', 'caption_dropout_rate', 'caption_tag_dropout_rate'].includes(field)) {
+      sub[field] = clamp(parseFloat(t.value) || 0, 0, 1)
+    } else {
+      sub[field] = t.value
+      if (field === 'image_dir') {
+        sub.path_error = false
+        sub.image_count = t.value.trim() ? (sub.image_count || 32) : 0
+      }
+    }
+
+    markDirty()
+    updateHeaderAndSummary()
+    renderOutlinerTree()
+
+    // Live update caption preview tokens without losing input focus
+    const preview = buildCaptionPreviewHTML(sub)
+    const tokEl = document.getElementById(`sub-${di}-${si}-preview-tokens`)
+    const warnEl = document.getElementById(`sub-${di}-${si}-comma-warn`)
+    if (tokEl) tokEl.innerHTML = preview.html
+    if (warnEl) warnEl.hidden = !preview.mergedWarning
+
+    if (['num_repeats', 'epoch_sample_rate', 'image_dir'].includes(field)) {
+      renderInspectorDatasets()
+    }
+  }
+})
+
+document.getElementById('datasets-container').addEventListener('change', (e) => {
+  const t = e.target
+  if (!t.dataset.subBool) return
+  const di = parseInt(t.dataset.ds, 10)
+  const si = parseInt(t.dataset.sub, 10)
+  const field = t.dataset.subBool
+  state.datasets[di].subsets[si][field] = t.checked
+  markDirty()
+  renderAll()
+})
+
+document.getElementById('datasets-container').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]')
+  if (!btn) return
+  const action = btn.dataset.action
+  const di = parseInt(btn.dataset.ds, 10)
+  const si = parseInt(btn.dataset.sub, 10)
+
+  if (action === 'add-subset') {
+    addSubsetToDataset(di)
+  } else if (action === 'remove-ds') {
+    if (state.datasets.length <= 1) return
+    state.datasets.splice(di, 1)
+    state.focusedDatasetIdx = 0
+    state.selectedNode = 'ds-0'
+    markDirty()
+    renderAll()
+    showToast(`已删除 Dataset ${di + 1}`)
+  } else if (action === 'remove-subset') {
+    if (state.datasets[di].subsets.length <= 1) return
+    state.datasets[di].subsets.splice(si, 1)
+    markDirty()
+    renderAll()
+    showToast(`已删除 Dataset ${di + 1} / 子集 ${si + 1}`)
+  } else if (action === 'toggle-subset') {
+    const sub = state.datasets[di].subsets[si]
+    sub.collapsed = !sub.collapsed
+    renderInspectorDatasets()
+  } else if (action === 'open-dir') {
+    showToast(`已在服务器文件管理器打开目录：${state.datasets[di].subsets[si].image_dir}`)
+  } else if (action === 'import-ds') {
+    showToast(`已打开「DatasetAssetManager · 导入数据集」弹窗 (Dataset ${di + 1} / 子集 ${si + 1})`)
+  } else if (action === 'browse-preview') {
+    showToast(`已打开「DatasetAssetManager · 浏览与切分预览」弹窗 (${state.datasets[di].subsets[si].image_dir})`)
+  } else if (action === 'recount') {
+    const sub = state.datasets[di].subsets[si]
+    if (!sub.image_dir.trim()) {
+      sub.image_count = 0
+      showToast('目录为空，图片计数为 —')
+    } else {
+      sub.path_error = false
+      if (!sub.image_count) sub.image_count = 36
+      showToast(`重新计数完成：检测到 ${sub.image_count} 张有效训练图片`)
+    }
+    renderAll()
+  }
+})
+
+document.getElementById('readonly-preview-btns').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action="readonly-preview"]')
+  if (!btn) return
+  const di = parseInt(btn.dataset.ds, 10)
+  const si = parseInt(btn.dataset.sub, 10)
+  showToast(`已打开只读预览弹窗：Dataset ${di + 1} / 子集 ${si + 1} (${state.datasets[di].subsets[si].image_dir || '未绑定'})`)
+})
+
+function markDirty() {
+  const dot = document.getElementById('dirty-dot')
+  if (dot) dot.hidden = false
+}
+
+/* ===== FieldHelp (?) Floating Popover Controller ===== */
+const popoverEl = document.getElementById('dt2-help-popover')
+let activeHelpBtn = null
+
+document.addEventListener('click', (e) => {
+  const helpBtn = e.target.closest('.dt2-help-btn')
+  if (helpBtn) {
+    e.preventDefault()
+    e.stopPropagation()
+    const key = helpBtn.dataset.help
+    if (activeHelpBtn === helpBtn && !popoverEl.hidden) {
+      closeHelpPopover()
+      return
+    }
+    openHelpPopover(helpBtn, key)
+    return
+  }
+  if (!popoverEl.hidden && !e.target.closest('#dt2-help-popover')) {
+    closeHelpPopover()
+  }
+})
+
+function openHelpPopover(btn, key) {
+  const entry = DATASET_HELP[key]
+  if (!entry) return
+  if (activeHelpBtn) activeHelpBtn.setAttribute('aria-expanded', 'false')
+  activeHelpBtn = btn
+  btn.setAttribute('aria-expanded', 'true')
+
+  const [title, meaning, effect, notes] = entry
+  popoverEl.innerHTML = `
+    <div class="dt2-pop-head">
+      <span class="dt2-pop-title">${escapeHtml(title)}</span>
+      <span class="dt2-pop-key">${escapeHtml(key)}</span>
+    </div>
+    <div class="dt2-pop-sec"><strong>含义：</strong>${escapeHtml(meaning)}</div>
+    <div class="dt2-pop-sec"><strong>作用：</strong>${escapeHtml(effect)}</div>
+    ${notes && notes.length ? `
+      <div class="dt2-pop-sec"><strong>注意事项：</strong>
+        <ul class="dt2-pop-notes">
+          ${notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}
+        </ul>
+      </div>
+    ` : ''}
+  `
+  popoverEl.hidden = false
+
+  const rect = btn.getBoundingClientRect()
+  const popRect = popoverEl.getBoundingClientRect()
+  let top = rect.bottom + 8
+  let left = rect.left - 12
+
+  if (left + popRect.width > window.innerWidth - 16) {
+    left = window.innerWidth - popRect.width - 16
+  }
+  if (left < 12) left = 12
+  if (top + popRect.height > window.innerHeight - 16) {
+    top = rect.top - popRect.height - 8
+  }
+  popoverEl.style.top = `${Math.max(12, top)}px`
+  popoverEl.style.left = `${left}px`
+}
+
+function closeHelpPopover() {
+  popoverEl.hidden = true
+  if (activeHelpBtn) {
+    activeHelpBtn.setAttribute('aria-expanded', 'false')
+    activeHelpBtn = null
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !popoverEl.hidden) closeHelpPopover()
+})
+
+// Initial render
+renderAll()
+</script>
+</body>
+</html>

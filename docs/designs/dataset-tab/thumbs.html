@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="UTF-8">
+<title>Dataset tab · six candidates</title>
+<style>
+.dark { --background:#10151f; --foreground:#e0e7f2; --card:#171e2b; --primary:#86aafa; --muted:#1b2434; --muted-foreground:#94a3bb; --accent:#253650; --border:#2b374c; --warn:#e8a25a; --ok:#5ace9d; }
+* { box-sizing:border-box; }
+body { margin:0; padding:28px; background:#0b0f16; color:var(--foreground); font:14px/1.5 Inter,"Segoe UI","Microsoft YaHei",sans-serif; }
+h1 { font-size:18px; font-weight:650; margin:0 0 4px; } .lead { color:var(--muted-foreground); margin:0 0 22px; font-size:13px; }
+.grid { display:grid; grid-template-columns:repeat(3,480px); gap:22px; }
+figure { margin:0; } figcaption { margin-top:8px; font-size:12px; color:var(--muted-foreground); line-height:1.5; } figcaption b { color:var(--foreground); font-weight:600; }
+.cell { width:480px; height:300px; overflow:hidden; border:1px solid var(--border); border-radius:8px; background:var(--background); position:relative; }
+.mono { font-family:"Cascadia Mono",Consolas,monospace; font-variant-numeric:tabular-nums; }
+.tag { position:absolute; right:8px; top:8px; z-index:10; font-size:10px; padding:1px 7px; border-radius:10px; background:var(--primary); color:#111b32; font-weight:650; }
+.tag.alt { background:var(--muted); color:var(--muted-foreground); border:1px solid var(--border); }
+
+/* 1 · Tufte Explorable Data-Ink & Live Pipeline */
+.tf { padding:12px 15px; display:flex; flex-direction:column; gap:8px; height:100%; }
+.tf-top { display:flex; align-items:baseline; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:5px; padding-right:84px; }
+.tf-lbai { font-size:11px; color:var(--muted-foreground); } .tf-lbai b { font-size:17px; color:var(--foreground); font-family:"Cascadia Mono",Consolas,monospace; margin:0 3px; }
+.tf-eq { font-size:8.5px; color:var(--muted-foreground); font-family:"Cascadia Mono",Consolas,monospace; } .tf-eq span { color:var(--primary); }
+.tf-buck { display:grid; grid-template-columns:1.1fr 1fr; gap:10px; border-bottom:1px solid var(--border); padding-bottom:6px; font-size:10px; }
+.tf-stage { display:flex; height:12px; border-radius:2px; overflow:hidden; border:1px solid var(--border); margin-top:3px; font-size:8px; line-height:10px; }
+.tf-stage i { font-style:normal; text-align:center; background:color-mix(in srgb,var(--primary) 26%,transparent); color:var(--foreground); }
+.tf-stage i:last-child { background:color-mix(in srgb,var(--primary) 52%,transparent); }
+.tf-ds-head { display:flex; justify-content:space-between; font-size:10px; font-weight:600; color:var(--foreground); }
+.tf-sub { display:grid; grid-template-columns:1.05fr 1.25fr; gap:10px; border-top:1px dotted var(--border); padding-top:6px; font-size:9.5px; }
+.tf-path { font-family:"Cascadia Mono",Consolas,monospace; font-size:9.5px; color:var(--foreground); background:color-mix(in srgb,var(--card) 85%,transparent); padding:2px 5px; border-bottom:1px solid var(--primary); display:flex; justify-content:space-between; }
+.tf-pipe { display:flex; gap:3px; flex-wrap:wrap; margin:3px 0 5px; }
+.tf-tok { padding:1px 5px; border-radius:3px; font-size:8.5px; font-family:"Cascadia Mono",Consolas,monospace; border:1px solid var(--border); background:var(--card); }
+.tf-tok.pre { border-color:var(--primary); color:var(--primary); }
+.tf-tok.keep { border-color:var(--ok); color:var(--ok); }
+.tf-kv { display:flex; justify-content:space-between; color:var(--muted-foreground); border-bottom:1px dotted color-mix(in srgb,var(--border) 60%,transparent); line-height:1.75; }
+.tf-kv b { color:var(--foreground); font-family:"Cascadia Mono",Consolas,monospace; font-weight:500; }
+
+/* 2 · Outliner Tree + Focused Inspector Split */
+.oi { display:grid; grid-template-columns:148px 1fr; height:100%; }
+.oi-tree { border-right:1px solid var(--border); background:color-mix(in srgb,var(--card) 75%,transparent); padding:10px 8px; display:flex; flex-direction:column; gap:4px; font-size:10px; }
+.oi-node { padding:4px 6px; border-radius:5px; color:var(--muted-foreground); display:flex; justify-content:space-between; align-items:center; }
+.oi-node.ds { font-weight:600; color:var(--foreground); margin-top:3px; }
+.oi-node.sub { padding-left:14px; font-size:9.5px; }
+.oi-node.on { background:var(--accent); color:var(--foreground); border:1px solid var(--border); }
+.oi-pill { font-size:8px; padding:0 4px; border-radius:4px; background:var(--muted); color:var(--primary); font-family:"Cascadia Mono",Consolas,monospace; }
+.oi-pill.reg { color:var(--warn); }
+.oi-main { padding:30px 12px 10px; display:flex; flex-direction:column; gap:7px; }
+.oi-bar { display:flex; justify-content:space-between; align-items:center; padding:5px 8px; border:1px solid var(--border); border-radius:6px; background:var(--card); font-size:9.5px; white-space:nowrap; }
+.oi-card { border:1px solid var(--border); border-radius:6px; background:var(--card); padding:7px 9px; font-size:9.5px; }
+.oi-card h4 { margin:0 0 4px; font-size:10px; display:flex; justify-content:space-between; }
+.oi-row { display:flex; justify-content:space-between; align-items:center; padding:3px 0; border-top:1px solid color-mix(in srgb,var(--border) 50%,transparent); }
+.oi-in { font-family:"Cascadia Mono",Consolas,monospace; font-size:9px; padding:1px 6px; border:1px solid var(--border); border-radius:4px; background:var(--background); }
+
+/* 3 · Modular Hardware Data Feeder Console */
+.hw { padding:30px 11px 11px; height:100%; display:flex; flex-direction:column; gap:6px; }
+.hw-meter { display:grid; grid-template-columns:104px 1fr 82px; align-items:center; gap:8px; border:1px solid var(--border); background:var(--card); padding:5px 9px; }
+.hw-leds { display:grid; grid-template-columns:repeat(18,1fr); gap:2px; height:9px; }
+.hw-leds i { background:var(--muted); } .hw-leds i.lit { background:var(--primary); } .hw-leds i.t { background:var(--ok); }
+.hw-rack { display:grid; grid-template-columns:repeat(6,1fr); border-top:1px solid var(--border); border-left:1px solid var(--border); }
+.hw-tile { border-right:1px solid var(--border); border-bottom:1px solid var(--border); background:var(--card); padding:5px 7px; position:relative; }
+.hw-tile.s2 { grid-column:span 2; } .hw-tile.s3 { grid-column:span 3; } .hw-tile.s4 { grid-column:span 4; } .hw-tile.s6 { grid-column:span 6; }
+.hw-k { font-size:8px; color:var(--muted-foreground); letter-spacing:.03em; }
+.hw-v { font-family:"Cascadia Mono",Consolas,monospace; font-size:18px; font-weight:650; line-height:1.15; margin-top:2px; }
+.hw-step { position:absolute; right:5px; bottom:5px; display:flex; border:1px solid var(--border); font-size:8.5px; }
+.hw-step span { padding:0 4px; background:var(--background); }
+.hw-bus { display:flex; align-items:center; gap:4px; font-family:"Cascadia Mono",Consolas,monospace; font-size:8.5px; margin-top:3px; color:var(--muted-foreground); }
+.hw-bus b { padding:1px 5px; border:1px solid var(--border); background:var(--background); color:var(--foreground); font-weight:500; }
+
+/* 4 · Airtable Matrix (Alternate) */
+.mx { padding:28px 12px 12px; font-size:9.5px; }
+.mx-top { display:flex; justify-content:space-between; margin-bottom:8px; padding:6px 8px; background:var(--card); border:1px solid var(--border); border-radius:5px; }
+.mx table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--border); }
+.mx th, .mx td { border:1px solid var(--border); padding:5px 6px; text-align:left; white-space:nowrap; }
+.mx th { color:var(--muted-foreground); font-size:8.5px; background:var(--muted); }
+.mx td { font-family:"Cascadia Mono",Consolas,monospace; font-size:9px; }
+
+/* 5 · Roulette Web #8 Cinematic Sound-Viz Dark (Alternate) */
+.sv { background:#040508; height:100%; padding:14px 16px; position:relative; display:flex; flex-direction:column; justify-content:space-between; }
+.sv-title { font-size:26px; font-weight:800; line-height:1.05; letter-spacing:-.03em; z-index:2; max-width:250px; }
+.sv-sub { font-size:10px; color:#8b95b0; z-index:2; margin-top:4px; }
+.sv-wave { position:absolute; left:0; right:0; top:64px; height:120px; display:flex; align-items:center; justify-content:space-between; padding:0 12px; gap:3px; opacity:.85; }
+.sv-wave i { flex:1; background:linear-gradient(180deg,#8b5cf6,#3b82f6); border-radius:2px; }
+.sv-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; z-index:2; }
+.sv-c { background:#0c0f1a; border:1px solid #1e253d; border-radius:6px; padding:7px 8px; font-size:9px; }
+.sv-c b { display:block; font-size:12px; margin:2px 0; color:#fff; }
+
+/* 6 · Roulette East #8 Sugiura Information Mandala (Alternate) */
+.md { background:#141210; color:#ece4d4; height:100%; display:grid; grid-template-columns:56px 1fr 135px; padding:12px; align-items:center; }
+.md-vtitle { writing-mode:vertical-rl; font-size:20px; font-weight:800; color:#d4a94e; letter-spacing:.12em; height:240px; }
+.md-side { font-size:9px; display:flex; flex-direction:column; gap:8px; }
+.md-item { border-top:1px solid #3a342b; padding-top:4px; }
+.md-item b { color:#d4a94e; display:block; }
+</style>
+</head>
+<body>
+<h1>数据集页内容区 · 六个候选</h1>
+<p class="lead">每格是该候选最关键的一屏（只画内容区，外壳不变）。带「完整版」标记的三张已做成包含全部原有功能与交互优化的完整原型，另外三张为备选。</p>
+<div class="grid">
+
+<figure><div class="cell" data-thumb="1"><span class="tag">完整版 · 方向 A</span>
+  <div class="tf">
+    <div class="tf-top">
+      <div class="tf-lbai">总 LBAI <b>0.0152</b> · 角色推荐区 (113% · 目标范围内)</div>
+      <div class="tf-eq"><span>(144+32)</span>×20ep×<span>2.5e-5</span>×1.0÷batch</div>
+    </div>
+    <svg width="450" height="36" viewBox="0 0 450 36">
+      <rect x="0" y="10" width="450" height="8" rx="2" fill="#1b2434"/>
+      <rect x="45" y="8" width="55" height="12" rx="2" fill="#58a6ff" opacity=".28" stroke="#58a6ff" stroke-width=".8"/>
+      <rect x="115" y="8" width="130" height="12" rx="2" fill="#bc8cff" opacity=".16"/>
+      <rect x="260" y="8" width="150" height="12" rx="2" fill="#f85149" opacity=".14"/>
+      <rect x="0" y="11" width="60" height="6" rx="1.5" fill="#86aafa"/>
+      <rect x="61" y="11" width="19" height="6" rx="1.5" fill="#5ace9d"/>
+      <circle cx="80" cy="14" r="4.5" fill="#e0e7f2" stroke="#10151f" stroke-width="1.5"/>
+      <g font-size="8" fill="#94a3bb" font-family="Consolas,monospace">
+        <text x="45" y="31" fill="#86aafa">角色 0.009–0.018</text>
+        <text x="145" y="31">风格 0.02–0.05</text>
+        <text x="295" y="31">复杂 0.05–0.09</text>
+      </g>
+    </svg>
+    <div class="tf-buck">
+      <div><b>全局分桶</b> · 512–1536 (步长 64) · 禁放大<div class="tf-stage"><i style="width:100%">Bucket 开启 · 不放大小图 · 平衡 REG 关</i></div></div>
+      <div><b>渐进分辨率计划</b> · <span class="mono">512:0.3,1024:0.7</span><div class="tf-stage"><i style="width:30%">512 (30%)</i><i style="width:70%">1024 (70%)</i></div></div>
+    </div>
+    <div class="tf-ds-head"><span>Dataset 1 · [1024, 1024] · Batch 2 · .txt</span><span class="mono" style="color:var(--primary)">LBAI 0.0112 (74%)</span></div>
+    <div class="tf-sub">
+      <div>
+        <div class="tf-path"><span>…/rin_core</span><span style="color:var(--ok)">48 张</span></div>
+        <div class="tf-kv"><span>重复 × 采样率</span><b>3 × 1.0 = 144/轮</b></div>
+        <div class="tf-kv"><span>增强开关</span><b>Shuffle ✓ · Flip ✗ · REG ✗</b></div>
+      </div>
+      <div>
+        <div style="font-size:8.5px;color:var(--muted-foreground)">Caption 拼接流水线（实时结构提示）：</div>
+        <div class="tf-pipe">
+          <span class="tf-tok pre">前缀 "rin_style,"</span>
+          <span class="tf-tok keep">🔒保留1项</span>
+          <span class="tf-tok">🔀Tags打乱</span>
+          <span class="tf-tok">NL前缀 "In style…"</span>
+        </div>
+        <div class="tf-kv"><span>Caption / Tag Dropout</span><b>0.05 / 0 · 每 0 轮</b></div>
+      </div>
+    </div>
+  </div>
+</div><figcaption><b>最佳设计师 · Tufte &amp; Bret Victor 可探索数据流</b>：顶部多区间 LBAI 标尺＋实时代入公式，子集内嵌「Caption 拼接流水线」可视化提示。</figcaption></figure>
+
+<figure><div class="cell" data-thumb="2"><span class="tag">完整版 · 方向 B</span>
+  <div class="oi">
+    <aside class="oi-tree">
+      <div style="font-size:9px;color:var(--muted-foreground);padding:2px 6px">层级大纲 OUTLINER</div>
+      <div class="oi-node"><span>全局分桶与渐进</span><span class="oi-pill">512–1536</span></div>
+      <div class="oi-node ds"><span>▾ Dataset 1</span><span class="oi-pill">1024²</span></div>
+      <div class="oi-node sub on"><span>子集 1 · rin_core</span><span class="oi-pill">48×3</span></div>
+      <div class="oi-node sub"><span>子集 2 · reg_illust</span><span class="oi-pill reg">REG</span></div>
+      <div class="oi-node ds"><span>▾ Dataset 2</span><span class="oi-pill">1536²</span></div>
+      <div class="oi-node sub"><span>子集 1 · keyart_hd</span><span class="oi-pill">16×2</span></div>
+      <div style="margin-top:auto;border-top:1px solid var(--border);padding-top:6px;font-size:8.5px;color:var(--muted-foreground)">
+        <div>总有效暴露: <b class="mono" style="color:var(--foreground)">3,520 次</b></div>
+        <div>LBAI: <b class="mono" style="color:var(--primary)">0.0152</b> (目标内)</div>
+      </div>
+    </aside>
+    <div class="oi-main">
+      <div class="oi-bar">
+        <span><b>Dataset 1</b> / 子集 1 · <span class="mono">48 张图片</span></span>
+        <span class="mono" style="color:var(--primary)">贡献 144 样本/轮 · LBAI 0.0112</span>
+      </div>
+      <div class="oi-card">
+        <h4><span>① 数据源与曝光权重</span><span style="color:var(--ok);font-weight:400">目录可读 · 48 张</span></h4>
+        <div class="oi-row"><span>服务器图片目录</span><span class="oi-in">datasets/dataset-9f2a/rin_core</span></div>
+        <div class="oi-row"><span>重复次数 × 每轮采样率</span><span class="oi-in">3 次 × 1.00 = 144 样本/轮</span></div>
+      </div>
+      <div class="oi-card">
+        <h4><span>② Caption 切分与四段修饰沙盒</span><span style="color:var(--muted-foreground);font-weight:400">保留首 1 项 · 打乱开启</span></h4>
+        <div class="tf-pipe" style="margin:4px 0">
+          <span class="tf-tok pre">前缀: rin_style,</span>
+          <span class="tf-tok keep">🔒Tag 1</span>
+          <span class="tf-tok">🔀Tags 2..N</span>
+          <span class="tf-tok">NL前缀: In the style…</span>
+        </div>
+        <div class="oi-row"><span>整段丢弃 / 标签丢弃 / 周期</span><span class="oi-in">0.05 / 0.00 / 0 ep</span></div>
+      </div>
+    </div>
+  </div>
+</div><figcaption><b>现实参照 · Figma / Resolve 大纲树＋检视器</b>：左侧固定 `Dataset → 子集` 树状大纲与样本配比，右侧分组检视器与 Caption 沙盒。</figcaption></figure>
+
+<figure><div class="cell" data-thumb="3"><span class="tag">完整版 · 方向 C</span>
+  <div class="hw">
+    <div class="hw-meter">
+      <div><div class="hw-k">TOTAL LBAI SIGNAL</div><div class="mono" style="font-size:17px;font-weight:700;color:var(--primary)">0.0152</div></div>
+      <div>
+        <div class="hw-leds">
+          <i class="lit"></i><i class="lit"></i><i class="lit"></i><i class="t"></i><i class="t"></i><i class="t"></i><i class="t"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="hw-k" style="margin-top:3px">TARGET: 角色 LoRA 推荐区 [0.009–0.018] · 113% OK</div>
+      </div>
+      <div style="text-align:right"><div class="hw-k">EXPOSURE/EP</div><div class="mono" style="font-size:14px;font-weight:650">176 SMP</div></div>
+    </div>
+    <div class="hw-rack">
+      <div class="hw-tile s2"><div class="hw-k">BUCKET RANGE</div><div class="hw-v" style="font-size:15px">512–1536</div><div class="hw-k">STEP 64 · NO UPSCALE</div></div>
+      <div class="hw-tile s2"><div class="hw-k">PROG. SCHEDULE</div><div class="hw-v" style="font-size:13px">512:.3 1024:.7</div><div class="hw-k">SUM = 1.00 OK</div></div>
+      <div class="hw-tile"><div class="hw-k">DS1 RESO</div><div class="hw-v" style="font-size:14px">1024²</div></div>
+      <div class="hw-tile"><div class="hw-k">BATCH</div><div class="hw-v">2</div><div class="hw-step"><span>−</span><span>+</span></div></div>
+      <div class="hw-tile s2"><div class="hw-k">SUBSET 01 · DETECTED</div><div class="hw-v" style="color:var(--ok)">48 <span style="font-size:11px">IMGS</span></div></div>
+      <div class="hw-tile"><div class="hw-k">× REPEATS</div><div class="hw-v">3</div><div class="hw-step"><span>−</span><span>+</span></div></div>
+      <div class="hw-tile"><div class="hw-k">× SAMPLE</div><div class="hw-v">1.0</div></div>
+      <div class="hw-tile s2"><div class="hw-k">= SUBSET OUTPUT</div><div class="hw-v" style="color:var(--primary)">144 <span style="font-size:11px">/EP</span></div></div>
+      <div class="hw-tile s6">
+        <div class="hw-k">CAPTION ROUTING BUS · KEEP 1 TOKEN · SHUFFLE ON · DROPOUT 5%</div>
+        <div class="hw-bus"><b>PRE: rin_style,</b><span>▸</span><b style="border-color:var(--ok)">KEEP: 1</b><span>▸</span><b>TAGS SHUFFLE</b><span>▸</span><b>NL.PRE: In style…</b><span>▸</span><b>SUF: —</b></div>
+      </div>
+    </div>
+  </div>
+</div><figcaption><b>最佳设计师 · Rams / Teenage Engineering 供料台</b>：图片数×重复×采样率写成信号倍增链，大号等宽读数配步进器与 Caption 总线。</figcaption></figure>
+
+<figure><div class="cell" data-thumb="4"><span class="tag alt">备选</span>
+  <div class="mx">
+    <div class="mx-top"><span><b>总 LBAI 0.0152</b> · 角色 LoRA 推荐区 (113%)</span><span class="mono">Bucket 512–1536 (64) · Schedule 512:0.3,1024:0.7</span></div>
+    <table>
+      <thead><tr><th>DS / 分辨率</th><th>子集目录</th><th>图片</th><th>重复</th><th>采样</th><th>保留</th><th>前/后缀修饰</th><th>Dropout</th><th>标记</th></tr></thead>
+      <tbody>
+        <tr><td>DS1 · 1024² · B2</td><td>…/rin_core</td><td style="color:var(--ok)">48</td><td>×3</td><td>1.0</td><td>1</td><td>pre: rin_style,</td><td>0.05 / 0</td><td>SHUF</td></tr>
+        <tr><td>DS1 · 1024² · B2</td><td>…/reg_illust</td><td style="color:var(--ok)">120</td><td>×1</td><td>1.0</td><td>1</td><td>—</td><td>0 / 0</td><td style="color:var(--warn)">REG·FLIP</td></tr>
+        <tr><td>DS2 · 1536² · B1</td><td>…/rin_keyart</td><td style="color:var(--ok)">16</td><td>×2</td><td>1.0</td><td>2</td><td>pre: rin_style…</td><td>0.05 / .1</td><td>SHUF</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:8px;padding:7px;border:1px solid var(--border);border-radius:5px;background:var(--card);font-size:9px;color:var(--muted-foreground)">
+      选中行展开：编辑四段 Caption 修饰词（Caption 前缀 / tags部分后缀 / 自然语言部分前缀 / Caption 后缀）与目录操作（打开目录 / 导入数据集 / 浏览预览 / 重新计数）
+    </div>
+  </div>
+</div><figcaption><b>现实参照 · Airtable 矩阵表格</b>：所有子集拉平为高密度电子表格。备选：15 个子集字段在 1440 宽下需横向滚动或二次展开。</figcaption></figure>
+
+<figure><div class="cell" data-thumb="5"><span class="tag alt">备选</span>
+  <div class="sv">
+    <div>
+      <div class="sv-title">176 SAMPLES PER EPOCH</div>
+      <div class="sv-sub">LBAI 0.0152 · 角色 LoRA 推荐区 · 2 个分辨率阶段脉冲</div>
+    </div>
+    <div class="sv-wave">
+      <i style="height:24%"></i><i style="height:40%"></i><i style="height:68%"></i><i style="height:95%"></i><i style="height:75%"></i><i style="height:50%"></i><i style="height:88%"></i><i style="height:100%"></i><i style="height:62%"></i><i style="height:35%"></i><i style="height:78%"></i><i style="height:92%"></i><i style="height:48%"></i><i style="height:30%"></i><i style="height:64%"></i><i style="height:84%"></i><i style="height:55%"></i><i style="height:28%"></i><i style="height:70%"></i><i style="height:44%"></i><i style="height:20%"></i>
+    </div>
+    <div class="sv-cards">
+      <div class="sv-c"><span style="color:#60a5fa">DATASET 01 · 1024²</span><b>48 张 × 3</b><span>rin_core · LBAI 0.0112</span></div>
+      <div class="sv-c"><span style="color:#f59e0b">SUBSET 02 · REG</span><b>120 张 × 1</b><span>reg_illustration · 正则化</span></div>
+      <div class="sv-c"><span style="color:#a78bfa">DATASET 02 · 1536²</span><b>16 张 × 2</b><span>rin_keyart · LBAI 0.0040</span></div>
+    </div>
+  </div>
+</div><figcaption><b>秒数轮盘 · 电影感声波可视化 (web #8)</b>：把分桶与子集暴露量画成暗场频谱。备选：装饰波形挤占首屏，降低表单编辑效率。</figcaption></figure>
+
+<figure><div class="cell" data-thumb="6"><span class="tag alt">备选</span>
+  <div class="md">
+    <div class="md-vtitle">数据集曼荼罗</div>
+    <svg width="230" height="230" viewBox="0 0 230 230" style="margin:auto">
+      <circle cx="115" cy="115" r="102" fill="none" stroke="#4a4236" stroke-width="1"/>
+      <circle cx="115" cy="115" r="82" fill="none" stroke="#4a4236" stroke-width="10" stroke-dasharray="180 78"/>
+      <circle cx="115" cy="115" r="82" fill="none" stroke="#d4a94e" stroke-width="10" stroke-dasharray="140 200"/>
+      <circle cx="115" cy="115" r="60" fill="none" stroke="#c84b31" stroke-width="8" stroke-dasharray="95 190" stroke-dashoffset="-40"/>
+      <circle cx="115" cy="115" r="38" fill="#ece4d4"/>
+      <circle cx="115" cy="115" r="18" fill="#c84b31"/>
+      <text x="115" y="118" text-anchor="middle" font-size="9" fill="#fff" font-weight="700">0.015</text>
+      <text x="115" y="22" text-anchor="middle" font-size="8" fill="#b8ae9c">外环：Bucket 512–1536</text>
+      <text x="115" y="222" text-anchor="middle" font-size="8" fill="#d4a94e">中环：DS1 74% · DS2 26%</text>
+    </svg>
+    <div class="md-side">
+      <div class="md-item"><b>① 核心集 rin_core</b>48 张 × 3 重复 = 144/轮</div>
+      <div class="md-item"><b>② 正则集 reg_illust</b>120 张 × 1 重复 (REG)</div>
+      <div class="md-item"><b>③ 高清集 keyart_hd</b>16 张 × 2 重复 = 32/轮</div>
+      <div class="md-item"><b>④ 渐进日程</b>512 (30%) → 1024 (70%)</div>
+    </div>
+  </div>
+</div><figcaption><b>秒数轮盘 · 杉浦康平信息曼荼罗 (east #8)</b>：同心环展示分桶、子集配比与中心 LBAI。备选：隐喻过猛，去掉圆盘更利于路径与文本编辑。</figcaption></figure>
+
+</div>
+</body>
+</html>

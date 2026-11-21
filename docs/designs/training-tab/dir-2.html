@@ -1,0 +1,2634 @@
+<!doctype html>
+<html lang="zh-CN" class="dark" data-theme="github-dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Training tab · Linear + macOS Settings (List-Detail)</title>
+<style>
+/* ===== Existing app shell (copied from training-ui/frontend/src/style.css). DO NOT EDIT this block. ===== */
+:root { --background:#f5f7fa; --foreground:#202b40; --card:#fff; --primary:#326cd4; --primary-foreground:#fff; --secondary:#e9edf4; --muted:#edf0f5; --muted-foreground:#677389; --accent:#e0e9fc; --destructive:#bc364a; --border:#dbe1eb; font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif; color-scheme:light; }
+.dark { --background:#10151f; --foreground:#e0e7f2; --card:#171e2b; --primary:#86aafa; --primary-foreground:#111b32; --secondary:#222d40; --muted:#1b2434; --muted-foreground:#94a3bb; --accent:#253650; --destructive:#db4e67; --border:#2b374c; color-scheme:dark; }
+[data-theme="midnight-blue"] { --background:#0c172b; --card:#10213b; --border:#263f61; --primary:#6ec1eb; }
+[data-theme="cherry-pink"] { --background:#241622; --card:#2d1e2c; --border:#513347; --primary:#e8a0c1; }
+* { box-sizing:border-box; border-color:var(--border); }
+body { margin:0; background:var(--background); color:var(--foreground); font-size:14px; line-height:1.55; }
+button { cursor:pointer; font:inherit; color:inherit; background:none; border:0; } button:disabled { cursor:not-allowed; opacity:.45; }
+input,select,textarea { max-width:100%; font:inherit; }
+:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+a { color:var(--primary); text-decoration:none; } h1,h2,h3,p { margin-top:0; } small { display:block; }
+.studio-shell { display:grid; grid-template-columns:245px minmax(0,1fr); min-height:100dvh; }
+.sidebar { position:sticky; top:0; height:100dvh; border-right:1px solid var(--border); padding:26px 18px 16px; background:color-mix(in srgb,var(--card) 94%,transparent); display:flex; flex-direction:column; gap:16px; }
+.brand { display:flex; gap:11px; align-items:center; color:var(--foreground); font-size:16px; font-weight:650; margin-bottom:12px; }.brand small { font-weight:400; font-size:11px; color:var(--muted-foreground); letter-spacing:.06em; }
+.brand-mark { background:linear-gradient(140deg,#8cadff,#9c7ae3); color:#14213a; display:grid; place-items:center; font-weight:800; border-radius:10px; width:36px; height:40px; }
+.sidebar-heading { display:flex; align-items:center; justify-content:space-between; }.sidebar-heading h2 { margin:0; font-size:12px; color:var(--muted-foreground); letter-spacing:.1em; }
+.subtle { border:0; background:none; padding:3px; color:var(--muted-foreground); }
+.shell-input { width:100%; height:36px; border:1px solid var(--border); border-radius:6px; padding:4px 12px; background:color-mix(in srgb,var(--border) 30%,transparent); color:var(--foreground); }
+.job-list { flex:1; min-height:100px; overflow:auto; display:flex; flex-direction:column; gap:6px; }.job-item { border:1px solid transparent; border-radius:7px; display:flex; gap:10px; align-items:center; padding:10px; background:transparent; text-align:left; }.job-item.selected { background:var(--accent); border-color:var(--border); }.job-name small { font-size:10px; color:var(--muted-foreground); }.job-dot { width:6px; height:6px; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }.job-dot.running { background:#5ace9d; box-shadow:0 0 7px #5ace9d66; }
+.new-job { display:grid; gap:9px; border-top:1px solid var(--border); padding-top:18px; }.new-job label { font-size:12px; color:var(--muted-foreground); }.new-job select { height:36px; border:1px solid var(--border); border-radius:6px; padding:0 10px; background:var(--background); color:var(--foreground); }
+.sidebar footer { display:flex; flex-direction:column; align-items:flex-start; gap:6px; font-size:11px; }.connection-on { color:#70be9d; }
+main { min-width:0; }
+.toolbar { min-height:115px; padding:25px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:color-mix(in srgb,var(--background) 90%,transparent); }
+.eyebrow { font-size:9px; font-weight:650; letter-spacing:.18em; color:var(--muted-foreground); } h1 { font-size:22px; font-weight:650; margin:2px 0; } .dirty-dot { font-size:10px; color:#e3b76a; margin-left:9px; }
+.toolbar-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.sbtn { display:inline-flex; align-items:center; height:36px; padding:0 16px; border-radius:6px; font-size:14px; font-weight:500; background:var(--primary); color:var(--primary-foreground); }
+.sbtn.outline { background:color-mix(in srgb,var(--border) 30%,transparent); border:1px solid var(--border); color:var(--foreground); }
+.sbtn.ghost { background:none; color:var(--foreground); } .sbtn.train { background:#599e7d; color:#071e15; }
+.tabs { display:flex; gap:3px; padding:0 25px; border-bottom:1px solid var(--border); overflow:auto; }.tabs button { white-space:nowrap; padding:15px 13px; border-bottom:2px solid transparent; color:var(--muted-foreground); font-size:12px; }.tabs button.active { color:var(--primary); border-bottom-color:var(--primary); }
+.workspace { padding:26px 32px 60px; margin:auto; }
+.muted { color:var(--muted-foreground); }
+/* demo-only theme switcher */
+.theme-dock { position:fixed; right:14px; bottom:14px; z-index:999; display:flex; gap:4px; padding:5px; border:1px solid var(--border); border-radius:8px; background:var(--card); box-shadow:0 6px 20px #0005; font-size:11px; }
+.theme-dock button { padding:4px 8px; border-radius:5px; color:var(--muted-foreground); } .theme-dock button[aria-pressed=true] { background:var(--accent); color:var(--foreground); }
+@media(max-width:1000px) { .studio-shell{grid-template-columns:205px minmax(0,1fr)} .toolbar,.workspace{padding-left:20px;padding-right:20px} .tabs{padding:0 10px} }
+@media(max-width:680px) { .studio-shell{display:block}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border);padding:16px}.job-list{max-height:150px}.toolbar{padding:18px}.workspace{padding:18px 12px} }
+/* ===== end of shell ===== */
+
+/* ===== Direction styles go below. Scope everything under .tt (training tab root). ===== */
+/*
+ * Architecture mapping note (Krea 2 / MOSS-Image):
+ * - Krea 2: hides Text Encoder LR, Warmup Unit/Epochs, Save Format, Flash Attn, Low RAM, Cache Latents/TE/Variants;
+ *   locks Mixed Precision to bf16; replaces Activation Offload with None|CPU; adds a 5th "Krea 2" grouped list
+ *   (Dynamic Scaled FP8, Attention segmented control, Split Attention, Text Encoder Cache Batch) in the same rail.
+ * - MOSS-Image: keeps the same list-detail rail with MOSS-specific groups (Optimization, Schedule, Performance & Compile,
+ *   ConvRot & Offload, Caching & Timesteps); nested rows map block_swap_ring_size/h2d_only/pinned under Blocks to Swap,
+ *   and compile_backend/mode/dynamic/fullgraph/cache_size under Torch Compile.
+ */
+
+.tt-wrap {
+  --tt-mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+  --tt-surface: var(--card);
+  --tt-surface-subtle: color-mix(in srgb, var(--card) 68%, var(--background));
+  --tt-hairline: color-mix(in srgb, var(--border) 72%, transparent);
+  --tt-row-hover: color-mix(in srgb, var(--foreground) 2.6%, transparent);
+  --tt-nested-bg: color-mix(in srgb, var(--muted) 42%, var(--card));
+  --tt-input-bg: color-mix(in srgb, var(--background) 62%, var(--card));
+  --tt-seg-bg: color-mix(in srgb, var(--muted) 88%, var(--background));
+  --tt-seg-active: var(--card);
+  --tt-amber: #d49b38;
+  --tt-amber-soft: color-mix(in srgb, #d49b38 14%, transparent);
+  --tt-shadow-xs: 0 1px 2px color-mix(in srgb, #000 10%, transparent);
+  --tt-shadow-pop: 0 12px 32px color-mix(in srgb, #000 28%, transparent), 0 2px 6px color-mix(in srgb, #000 14%, transparent);
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.tt-wrap [hidden] { display: none !important; }
+:root:not(.dark) .tt-wrap {
+  --tt-amber: #a86c08;
+  --tt-row-hover: color-mix(in srgb, var(--foreground) 2.2%, transparent);
+  --tt-nested-bg: color-mix(in srgb, var(--muted) 56%, var(--card));
+  --tt-input-bg: var(--background);
+  --tt-shadow-xs: 0 1px 2px color-mix(in srgb, #000 6%, transparent);
+  --tt-shadow-pop: 0 10px 28px color-mix(in srgb, #0f172a 14%, transparent), 0 1px 4px color-mix(in srgb, #0f172a 8%, transparent);
+}
+
+/* Fieldset root (preserves native :disabled locking) */
+.tt {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.tt:disabled .tt-content {
+  opacity: 0.68;
+}
+.tt:disabled .tt-row-control,
+.tt:disabled .tt-switch,
+.tt:disabled .tt-seg,
+.tt:disabled .tt-sched-trigger {
+  pointer-events: none;
+}
+
+/* Two-column list-detail skeleton */
+.tt-layout {
+  display: grid;
+  grid-template-columns: 204px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+/* Sticky Left Rail */
+.tt-rail {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.tt-rail-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tt-rail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 11px;
+  border-radius: 7px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  text-align: left;
+  transition: background-color .14s ease, color .14s ease;
+}
+.tt-rail-item:hover {
+  background: var(--tt-row-hover);
+  color: var(--foreground);
+}
+.tt-rail-item.is-active {
+  background: var(--accent);
+  color: var(--foreground);
+  font-weight: 550;
+}
+.tt-rail-item-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.tt-rail-sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.tt-rail-item.is-active .tt-rail-sub {
+  color: color-mix(in srgb, var(--foreground) 72%, var(--muted-foreground));
+}
+.tt-rail-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-family: var(--tt-mono);
+  font-weight: 600;
+  background: var(--tt-amber-soft);
+  color: var(--tt-amber);
+  flex-shrink: 0;
+}
+.tt-rail-badge[hidden] { display: none; }
+
+.tt-rail-divider {
+  height: 1px;
+  background: var(--tt-hairline);
+}
+
+/* Rail utility / demo preview controls (kept outside disabled fieldset via separate wrapper? Wait: rail nav stays interactive even when form locked, so we place rail beside fieldset!) */
+.tt-rail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 4px;
+}
+.tt-rail-status {
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tt-rail-revert-all {
+  font-size: 12.5px;
+  color: var(--primary);
+  padding: 3px 7px;
+  border-radius: 5px;
+  transition: background-color .14s ease;
+}
+.tt-rail-revert-all:hover {
+  background: var(--accent);
+}
+.tt-rail-revert-all[hidden] { display: none; }
+
+.tt-demo-box {
+  padding: 11px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--tt-hairline);
+  background: var(--tt-surface-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.tt-demo-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.tt-demo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--foreground);
+}
+.tt-demo-btn {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 12.5px;
+  color: var(--foreground);
+  text-align: center;
+  transition: background-color .14s ease, border-color .14s ease;
+}
+.tt-demo-btn:hover {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+}
+
+/* Reading column */
+.tt-content {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
+/* Locked banner */
+.tt-locked-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--tt-amber) 45%, var(--border));
+  background: var(--tt-amber-soft);
+  color: var(--foreground);
+  font-size: 13.5px;
+}
+.tt-locked-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.tt-locked-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tt-amber);
+  flex-shrink: 0;
+}
+
+/* Run Recipe Summary Bar (quiet, scannable 5-cell metadata strip) */
+.tt-recipe {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, auto));
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--tt-surface);
+  box-shadow: var(--tt-shadow-xs);
+  overflow: hidden;
+}
+.tt-recipe-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 15px;
+  min-width: 0;
+}
+.tt-recipe-item + .tt-recipe-item {
+  border-left: 1px solid var(--tt-hairline);
+}
+.tt-recipe-k {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.25;
+}
+.tt-recipe-v {
+  font-family: var(--tt-mono);
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Section & Grouped Inset List */
+.tt-section {
+  scroll-margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tt-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+.tt-section-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+  letter-spacing: -0.01em;
+}
+.tt-section-sub {
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+.tt-group {
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: var(--tt-surface);
+  box-shadow: var(--tt-shadow-xs);
+  overflow: visible;
+}
+
+/* Individual setting row */
+.tt-item {
+  position: relative;
+}
+.tt-item + .tt-item {
+  border-top: 1px solid var(--tt-hairline);
+}
+.tt-item:first-child > .tt-row {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+.tt-item:last-child > .tt-row:last-child,
+.tt-item:last-child > .tt-children > .tt-children-inner > .tt-item:last-child > .tt-row {
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+.tt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 11px 18px;
+  min-height: 54px;
+  transition: background-color .12s ease;
+}
+.tt-row:hover {
+  background: var(--tt-row-hover);
+}
+.tt-row.is-disabled {
+  opacity: 0.58;
+}
+.tt-row.has-error {
+  background: color-mix(in srgb, var(--destructive) 5%, transparent);
+}
+
+.tt-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.tt-label-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  line-height: 1.35;
+}
+.tt-mod-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tt-amber);
+  flex-shrink: 0;
+  display: none;
+}
+.tt-row.is-modified .tt-mod-dot {
+  display: inline-block;
+}
+.tt-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--foreground);
+  cursor: pointer;
+}
+.tt-desc {
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  line-height: 1.45;
+  margin: 0;
+}
+.tt-note {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--muted-foreground) 88%, var(--foreground));
+  margin-top: 2px;
+}
+.tt-lock-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border: 1px solid var(--tt-hairline);
+}
+.tt-error {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--destructive);
+  margin-top: 3px;
+  display: none;
+}
+.tt-row.has-error .tt-error {
+  display: block;
+}
+
+/* Per-row Revert ("恢复") */
+.tt-revert {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary);
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-2px);
+  transition: opacity .14s ease, transform .14s ease, background-color .14s ease;
+}
+.tt-row.is-modified .tt-revert {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+.tt-revert:hover {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+/* Help `?` trigger */
+.tt-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: border-color .14s ease, color .14s ease, background-color .14s ease;
+}
+.tt-help-btn:hover,
+.tt-help-btn:focus-visible,
+.tt-help-btn[aria-expanded="true"] {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+/* Right-aligned control container */
+.tt-row-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Nested / dependent rows with animated open/close */
+.tt-children {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows .2s cubic-bezier(0.2, 0.8, 0.2, 1), opacity .18s ease;
+  background: var(--tt-nested-bg);
+}
+.tt-children.is-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+.tt-children-inner {
+  overflow: hidden;
+  border-top: 1px solid var(--tt-hairline);
+}
+.tt-children.is-collapsed .tt-children-inner {
+  border-top-color: transparent;
+}
+.tt-children .tt-row {
+  padding-left: 38px;
+  position: relative;
+}
+.tt-children .tt-row::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+.tt-children .tt-item:last-child > .tt-row::before {
+  bottom: 14px;
+}
+.tt-children .tt-row.is-coupled-active::before {
+  background: color-mix(in srgb, var(--primary) 60%, var(--border));
+}
+
+/* Numeric & Text Inputs */
+.tt-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--tt-input-bg);
+  padding: 0 10px;
+  gap: 6px;
+  transition: border-color .14s ease, box-shadow .14s ease;
+}
+.tt-input-wrap:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+.tt-row.has-error .tt-input-wrap {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--destructive) 16%, transparent);
+}
+.tt-input {
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+  outline: none;
+  padding: 0;
+  height: 100%;
+  min-width: 0;
+}
+.tt-input.is-num {
+  font-family: var(--tt-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  width: 96px;
+}
+.tt-input.is-num.is-sm {
+  width: 68px;
+}
+.tt-input.is-text {
+  width: 210px;
+  font-family: var(--tt-mono);
+  font-size: 14px;
+}
+.tt-unit {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  user-select: none;
+  white-space: nowrap;
+}
+
+/* Native Select */
+.tt-select {
+  height: 34px;
+  min-width: 210px;
+  padding: 0 30px 0 11px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background-color: var(--tt-input-bg);
+  color: var(--foreground);
+  font-size: 14px;
+  font-family: var(--tt-mono);
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+                    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 14px, calc(100% - 10px) 14px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  transition: border-color .14s ease;
+}
+.tt-select:hover {
+  border-color: color-mix(in srgb, var(--foreground) 25%, var(--border));
+}
+.tt-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+/* Segmented Controls (macOS / Linear style) */
+.tt-seg {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--tt-seg-bg);
+  border: 1px solid var(--tt-hairline);
+  gap: 2px;
+}
+.tt-seg-btn {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  transition: background-color .14s ease, color .14s ease, box-shadow .14s ease;
+}
+.tt-seg-btn:hover:not([aria-pressed="true"]) {
+  color: var(--foreground);
+}
+.tt-seg-btn[aria-pressed="true"] {
+  background: var(--tt-seg-active);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 18%, transparent);
+}
+:root:not(.dark) .tt-seg-btn[aria-pressed="true"] {
+  box-shadow: 0 1px 2px color-mix(in srgb, #0f172a 12%, transparent);
+}
+
+/* macOS / Linear Toggle Switch */
+.tt-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 40px;
+  height: 23px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.tt-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.tt-switch-track {
+  width: 40px;
+  height: 23px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 34%, var(--muted));
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  transition: background-color .16s ease, border-color .16s ease;
+  position: relative;
+}
+.tt-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px #0004;
+  transition: transform .16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.tt-switch input:checked + .tt-switch-track {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.tt-switch input:checked + .tt-switch-track::after {
+  transform: translateX(17px);
+}
+.tt-switch input:focus-visible + .tt-switch-track {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.tt-switch input:disabled + .tt-switch-track {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.tt-switch.is-sm {
+  width: 34px;
+  height: 20px;
+}
+.tt-switch.is-sm .tt-switch-track {
+  width: 34px;
+  height: 20px;
+}
+.tt-switch.is-sm .tt-switch-track::after {
+  width: 14px;
+  height: 14px;
+}
+.tt-switch.is-sm input:checked + .tt-switch-track::after {
+  transform: translateX(14px);
+}
+
+/* Rich LR Scheduler Picker with inline curve preview */
+.tt-sched-wrap {
+  position: relative;
+}
+.tt-sched-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  min-width: 210px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--tt-input-bg);
+  color: var(--foreground);
+  font-size: 14px;
+  font-family: var(--tt-mono);
+  justify-content: space-between;
+  transition: border-color .14s ease;
+}
+.tt-sched-trigger:hover {
+  border-color: color-mix(in srgb, var(--foreground) 25%, var(--border));
+}
+.tt-sched-trigger-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.tt-sched-spark {
+  width: 34px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--primary);
+}
+.tt-sched-caret {
+  width: 12px;
+  height: 12px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.tt-sched-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: 340px;
+  z-index: 80;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--tt-shadow-pop);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tt-sched-pop[hidden] { display: none; }
+.tt-sched-opt {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 9px 10px;
+  border-radius: 7px;
+  text-align: left;
+  transition: background-color .12s ease;
+}
+.tt-sched-opt:hover {
+  background: var(--tt-row-hover);
+}
+.tt-sched-opt[aria-selected="true"] {
+  background: var(--accent);
+}
+.tt-sched-opt-svg {
+  width: 48px;
+  height: 24px;
+  color: var(--primary);
+}
+.tt-sched-opt-name {
+  font-family: var(--tt-mono);
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--foreground);
+}
+.tt-sched-opt-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.35;
+}
+
+/* Collapsible Optimizer Args disclosure row */
+.tt-disclosure-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 13px 18px;
+  text-align: left;
+  transition: background-color .12s ease;
+}
+.tt-disclosure-head:hover {
+  background: var(--tt-row-hover);
+}
+.tt-disclosure-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+}
+.tt-disclosure-preview {
+  font-family: var(--tt-mono);
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tt-chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform .18s ease;
+  color: var(--muted-foreground);
+}
+.tt-disclosure-head[aria-expanded="true"] .tt-chevron {
+  transform: rotate(90deg);
+}
+.tt-disclosure-body {
+  padding: 0 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tt-disclosure-body[hidden] { display: none; }
+.tt-textarea {
+  width: 100%;
+  min-height: 76px;
+  padding: 10px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--tt-input-bg);
+  color: var(--foreground);
+  font-family: var(--tt-mono);
+  font-size: 13.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.tt-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+/* Floating Help Tooltip Popover (single shared portal) */
+.tt-help-pop {
+  position: fixed;
+  z-index: 1200;
+  width: min(360px, calc(100vw - 24px));
+  padding: 13px 15px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--tt-shadow-pop);
+  font-size: 13px;
+  line-height: 1.55;
+  pointer-events: auto;
+}
+.tt-help-pop[hidden] { display: none; }
+.tt-help-pop-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--tt-hairline);
+}
+.tt-help-pop-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.tt-help-pop-key {
+  font-family: var(--tt-mono);
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.tt-help-pop-line {
+  margin: 0 0 5px;
+}
+.tt-help-pop-line strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.tt-help-pop-notes {
+  margin: 7px 0 0;
+  padding-left: 16px;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+}
+.tt-help-pop-notes li + li {
+  margin-top: 3px;
+}
+
+/* Responsive degradation */
+@media (max-width: 1120px) {
+  .tt-layout {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .tt-rail {
+    position: static;
+    gap: 12px;
+  }
+  .tt-rail-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    gap: 6px;
+  }
+  .tt-rail-item {
+    width: auto;
+    white-space: nowrap;
+    padding: 7px 12px;
+    border: 1px solid var(--tt-hairline);
+    background: var(--card);
+  }
+  .tt-rail-sub,
+  .tt-rail-divider {
+    display: none;
+  }
+  .tt-demo-box {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .tt-demo-btn {
+    width: auto;
+  }
+}
+@media (max-width: 680px) {
+  .tt-recipe {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tt-recipe-item + .tt-recipe-item {
+    border-left: 0;
+  }
+  .tt-recipe-item {
+    border-bottom: 1px solid var(--tt-hairline);
+  }
+  .tt-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 13px 14px;
+  }
+  .tt-row-control {
+    justify-content: flex-start;
+  }
+  .tt-children .tt-row {
+    padding-left: 26px;
+  }
+  .tt-children .tt-row::before {
+    left: 12px;
+  }
+  .tt-select,
+  .tt-sched-trigger,
+  .tt-input.is-text {
+    width: 100%;
+    min-width: 0;
+  }
+  .tt-sched-pop {
+    left: 0;
+    right: auto;
+    width: min(320px, calc(100vw - 40px));
+  }
+}
+</style>
+</head>
+<body>
+<div class="studio-shell">
+  <aside class="sidebar">
+    <a class="brand" href="#"><span class="brand-mark">A</span><span>Training Studio<small>Anima · Krea 2 · MOSS</small></span></a>
+    <div class="sidebar-heading"><h2>任务</h2><button class="subtle" title="刷新任务">↻</button></div>
+    <input class="shell-input" placeholder="搜索任务…" aria-label="搜索任务">
+    <nav class="job-list" aria-label="任务列表">
+      <button class="job-item selected"><span class="job-dot"></span><span class="job-name">rin_style_v3<small>anima</small></span></button>
+      <button class="job-item"><span class="job-dot running"></span><span class="job-name">kurosawa_char<small>anima</small></span></button>
+      <button class="job-item"><span class="job-dot"></span><span class="job-name">krea_lighting<small>krea2</small></span></button>
+      <button class="job-item"><span class="job-dot"></span><span class="job-name">moss_product_sft<small>moss_image</small></span></button>
+    </nav>
+    <form class="new-job" onsubmit="return false"><label>新建任务</label><input class="shell-input" placeholder="任务名称"><select aria-label="模型架构"><option>Anima</option><option>Krea 2</option><option>MOSS-Image</option></select><button class="sbtn" disabled>创建任务</button></form>
+    <footer><button class="subtle">全局设置</button><a href="#">打开旧界面 ↗</a><span class="connection-on">实时连接正常</span></footer>
+  </aside>
+  <main>
+    <header class="toolbar">
+      <div class="title"><span class="eyebrow">TRAINING WORKSPACE</span><h1>rin_style_v3<span class="dirty-dot" id="dirty-dot" hidden>●</span></h1><span class="muted">anima · 就绪</span></div>
+      <div class="toolbar-actions"><button class="sbtn outline">复制</button><button class="sbtn outline">删除</button><button class="sbtn" id="shell-save-btn">保存</button><button class="sbtn train">开始训练</button></div>
+    </header>
+    <nav class="tabs" aria-label="配置页面"><button class="active">训练</button><button>数据集</button><button>网络</button><button>多 GPU</button><button>提示词与生成</button><button>样例</button><button>控制台</button><button>TensorBoard</button><button>训练产出</button><button>设置</button></nav>
+    <div class="workspace">
+      <!-- ===== Direction content: Candidate 3 · Linear settings + macOS System Settings (list-detail) ===== -->
+      <div class="tt-wrap">
+        <div class="tt-layout">
+          <!-- Sticky Left Rail (remains interactive even when form fieldset is locked) -->
+          <aside class="tt-rail" aria-label="训练参数分区导航">
+            <nav class="tt-rail-nav" id="tt-rail-nav">
+              <button type="button" class="tt-rail-item is-active" data-target="sec-opt">
+                <span class="tt-rail-item-label"><span>Optimization</span><span class="tt-rail-sub">优化器与学习率</span></span>
+                <span class="tt-rail-badge" data-sec-badge="sec-opt" hidden>0</span>
+              </button>
+              <button type="button" class="tt-rail-item" data-target="sec-sched">
+                <span class="tt-rail-item-label"><span>Training Schedule</span><span class="tt-rail-sub">时长与检查点</span></span>
+                <span class="tt-rail-badge" data-sec-badge="sec-sched" hidden>0</span>
+              </button>
+              <button type="button" class="tt-rail-item" data-target="sec-perf">
+                <span class="tt-rail-item-label"><span>Performance</span><span class="tt-rail-sub">精度、显存与卸载</span></span>
+                <span class="tt-rail-badge" data-sec-badge="sec-perf" hidden>0</span>
+              </button>
+              <button type="button" class="tt-rail-item" data-target="sec-cache">
+                <span class="tt-rail-item-label"><span>Caching &amp; Timesteps</span><span class="tt-rail-sub">缓存与噪声分布</span></span>
+                <span class="tt-rail-badge" data-sec-badge="sec-cache" hidden>0</span>
+              </button>
+            </nav>
+
+            <div class="tt-rail-divider"></div>
+
+            <div class="tt-rail-meta">
+              <div class="tt-rail-status">
+                <span id="tt-dirty-summary">已与保存配置同步</span>
+                <button type="button" class="tt-rail-revert-all" id="tt-revert-all" hidden>全部恢复</button>
+              </div>
+              <div class="tt-demo-box">
+                <div class="tt-demo-title">原型状态预览</div>
+                <label class="tt-demo-row">
+                  <span>表单锁定 (Locked)</span>
+                  <span class="tt-switch is-sm">
+                    <input type="checkbox" id="demo-lock-toggle">
+                    <span class="tt-switch-track"></span>
+                  </span>
+                </label>
+                <label class="tt-demo-row">
+                  <span>Compile 互斥锁定</span>
+                  <span class="tt-switch is-sm">
+                    <input type="checkbox" id="demo-compile-lock">
+                    <span class="tt-switch-track"></span>
+                  </span>
+                </label>
+                <button type="button" class="tt-demo-btn" id="demo-error-btn">预览校验错误</button>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Main Form Fieldset (root <fieldset> so disabled locks everything) -->
+          <fieldset class="tt" id="tt-root">
+            <div class="tt-content">
+
+              <!-- Locked Banner -->
+              <div class="tt-locked-banner" id="tt-locked-banner" hidden>
+                <div class="tt-locked-banner-left">
+                  <span class="tt-locked-dot"></span>
+                  <span>当前任务正在保存或运行中，参数表单已只读锁定。</span>
+                </div>
+              </div>
+
+              <!-- At-a-glance Run Recipe Strip -->
+              <div class="tt-recipe" id="tt-recipe" aria-label="当前训练配方摘要"></div>
+
+              <!-- ================= 1. Optimization ================= -->
+              <section class="tt-section" id="sec-opt" data-section="sec-opt">
+                <div class="tt-section-head">
+                  <h2 class="tt-section-title">Optimization<span class="tt-section-sub">优化器、学习率曲线与正则化</span></h2>
+                </div>
+                <div class="tt-group">
+
+                  <!-- Learning Rate -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="learning_rate">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-learning_rate">Learning Rate</label>
+                          <button type="button" class="tt-help-btn" data-help="learning_rate" aria-label="查看 Learning Rate 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="learning_rate">恢复</button>
+                        </div>
+                        <p class="tt-desc">每次优化器更新的基础步幅。</p>
+                        <div class="tt-error" data-error="learning_rate"></div>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-input-wrap">
+                          <input class="tt-input is-num" id="f-learning_rate" type="text" inputmode="decimal" value="5e-5" autocomplete="off">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Text Encoder LR -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="text_encoder_lr">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-text_encoder_lr">Text Encoder LR</label>
+                          <button type="button" class="tt-help-btn" data-help="text_encoder_lr" aria-label="查看 Text Encoder LR 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="text_encoder_lr">恢复</button>
+                        </div>
+                        <p class="tt-desc">为实际参与训练的文本编码器参数指定学习率。</p>
+                        <div class="tt-error" data-error="text_encoder_lr"></div>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-input-wrap">
+                          <input class="tt-input is-num" id="f-text_encoder_lr" type="text" inputmode="decimal" value="5e-5" autocomplete="off">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Optimizer (+ nested Decouple Weight Decay when Prodigy/DAdapt) -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="optimizer_type">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-optimizer_type">Optimizer</label>
+                          <button type="button" class="tt-help-btn" data-help="optimizer_type" aria-label="查看 Optimizer 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="optimizer_type">恢复</button>
+                        </div>
+                        <p class="tt-desc">根据梯度更新可训练参数的算法。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <select class="tt-select" id="f-optimizer_type">
+                          <option value="AdamW8bit">AdamW8bit</option>
+                          <option value="AdamW">AdamW</option>
+                          <option value="PagedAdamW">PagedAdamW</option>
+                          <option value="PagedAdamW8bit">PagedAdamW8bit</option>
+                          <option value="PagedAdamW32bit">PagedAdamW32bit</option>
+                          <option value="Adafactor">Adafactor</option>
+                          <option value="Lion8bit">Lion8bit</option>
+                          <option value="PagedLion8bit">PagedLion8bit</option>
+                          <option value="SGDNesterov8bit">SGDNesterov8bit</option>
+                          <option value="Prodigy">Prodigy</option>
+                          <option value="AdamWScheduleFree">AdamWScheduleFree</option>
+                          <option value="RAdamScheduleFree">RAdamScheduleFree</option>
+                          <option value="SGDScheduleFree">SGDScheduleFree</option>
+                        </select>
+                      </div>
+                    </div>
+                    <!-- Nested: Decouple Weight Decay -->
+                    <div class="tt-children is-collapsed" id="wrap-decouple">
+                      <div class="tt-children-inner">
+                        <div class="tt-item">
+                          <div class="tt-row is-coupled-active" data-field="decouple">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-decouple">Decouple Weight Decay</label>
+                                <button type="button" class="tt-help-btn" data-help="decouple" aria-label="查看 Decouple Weight Decay 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="decouple">恢复</button>
+                              </div>
+                              <p class="tt-desc">将权重衰减与 Prodigy / DAdapt 的梯度自适应处理分开。</p>
+                            </div>
+                            <div class="tt-row-control">
+                              <label class="tt-switch">
+                                <input type="checkbox" id="f-decouple" checked>
+                                <span class="tt-switch-track"></span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- LR Scheduler (+ nested Restart Cycles / Min LR Ratio) -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="lr_scheduler">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <span class="tt-label" id="lbl-lr_scheduler">LR Scheduler</span>
+                          <button type="button" class="tt-help-btn" data-help="lr_scheduler" aria-label="查看 LR Scheduler 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="lr_scheduler">恢复</button>
+                        </div>
+                        <p class="tt-desc">控制学习率随训练进度的变化曲线。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-sched-wrap">
+                          <button type="button" class="tt-sched-trigger" id="f-lr_scheduler-btn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lbl-lr_scheduler">
+                            <span class="tt-sched-trigger-left">
+                              <svg class="tt-sched-spark" id="f-lr_scheduler-spark" viewBox="0 0 48 24" fill="none" aria-hidden="true"></svg>
+                              <span id="f-lr_scheduler-text">cosine</span>
+                            </span>
+                            <svg class="tt-sched-caret" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                          </button>
+                          <div class="tt-sched-pop" id="f-lr_scheduler-pop" role="listbox" hidden></div>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- Nested: Restart Cycles -->
+                    <div class="tt-children is-collapsed" id="wrap-cycles">
+                      <div class="tt-children-inner">
+                        <div class="tt-item">
+                          <div class="tt-row is-coupled-active" data-field="lr_scheduler_num_cycles">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-lr_scheduler_num_cycles">Restart Cycles</label>
+                                <button type="button" class="tt-help-btn" data-help="lr_scheduler_num_cycles" aria-label="查看 Restart Cycles 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="lr_scheduler_num_cycles">恢复</button>
+                              </div>
+                              <p class="tt-desc">周期调度器在整个训练内使用的循环次数。</p>
+                              <div class="tt-error" data-error="lr_scheduler_num_cycles"></div>
+                            </div>
+                            <div class="tt-row-control">
+                              <div class="tt-input-wrap">
+                                <input class="tt-input is-num is-sm" id="f-lr_scheduler_num_cycles" type="number" min="1" step="1" value="1">
+                                <span class="tt-unit">cycles</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- Nested: Min LR Ratio -->
+                    <div class="tt-children is-collapsed" id="wrap-min-lr">
+                      <div class="tt-children-inner">
+                        <div class="tt-item">
+                          <div class="tt-row is-coupled-active" data-field="lr_scheduler_min_lr_ratio">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-lr_scheduler_min_lr_ratio">Min LR Ratio</label>
+                                <button type="button" class="tt-help-btn" data-help="lr_scheduler_min_lr_ratio" aria-label="查看 Min LR Ratio 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="lr_scheduler_min_lr_ratio">恢复</button>
+                              </div>
+                              <p class="tt-desc">最低学习率与基础学习率的比值（0–1）。</p>
+                              <div class="tt-error" data-error="lr_scheduler_min_lr_ratio"></div>
+                            </div>
+                            <div class="tt-row-control">
+                              <div class="tt-input-wrap">
+                                <input class="tt-input is-num is-sm" id="f-lr_scheduler_min_lr_ratio" type="number" min="0" max="1" step="0.01" value="0">
+                                <span class="tt-unit">ratio</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- LR Warmup Unit (+ nested Warmup Steps / Warmup Epochs) -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="lr_warmup_unit">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <span class="tt-label">LR Warmup Unit</span>
+                          <button type="button" class="tt-help-btn" data-help="lr_warmup_unit" aria-label="查看 LR Warmup Unit 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="lr_warmup_unit">恢复</button>
+                        </div>
+                        <p class="tt-desc">选择 Steps（更新步）或 Epochs（轮）设置预热时长。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-seg" role="group" aria-label="LR Warmup Unit" data-seg="lr_warmup_unit">
+                          <button type="button" class="tt-seg-btn" data-value="steps" aria-pressed="true">Steps</button>
+                          <button type="button" class="tt-seg-btn" data-value="epochs" aria-pressed="false">Epochs</button>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- Nested: Warmup Value -->
+                    <div class="tt-children">
+                      <div class="tt-children-inner">
+                        <div class="tt-item" id="row-warmup-steps">
+                          <div class="tt-row is-coupled-active" data-field="lr_warmup_steps">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-lr_warmup_steps">LR Warmup Steps</label>
+                                <button type="button" class="tt-help-btn" data-help="lr_warmup_steps" aria-label="查看 LR Warmup Steps 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="lr_warmup_steps">恢复</button>
+                              </div>
+                              <p class="tt-desc">在训练开始的一段更新步内逐渐升高学习率；0 表示无预热。</p>
+                              <div class="tt-error" data-error="lr_warmup_steps"></div>
+                            </div>
+                            <div class="tt-row-control">
+                              <div class="tt-input-wrap">
+                                <input class="tt-input is-num is-sm" id="f-lr_warmup_steps" type="number" min="0" step="1" value="100">
+                                <span class="tt-unit">steps</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="tt-item" id="row-warmup-epochs" hidden>
+                          <div class="tt-row is-coupled-active" data-field="lr_warmup_epochs">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-lr_warmup_epochs">LR Warmup Epochs</label>
+                                <button type="button" class="tt-help-btn" data-help="lr_warmup_epochs" aria-label="查看 LR Warmup Epochs 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="lr_warmup_epochs">恢复</button>
+                              </div>
+                              <p class="tt-desc">在指定轮数对应的更新步内线性升高学习率；支持小数，0 表示无预热。</p>
+                              <div class="tt-error" data-error="lr_warmup_epochs"></div>
+                            </div>
+                            <div class="tt-row-control">
+                              <div class="tt-input-wrap">
+                                <input class="tt-input is-num is-sm" id="f-lr_warmup_epochs" type="number" min="0" step="any" value="1">
+                                <span class="tt-unit">epochs</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Weight Decay -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="weight_decay">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-weight_decay">Weight Decay</label>
+                          <button type="button" class="tt-help-btn" data-help="weight_decay" aria-label="查看 Weight Decay 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="weight_decay">恢复</button>
+                        </div>
+                        <p class="tt-desc">优化器对可训练权重施加的收缩约束（写入 optimizer_args）。</p>
+                        <div class="tt-error" data-error="weight_decay"></div>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-input-wrap">
+                          <input class="tt-input is-num is-sm" id="f-weight_decay" type="number" min="0" step="any" value="0">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Seed -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="seed">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-seed">Seed</label>
+                          <button type="button" class="tt-help-btn" data-help="seed" aria-label="查看 Seed 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="seed">恢复</button>
+                        </div>
+                        <p class="tt-desc">初始化随机数生成器的数值，0 也是有效种子。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-input-wrap">
+                          <input class="tt-input is-num is-sm" id="f-seed" type="number" step="1" value="42">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Optimizer Args (JSON array) collapsible -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="optimizer_args" style="padding:0; display:block; min-height:0;">
+                      <button type="button" class="tt-disclosure-head" id="tt-opt-args-toggle" aria-expanded="false">
+                        <span class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <span class="tt-label">Optimizer Args (JSON array)</span>
+                          <span class="tt-help-btn" role="button" tabindex="0" data-help="optimizer_args" aria-label="查看 Optimizer Args 说明">?</span>
+                          <span class="tt-revert" role="button" tabindex="0" data-revert="optimizer_args">恢复</span>
+                        </span>
+                        <span class="tt-disclosure-right">
+                          <span class="tt-disclosure-preview" id="tt-opt-args-preview">["weight_decay=0"]</span>
+                          <svg class="tt-chevron" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M5 3.5L9 7L5 10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </span>
+                      </button>
+                      <div class="tt-disclosure-body" id="tt-opt-args-body" hidden>
+                        <textarea class="tt-textarea" id="f-optimizer_args" spellcheck="false" aria-label="Optimizer Args JSON array">["weight_decay=0"]</textarea>
+                        <div class="tt-note">保留全部已有参数；切换优化器时仅共用 weight_decay，其他参数按优化器暂存，切回时恢复。</div>
+                        <div class="tt-error" data-error="optimizer_args"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </section>
+
+              <!-- ================= 2. Training Schedule ================= -->
+              <section class="tt-section" id="sec-sched" data-section="sec-sched">
+                <div class="tt-section-head">
+                  <h2 class="tt-section-title">Training Schedule<span class="tt-section-sub">训练终点、保存频率与输出文件</span></h2>
+                </div>
+                <div class="tt-group">
+
+                  <!-- Duration Unit (+ nested Epochs / Steps fields) -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="duration_unit">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <span class="tt-label">Duration Unit</span>
+                          <button type="button" class="tt-help-btn" data-help="duration_unit" aria-label="查看 Duration Unit 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="duration_unit">恢复</button>
+                        </div>
+                        <p class="tt-desc">选择按 Epochs（轮）还是 Steps（更新步）控制训练终点与保存间隔。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-seg" role="group" aria-label="Duration Unit" data-seg="duration_unit">
+                          <button type="button" class="tt-seg-btn" data-value="epochs" aria-pressed="true">Epochs</button>
+                          <button type="button" class="tt-seg-btn" data-value="steps" aria-pressed="false">Steps</button>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- Nested duration children -->
+                    <div class="tt-children">
+                      <div class="tt-children-inner">
+                        <!-- Epochs mode -->
+                        <div class="tt-item" id="row-max-epochs">
+                          <div class="tt-row is-coupled-active" data-field="max_train_epochs">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-max_train_epochs">Max Epochs</label>
+                                <button type="button" class="tt-help-btn" data-help="max_train_epochs" aria-label="查看 Max Epochs 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="max_train_epochs">恢复</button>
+                              </div>
+                              <p class="tt-desc">遍历数据集的最大轮数。</p>
+                              <div class="tt-error" data-error="max_train_epochs"></div>
+                            </div>
+                            <div class="tt-row-control">
+                              <div class="tt-input-wrap">
+                                <input class="tt-input is-num is-sm" id="f-max_train_epochs" type="number" min="1" step="1" value="20">
+                                <span class="tt-unit">epochs</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="tt-item" id="row-save-epochs">
+                          <div class="tt-row is-coupled-active" data-field="save_every_n_epochs">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-save_every_n_epochs">Save Every N Epochs</label>
+                                <button type="button" class="tt-help-btn" data-help="save_every_n_epochs" aria-label="查看 Save Every N Epochs 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="save_every_n_epochs">恢复</button>
+                              </div>
+                              <p class="tt-desc">每经过指定轮数保存一次模型权重。</p>
+                              <div class="tt-error" data-error="save_every_n_epochs"></div>
+                            </div>
+                            <div class="tt-row-control">
+                              <div class="tt-input-wrap">
+                                <input class="tt-input is-num is-sm" id="f-save_every_n_epochs" type="number" min="1" step="1" value="1">
+                                <span class="tt-unit">epochs</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <!-- Steps mode -->
+                        <div class="tt-item" id="row-max-steps" hidden>
+                          <div class="tt-row is-coupled-active" data-field="max_train_steps">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-max_train_steps">Max Steps</label>
+                                <button type="button" class="tt-help-btn" data-help="max_train_steps" aria-label="查看 Max Steps 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="max_train_steps">恢复</button>
+                              </div>
+                              <p class="tt-desc">优化器完成参数更新的最大次数。</p>
+                              <div class="tt-error" data-error="max_train_steps"></div>
+                            </div>
+                            <div class="tt-row-control">
+                              <div class="tt-input-wrap">
+                                <input class="tt-input is-num is-sm" id="f-max_train_steps" type="number" min="1" step="1" value="1000">
+                                <span class="tt-unit">steps</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="tt-item" id="row-save-steps" hidden>
+                          <div class="tt-row is-coupled-active" data-field="save_every_n_steps">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-save_every_n_steps">Save Every N Steps</label>
+                                <button type="button" class="tt-help-btn" data-help="save_every_n_steps" aria-label="查看 Save Every N Steps 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="save_every_n_steps">恢复</button>
+                              </div>
+                              <p class="tt-desc">每完成指定优化器更新步数保存一次权重。</p>
+                              <div class="tt-error" data-error="save_every_n_steps"></div>
+                            </div>
+                            <div class="tt-row-control">
+                              <div class="tt-input-wrap">
+                                <input class="tt-input is-num is-sm" id="f-save_every_n_steps" type="number" min="1" step="1" value="500">
+                                <span class="tt-unit">steps</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Output Name -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="output_name">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-output_name">Output Name</label>
+                          <button type="button" class="tt-help-btn" data-help="output_name" aria-label="查看 Output Name 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="output_name">恢复</button>
+                        </div>
+                        <p class="tt-desc">模型和训练输出文件的名称前缀。</p>
+                        <div class="tt-error" data-error="output_name"></div>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-input-wrap">
+                          <input class="tt-input is-text" id="f-output_name" type="text" value="rin_style_v3" autocomplete="off">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Save Format -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="save_model_as">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <span class="tt-label">Save Format</span>
+                          <button type="button" class="tt-help-btn" data-help="save_model_as" aria-label="查看 Save Format 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="save_model_as">恢复</button>
+                        </div>
+                        <p class="tt-desc">训练权重的序列化文件格式。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-seg" role="group" aria-label="Save Format" data-seg="save_model_as">
+                          <button type="button" class="tt-seg-btn" data-value="safetensors" aria-pressed="true">safetensors</button>
+                          <button type="button" class="tt-seg-btn" data-value="ckpt" aria-pressed="false">ckpt</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </section>
+
+              <!-- ================= 3. Performance ================= -->
+              <section class="tt-section" id="sec-perf" data-section="sec-perf">
+                <div class="tt-section-head">
+                  <h2 class="tt-section-title">Performance<span class="tt-section-sub">计算精度、数据加载与显存优化</span></h2>
+                </div>
+                <div class="tt-group">
+
+                  <!-- Mixed Precision -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="mixed_precision">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <span class="tt-label">Mixed Precision</span>
+                          <button type="button" class="tt-help-btn" data-help="mixed_precision" aria-label="查看 Mixed Precision 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="mixed_precision">恢复</button>
+                        </div>
+                        <p class="tt-desc">前向与反向计算使用的精度模式。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-seg" role="group" aria-label="Mixed Precision" data-seg="mixed_precision">
+                          <button type="button" class="tt-seg-btn" data-value="bf16" aria-pressed="true">bf16</button>
+                          <button type="button" class="tt-seg-btn" data-value="fp16" aria-pressed="false">fp16</button>
+                          <button type="button" class="tt-seg-btn" data-value="no" aria-pressed="false">no</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Save Precision -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="save_precision">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <span class="tt-label">Save Precision</span>
+                          <button type="button" class="tt-help-btn" data-help="save_precision" aria-label="查看 Save Precision 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="save_precision">恢复</button>
+                        </div>
+                        <p class="tt-desc">写入检查点的浮点数精度，不直接改变训练计算精度。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-seg" role="group" aria-label="Save Precision" data-seg="save_precision">
+                          <button type="button" class="tt-seg-btn" data-value="bf16" aria-pressed="true">bf16</button>
+                          <button type="button" class="tt-seg-btn" data-value="fp16" aria-pressed="false">fp16</button>
+                          <button type="button" class="tt-seg-btn" data-value="float" aria-pressed="false">float</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Gradient Accumulation Steps -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="gradient_accumulation_steps">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-gradient_accumulation_steps">Gradient Accumulation Steps</label>
+                          <button type="button" class="tt-help-btn" data-help="gradient_accumulation_steps" aria-label="查看 Gradient Accumulation Steps 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="gradient_accumulation_steps">恢复</button>
+                        </div>
+                        <p class="tt-desc">累积多个微批次的梯度后再更新参数。</p>
+                        <div class="tt-error" data-error="gradient_accumulation_steps"></div>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-input-wrap">
+                          <input class="tt-input is-num is-sm" id="f-gradient_accumulation_steps" type="number" min="1" step="1" value="1">
+                          <span class="tt-unit">steps</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- DataLoader Workers (+ nested Persistent DataLoader Workers) -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="max_data_loader_n_workers">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-max_data_loader_n_workers">DataLoader Workers</label>
+                          <button type="button" class="tt-help-btn" data-help="max_data_loader_n_workers" aria-label="查看 DataLoader Workers 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="max_data_loader_n_workers">恢复</button>
+                        </div>
+                        <p class="tt-desc">用于读取、预处理训练样本的 worker 数量（0–16）。</p>
+                        <div class="tt-error" data-error="max_data_loader_n_workers"></div>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-input-wrap">
+                          <input class="tt-input is-num is-sm" id="f-max_data_loader_n_workers" type="number" min="0" max="16" step="1" value="4">
+                          <span class="tt-unit">workers</span>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- Nested: Persistent DataLoader Workers -->
+                    <div class="tt-children">
+                      <div class="tt-children-inner">
+                        <div class="tt-item">
+                          <div class="tt-row is-coupled-active" data-field="persistent_data_loader_workers" id="row-persistent">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-persistent_data_loader_workers">Persistent DataLoader Workers</label>
+                                <button type="button" class="tt-help-btn" data-help="persistent_data_loader_workers" aria-label="查看 Persistent DataLoader Workers 说明">?</button>
+                                <span class="tt-lock-pill" id="lock-persistent" hidden>需 Workers &gt; 0</span>
+                                <button type="button" class="tt-revert" data-revert="persistent_data_loader_workers">恢复</button>
+                              </div>
+                              <p class="tt-desc">跨训练轮保留 DataLoader worker，减少每轮重建进程的开销。</p>
+                            </div>
+                            <div class="tt-row-control">
+                              <label class="tt-switch">
+                                <input type="checkbox" id="f-persistent_data_loader_workers" checked>
+                                <span class="tt-switch-track"></span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Gradient Checkpointing (+ nested Activation Offload) -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="gradient_checkpointing">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-gradient_checkpointing">Gradient Checkpointing</label>
+                          <button type="button" class="tt-help-btn" data-help="gradient_checkpointing" aria-label="查看 Gradient Checkpointing 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="gradient_checkpointing">恢复</button>
+                        </div>
+                        <p class="tt-desc">以计算换显存；关闭时一并关闭 Activation Offload。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <label class="tt-switch">
+                          <input type="checkbox" id="f-gradient_checkpointing" checked>
+                          <span class="tt-switch-track"></span>
+                        </label>
+                      </div>
+                    </div>
+                    <!-- Nested: Activation Offload -->
+                    <div class="tt-children">
+                      <div class="tt-children-inner">
+                        <div class="tt-item">
+                          <div class="tt-row is-coupled-active" data-field="activation_offload" id="row-offload">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <span class="tt-label">Activation Offload</span>
+                                <button type="button" class="tt-help-btn" data-help="activation_offload" aria-label="查看 Activation Offload 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="activation_offload">恢复</button>
+                              </div>
+                              <p class="tt-desc">需要 Gradient Checkpointing；Anima 与手动 Block Swap 互斥。</p>
+                            </div>
+                            <div class="tt-row-control">
+                              <div class="tt-seg" role="group" aria-label="Activation Offload" data-seg="activation_offload">
+                                <button type="button" class="tt-seg-btn" data-value="none" aria-pressed="true">None</button>
+                                <button type="button" class="tt-seg-btn" data-value="cpu" aria-pressed="false">CPU Offload</button>
+                                <button type="button" class="tt-seg-btn" data-value="unsloth" aria-pressed="false">Unsloth Offload</button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Blocks to Swap -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="blocks_to_swap" id="row-blocks">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-blocks_to_swap">Blocks to Swap</label>
+                          <button type="button" class="tt-help-btn" data-help="blocks_to_swap" aria-label="查看 Blocks to Swap 说明">?</button>
+                          <span class="tt-lock-pill" id="lock-blocks" hidden>与 Activation Offload 互斥</span>
+                          <button type="button" class="tt-revert" data-revert="blocks_to_swap">恢复</button>
+                        </div>
+                        <p class="tt-desc">将部分主干模块按执行顺序在 CPU 与 GPU 间交换（0–26，0 为关闭）。</p>
+                        <div class="tt-error" data-error="blocks_to_swap"></div>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-input-wrap">
+                          <input class="tt-input is-num is-sm" id="f-blocks_to_swap" type="number" min="0" max="26" step="1" value="0">
+                          <span class="tt-unit">blocks</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Flash Attention -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="flash_attn">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-flash_attn">Flash Attention</label>
+                          <button type="button" class="tt-help-btn" data-help="flash_attn" aria-label="查看 Flash Attention 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="flash_attn">恢复</button>
+                        </div>
+                        <p class="tt-desc">使用独立 FlashAttention 算子计算注意力；需要安装 flash-attn。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <label class="tt-switch">
+                          <input type="checkbox" id="f-flash_attn">
+                          <span class="tt-switch-track"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Torch Compile -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="torch_compile" id="row-compile">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-torch_compile">Torch Compile</label>
+                          <button type="button" class="tt-help-btn" data-help="torch_compile" aria-label="查看 Torch Compile 说明">?</button>
+                          <span class="tt-lock-pill" id="lock-compile" hidden>CUDA Direct / TP-SP 下不可用</span>
+                          <button type="button" class="tt-revert" data-revert="torch_compile">恢复</button>
+                        </div>
+                        <p class="tt-desc">首次编译较慢；CUDA Direct 与 TP/SP 模式不可使用。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <label class="tt-switch">
+                          <input type="checkbox" id="f-torch_compile">
+                          <span class="tt-switch-track"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Low RAM Optimization -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="lowram">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-lowram">Low RAM Optimization</label>
+                          <button type="button" class="tt-help-btn" data-help="lowram" aria-label="查看 Low RAM Optimization 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="lowram">恢复</button>
+                        </div>
+                        <p class="tt-desc">使用低系统内存模型加载路径，减少加载时的 CPU RAM 峰值。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <label class="tt-switch">
+                          <input type="checkbox" id="f-lowram">
+                          <span class="tt-switch-track"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </section>
+
+              <!-- ================= 4. Caching & Timesteps ================= -->
+              <section class="tt-section" id="sec-cache" data-section="sec-cache">
+                <div class="tt-section-head">
+                  <h2 class="tt-section-title">Caching &amp; Timesteps<span class="tt-section-sub">潜变量缓存、文本变体与噪声时间步</span></h2>
+                </div>
+                <div class="tt-group">
+
+                  <!-- Cache Latents to Disk (+ nested VAE Cache Batch Size) -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="cache_latents_to_disk">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-cache_latents_to_disk">Cache Latents to Disk</label>
+                          <button type="button" class="tt-help-btn" data-help="cache_latents_to_disk" aria-label="查看 Cache Latents to Disk 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="cache_latents_to_disk">恢复</button>
+                        </div>
+                        <p class="tt-desc">将 VAE 编码后的图像潜变量保存到磁盘，避免训练时反复编码。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <label class="tt-switch">
+                          <input type="checkbox" id="f-cache_latents_to_disk" checked>
+                          <span class="tt-switch-track"></span>
+                        </label>
+                      </div>
+                    </div>
+                    <!-- Nested: VAE Cache Batch Size -->
+                    <div class="tt-children">
+                      <div class="tt-children-inner">
+                        <div class="tt-item">
+                          <div class="tt-row is-coupled-active" data-field="vae_batch_size">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-vae_batch_size">VAE Cache Batch Size</label>
+                                <button type="button" class="tt-help-btn" data-help="vae_batch_size" aria-label="查看 VAE Cache Batch Size 说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="vae_batch_size">恢复</button>
+                              </div>
+                              <p class="tt-desc">预编码图像 Latent 时一次处理的图片数量（1–32）。</p>
+                              <div class="tt-error" data-error="vae_batch_size"></div>
+                            </div>
+                            <div class="tt-row-control">
+                              <div class="tt-input-wrap">
+                                <input class="tt-input is-num is-sm" id="f-vae_batch_size" type="number" min="1" max="32" step="1" value="1">
+                                <span class="tt-unit">imgs</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Cache Text Encoder Outputs to Disk (+ nested TE Variants) -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="cache_text_encoder_outputs_to_disk">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-cache_text_encoder_outputs_to_disk">Cache Text Encoder Outputs to Disk</label>
+                          <button type="button" class="tt-help-btn" data-help="cache_text_encoder_outputs_to_disk" aria-label="查看 Cache Text Encoder Outputs to Disk 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="cache_text_encoder_outputs_to_disk">恢复</button>
+                        </div>
+                        <p class="tt-desc">将文本编码器输出保存至磁盘，训练时直接复用并可卸载冻结编码器。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <label class="tt-switch">
+                          <input type="checkbox" id="f-cache_text_encoder_outputs_to_disk" checked>
+                          <span class="tt-switch-track"></span>
+                        </label>
+                      </div>
+                    </div>
+                    <!-- Nested: Cache TE Variants -->
+                    <div class="tt-children">
+                      <div class="tt-children-inner">
+                        <div class="tt-item">
+                          <div class="tt-row is-coupled-active" data-field="cache_text_encoder_variants">
+                            <div class="tt-row-info">
+                              <div class="tt-label-line">
+                                <span class="tt-mod-dot" aria-hidden="true"></span>
+                                <label class="tt-label" for="f-cache_text_encoder_variants">按图片 / 轮次 / 重复次数缓存文本变体</label>
+                                <button type="button" class="tt-help-btn" data-help="cache_text_encoder_variants" aria-label="查看按图片 / 轮次 / 重复次数缓存文本变体说明">?</button>
+                                <button type="button" class="tt-revert" data-revert="cache_text_encoder_variants">恢复</button>
+                              </div>
+                              <p class="tt-desc">训练前为每张图的各轮次与重复预生成文本编码；开启时自动启用磁盘文本缓存。</p>
+                            </div>
+                            <div class="tt-row-control">
+                              <label class="tt-switch">
+                                <input type="checkbox" id="f-cache_text_encoder_variants">
+                                <span class="tt-switch-track"></span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Timestep Sample Method -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="timestep_sample_method">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <span class="tt-label">Timestep Sample Method</span>
+                          <button type="button" class="tt-help-btn" data-help="timestep_sample_method" aria-label="查看 Timestep Sample Method 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="timestep_sample_method">恢复</button>
+                        </div>
+                        <p class="tt-desc">决定各噪声程度在训练中被抽到的概率分布。</p>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-seg" role="group" aria-label="Timestep Sample Method" data-seg="timestep_sample_method">
+                          <button type="button" class="tt-seg-btn" data-value="logit_normal" aria-pressed="true">logit_normal</button>
+                          <button type="button" class="tt-seg-btn" data-value="uniform" aria-pressed="false">uniform</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Flow Shift -->
+                  <div class="tt-item">
+                    <div class="tt-row" data-field="discrete_flow_shift">
+                      <div class="tt-row-info">
+                        <div class="tt-label-line">
+                          <span class="tt-mod-dot" aria-hidden="true"></span>
+                          <label class="tt-label" for="f-discrete_flow_shift">Flow Shift</label>
+                          <button type="button" class="tt-help-btn" data-help="discrete_flow_shift" aria-label="查看 Flow Shift 说明">?</button>
+                          <button type="button" class="tt-revert" data-revert="discrete_flow_shift">恢复</button>
+                        </div>
+                        <p class="tt-desc">对训练噪声时间步的分布施加偏移（1 不偏移，大于 1 偏向高噪声）。</p>
+                        <div class="tt-error" data-error="discrete_flow_shift"></div>
+                      </div>
+                      <div class="tt-row-control">
+                        <div class="tt-input-wrap">
+                          <input class="tt-input is-num is-sm" id="f-discrete_flow_shift" type="number" min="0" step="0.1" value="3">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </section>
+
+            </div>
+          </fieldset>
+        </div>
+      </div>
+
+      <!-- Shared Help Tooltip Portal -->
+      <div class="tt-help-pop" id="tt-help-pop" role="tooltip" hidden></div>
+    </div>
+  </main>
+</div>
+<div class="theme-dock" role="group" aria-label="主题预览">
+  <button data-theme="github-dark" aria-pressed="true">Dark</button><button data-theme="github-light">Light</button><button data-theme="midnight-blue">Midnight</button><button data-theme="cherry-pink">Cherry</button>
+</div>
+<script>
+// ===== Theme switcher + ?theme= URL support =====
+function applyTheme(t) {
+  const valid = ['github-dark', 'github-light', 'midnight-blue', 'cherry-pink'];
+  const theme = valid.includes(t) ? t : 'github-dark';
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.classList.toggle('dark', theme !== 'github-light');
+  document.querySelectorAll('.theme-dock button').forEach(x => {
+    x.setAttribute('aria-pressed', x.dataset.theme === theme);
+  });
+}
+document.querySelectorAll('.theme-dock button').forEach(b => {
+  b.onclick = () => applyTheme(b.dataset.theme);
+});
+const urlTheme = new URLSearchParams(location.search).get('theme');
+if (urlTheme) applyTheme(urlTheme);
+
+// ===== Real Chinese field help catalog (from field-help.ts) =====
+const HELP_CATALOG = {
+  learning_rate: ['学习率', '每次优化器更新的基础步幅。', '调节模型学习新概念的速度；过大可能不稳定，过小可能学不充分。', '与 Batch Size、梯度累积及训练步数共同影响训练；自适应优化器的学习率语义需按其实现理解。'],
+  text_encoder_lr: ['文本编码器学习率', '为实际参与训练的文本编码器参数指定学习率。', '与图像主干学习率分开控制文本侧的更新。', '仅训练 DiT 或缓存文本输出、冻结文本编码器时，不会因此让文本编码器自动参与训练。'],
+  optimizer_type: ['优化器', '根据梯度更新可训练参数的算法。', '影响显存占用、收敛方式及可接受的附加参数。', '8bit / Paged 实现需要对应依赖；不同优化器的 optimizer_args 不可直接混用。'],
+  lr_scheduler: ['学习率调度器', '控制学习率随训练进度的变化曲线。', '例如 cosine 后期降低学习率，constant 保持基础水平。', '不能替代 weight_decay；ScheduleFree 优化器应使用与其实现相容的调度配置，不宜盲目叠加衰减。'],
+  lr_warmup_unit: ['学习率预热单位', '选择 Steps（更新步）或 Epochs（轮）设置预热时长。', '旧配置默认 Steps；切换时保留两种单位各自的值。', 'Anima 的 Epochs 模式按每轮更新步数换算，计入梯度累积和多卡数量；与训练总时长的单位独立。'],
+  lr_warmup_epochs: ['学习率预热轮数', '在指定轮数对应的更新步内，将学习率从 0 线性增加到基础学习率。', '每个更新步递增，到达预热终点后继续所选调度器；支持小数，0 表示无预热。', 'Constant 自动启用预热；ScheduleFree 不支持此模式。预热超过训练总长度时，训练结束前不会达到基础学习率。'],
+  lr_warmup_steps: ['学习率预热步数', '在训练开始的一段更新步内逐渐升高学习率。', '减少起步时过大的参数更新；0 表示无预热。', '是否生效取决于所选调度器；单位为优化器更新步，不是图片数。'],
+  lr_scheduler_num_cycles: ['调度周期数', '周期调度器在整个训练内使用的循环次数。', '调节余弦重启等调度器的循环频率。', '只对读取此参数的调度器有效，不是额外增加训练轮数。'],
+  lr_scheduler_min_lr_ratio: ['最低学习率比例', '最低学习率与基础学习率的比值。', '为支持最低学习率的调度器设置衰减下限。', '0 表示允许降至零；仅对支持该参数的调度器生效。'],
+  weight_decay: ['权重衰减', '优化器对可训练权重施加的收缩约束。', '限制权重增长，提供正则化；不是学习率衰减。', '可与 cosine 同用。AdamW 的每步收缩量与当前学习率有关；关闭应明确设置为 0，留空可能恢复优化器默认值。'],
+  decouple: ['解耦权重衰减', '控制支持此选项的优化器如何应用 weight decay。', '将权重衰减与梯度自适应处理分开。', '仅用于支持 decouple 的优化器；不能作为通用参数传给所有优化器。'],
+  optimizer_args: ['优化器附加参数', '由 key=value 字符串组成的 JSON 数组。', '向所选优化器传递 weight_decay、betas 等细节。', '示例：["weight_decay=0.01"]。参数名称、类型和取值必须由当前优化器支持；切换后清理不兼容参数。'],
+  seed: ['随机种子', '初始化随机数生成器的数值。', '便于在相同环境下比较配置，0 也是有效种子。', '多进程、不同算子或软件版本仍可能产生差异，不保证逐位复现。'],
+  duration_unit: ['训练时长单位', '选择按 Epochs（轮）还是 Steps（更新步）控制训练。', '切换训练终点以及保存、采样间隔所使用的单位。', '界面会清理另一单位的相关字段；改变数据量、batch 或累积步数会改变每轮更新次数。'],
+  max_train_epochs: ['最大训练轮数', '遍历数据集的最大轮数。', '结合数据量、重复次数和采样比例决定训练量。', '本界面与 Steps 模式择一；启用渐进分辨率时，阶段边界最终按总更新步计算。'],
+  max_train_steps: ['最大更新步数', '优化器完成参数更新的最大次数。', '直接限制训练长度；并非每读入一张图片就增加一步。', '梯度累积会合并多个小批次才更新一次；本界面与 Epochs 模式择一。'],
+  save_every_n_epochs: ['按轮保存间隔', '每经过指定轮数保存一次模型权重。', '保留中间检查点，便于比较或回退。', '普通模型权重不等于完整 Resume 状态；频繁保存会增加磁盘占用。'],
+  save_every_n_steps: ['按步保存间隔', '每完成指定优化器更新步数保存一次权重。', '在 Steps 模式下控制检查点密度。', '不是微批次间隔；完整断点恢复还需要另行保存训练状态。'],
+  output_name: ['输出名称', '模型和训练输出文件的名称前缀。', '区分不同实验的产物。', '不要填写路径分隔符或系统不允许的文件名字符；输出目录由任务另行管理。'],
+  save_model_as: ['模型保存格式', '训练权重的序列化文件格式。', '选择下游工具可读取的文件类型。', '保存格式不改变训练算法；不同模型及加载器对 ckpt 支持不同。'],
+  mixed_precision: ['混合精度', '前向与反向计算使用的精度模式。', 'BF16 / FP16 通常可节省显存并加速计算。', '需要硬件及算子支持；Krea 2 与 MOSS 当前界面限定 BF16。保存精度是另一项设置。'],
+  save_precision: ['权重保存精度', '写入检查点的浮点数精度。', '影响输出体积与保存时的量化舍入，不直接改变训练计算精度。', '恢复完整 optimizer 状态与仅加载低精度权重不同；必须由下游加载器支持。'],
+  max_data_loader_n_workers: ['数据加载进程数', '用于读取、预处理训练样本的 worker 数量。', '可减少等待数据的时间，但会增加 CPU 和内存负担。', '0 表示在主进程加载，此时不能启用 Persistent DataLoader Workers。'],
+  persistent_data_loader_workers: ['持久数据加载进程', '跨训练轮保留 DataLoader worker。', '减少每轮重新创建进程的开销，同时持续占用内存。', '必须 DataLoader Workers > 0。'],
+  gradient_accumulation_steps: ['梯度累积步数', '累积多个微批次的梯度后再更新参数。', '在较低单批显存下提高有效批量；单卡有效批量约为 batch × 累积步数。', '不等同于提高单次 batch；同样 Epochs 下更新次数会减少。部分特殊融合优化器要求为 1。'],
+  gradient_checkpointing: ['梯度检查点', '反向传播时重算部分激活，而不是全部保留。', '以额外计算换取显存，通常使每步变慢。', 'Activation Offload 依赖此开关；普通 checkpointing 不与 Torch Compile 天然互斥，但组合仍需实测。'],
+  flash_attn: ['FlashAttention', '使用独立 FlashAttention 算子计算注意力。', '在匹配的形状和设备上降低注意力显存开销并可能加速。', '需要兼容的 flash-attn、PyTorch、CUDA 与 GPU；不是安装 Triton 就会自动获得。'],
+  torch_compile: ['Torch Compile', '通过编译后端优化模型计算图。', '首次及新形状编译需要时间，长训练可能受益，也可能增加内存。', '本项目 Anima 与 CUDA Direct、TP/SP 明确互斥。默认 inductor 的 GPU 编译依赖可用 Triton。'],
+  lowram: ['低内存加载', '使用训练器的低系统内存模型加载路径。', '减少加载过程中的部分 CPU RAM 峰值。', '不是显存卸载开关，不能替代 Blocks to Swap 或梯度检查点。'],
+  blocks_to_swap: ['交换到 CPU 的 Block 数量', '将部分主干模块按执行顺序在 CPU 与 GPU 间交换。', '降低显存常驻权重，代价是 RAM、传输与同步开销；0 关闭。', 'Anima 与 Activation Offload 互斥；Anima FSDP 模式不允许手动 Block Swap。'],
+  activation_offload: ['激活卸载方式', '选择将检查点相关激活转存 CPU 的实现。', '减少 GPU 激活驻留，增加 RAM 和设备传输。', '需要 Gradient Checkpointing；CPU 与 Unsloth 只能择一。Anima 与 Blocks to Swap 互斥。'],
+  cache_latents_to_disk: ['磁盘 Latent 缓存', '将 VAE 编码后的图像潜变量保存到磁盘。', '避免训练时反复编码图像，消耗缓存空间与初始化时间。', '缓存不适合每次都改变图像的随机裁剪、颜色增强；修改图像或预处理后应重新检查缓存。'],
+  vae_batch_size: ['VAE 缓存批量', '预编码图像 Latent 时一次处理的图片数量。', '较大可提高缓存速度，但增加缓存阶段显存。', '仅影响缓存阶段，不是训练 Batch Size，也不会改变训练的有效批量。'],
+  cache_text_encoder_outputs_to_disk: ['文本输出磁盘缓存', '将文本编码器输出保存，训练时直接复用。', '减少重复文本编码，并可卸载冻结的文本编码器。', '固定缓存与打乱标签不兼容；Anima 可额外开启逐次文本变体缓存。训练文本编码器时不能缓存。'],
+  cache_text_encoder_variants: ['逐次文本变体缓存', 'Anima 在训练前为每张图的各轮次、各次重复预生成文本编码。开启后自动使用磁盘文本缓存。', '支持 Tags 打乱、keep_tokens、Tag Dropout 和 Caption Dropout，训练阶段可卸载 Qwen3。', '预处理时间和磁盘占用按使用次数增长；修改 caption、随机种子或文本增强配置会生成新缓存。'],
+  timestep_sample_method: ['训练噪声时间步采样', '决定各噪声程度在训练中被抽到的概率。', 'logit_normal 偏向中间阶段；uniform 在应用 shift 前均匀抽样。', '不是推理采样器。最终分布还受 sigmoid_scale 与 discrete_flow_shift 影响。'],
+  discrete_flow_shift: ['训练 Flow Shift', '对训练噪声时间步的分布施加偏移。', '在 Anima 的该变换中，1 不偏移，大于 1 偏向更高噪声，小于 1 偏向更低噪声。', '应为正数；与采样方法共同生效。并非推理 CFG。'],
+};
+
+const SCHEDULERS = [
+  { id: 'cosine', desc: '平滑余弦衰减至 0，最常用的通用曲线。', path: 'M2 19 L9 5 C20 5 30 20 46 21' },
+  { id: 'constant', desc: '预热后保持基础学习率恒定不变。', path: 'M2 19 L9 6 L46 6' },
+  { id: 'linear', desc: '预热后沿直线均匀衰减至 0。', path: 'M2 19 L9 5 L46 21' },
+  { id: 'cosine_with_restarts', desc: '周期性余弦衰减并多次重启。', path: 'M2 19 L7 5 C13 5 16 20 21 20 L22 6 C28 6 31 20 35 20 L36 6 C40 6 43 20 46 20' },
+  { id: 'cosine_with_min_lr', desc: '余弦衰减并保留最低学习率下限。', path: 'M2 19 L9 5 C20 5 30 15 46 15' },
+  { id: 'polynomial', desc: '多项式曲线衰减，前期下降略快。', path: 'M2 19 L9 5 Q22 16 46 21' },
+];
+
+// ===== Vanilla JS State & Saved Snapshot =====
+const SAVED_STATE = {
+  learning_rate: '5e-5',
+  text_encoder_lr: '5e-5',
+  optimizer_type: 'AdamW8bit',
+  lr_scheduler: 'cosine',
+  lr_warmup_unit: 'steps',
+  lr_warmup_steps: 100,
+  lr_warmup_epochs: 1,
+  weight_decay: 0,
+  seed: 42,
+  lr_scheduler_num_cycles: 1,
+  lr_scheduler_min_lr_ratio: 0,
+  decouple: true,
+  optimizer_args: '["weight_decay=0"]',
+  duration_unit: 'epochs',
+  max_train_epochs: 20,
+  save_every_n_epochs: 1,
+  max_train_steps: 1000,
+  save_every_n_steps: 500,
+  output_name: 'rin_style_v3',
+  save_model_as: 'safetensors',
+  mixed_precision: 'bf16',
+  save_precision: 'bf16',
+  max_data_loader_n_workers: 4,
+  gradient_accumulation_steps: 1,
+  persistent_data_loader_workers: true,
+  gradient_checkpointing: true,
+  flash_attn: false,
+  torch_compile: false,
+  lowram: false,
+  blocks_to_swap: 0,
+  activation_offload: 'none',
+  cache_latents_to_disk: true,
+  vae_batch_size: 1,
+  cache_text_encoder_outputs_to_disk: true,
+  cache_text_encoder_variants: false,
+  timestep_sample_method: 'logit_normal',
+  discrete_flow_shift: 3,
+};
+
+const state = { ...SAVED_STATE };
+const optimizerArgsStash = {};
+let compileLockedDemo = false;
+const errors = {};
+
+const FIELD_SECTIONS = {
+  learning_rate: 'sec-opt', text_encoder_lr: 'sec-opt', optimizer_type: 'sec-opt', lr_scheduler: 'sec-opt',
+  lr_warmup_unit: 'sec-opt', lr_warmup_steps: 'sec-opt', lr_warmup_epochs: 'sec-opt', weight_decay: 'sec-opt',
+  seed: 'sec-opt', lr_scheduler_num_cycles: 'sec-opt', lr_scheduler_min_lr_ratio: 'sec-opt', decouple: 'sec-opt',
+  optimizer_args: 'sec-opt',
+  duration_unit: 'sec-sched', max_train_epochs: 'sec-sched', save_every_n_epochs: 'sec-sched',
+  max_train_steps: 'sec-sched', save_every_n_steps: 'sec-sched', output_name: 'sec-sched', save_model_as: 'sec-sched',
+  mixed_precision: 'sec-perf', save_precision: 'sec-perf', max_data_loader_n_workers: 'sec-perf',
+  gradient_accumulation_steps: 'sec-perf', persistent_data_loader_workers: 'sec-perf', gradient_checkpointing: 'sec-perf',
+  flash_attn: 'sec-perf', torch_compile: 'sec-perf', lowram: 'sec-perf', blocks_to_swap: 'sec-perf', activation_offload: 'sec-perf',
+  cache_latents_to_disk: 'sec-cache', vae_batch_size: 'sec-cache', cache_text_encoder_outputs_to_disk: 'sec-cache',
+  cache_text_encoder_variants: 'sec-cache', timestep_sample_method: 'sec-cache', discrete_flow_shift: 'sec-cache',
+};
+
+// ===== Helpers for optimizer_args sync =====
+function parseOptArgs(raw) {
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) && arr.every(x => typeof x === 'string') ? arr : null;
+  } catch { return null; }
+}
+function replaceOptArg(raw, key, val) {
+  const arr = parseOptArgs(raw) || [];
+  const prefix = key + '=';
+  const idx = arr.findIndex(x => x.startsWith(prefix));
+  const entry = `${key}=${val}`;
+  if (idx >= 0) arr[idx] = entry; else arr.push(entry);
+  return JSON.stringify(arr);
+}
+function getOptArg(raw, key) {
+  const arr = parseOptArgs(raw) || [];
+  const hit = arr.find(x => x.startsWith(key + '='));
+  return hit ? hit.slice(key.length + 1) : null;
+}
+function switchOptimizer(nextOpt) {
+  const prevOpt = state.optimizer_type;
+  if (prevOpt === nextOpt) return;
+  const prevArr = parseOptArgs(state.optimizer_args) || [];
+  optimizerArgsStash[prevOpt] = prevArr.filter(x => !x.startsWith('weight_decay='));
+  const wd = state.weight_decay;
+  const restored = (optimizerArgsStash[nextOpt] || []).slice();
+  const merged = [`weight_decay=${wd}`, ...restored];
+  state.optimizer_type = nextOpt;
+  state.optimizer_args = JSON.stringify(merged);
+  if (/Prodigy|DAdapt/.test(nextOpt)) {
+    const dec = getOptArg(state.optimizer_args, 'decouple');
+    state.decouple = dec === null ? true : !/^false$/i.test(dec);
+  }
+}
+
+// ===== Validation =====
+function validateField(key) {
+  delete errors[key];
+  const v = state[key];
+  if (key === 'learning_rate' || key === 'text_encoder_lr') {
+    const n = Number(v);
+    if (String(v).trim() === '' || Number.isNaN(n) || n < 0) errors[key] = '请输入有效的非负数值（如 5e-5）';
+  } else if (key === 'max_train_epochs' || key === 'save_every_n_epochs' || key === 'max_train_steps' || key === 'save_every_n_steps' || key === 'gradient_accumulation_steps' || key === 'lr_scheduler_num_cycles') {
+    if (v === '' || Number.isNaN(Number(v)) || Number(v) < 1) errors[key] = '最小值为 1';
+  } else if (key === 'lr_warmup_steps' || key === 'lr_warmup_epochs' || key === 'weight_decay' || key === 'discrete_flow_shift') {
+    if (v === '' || Number.isNaN(Number(v)) || Number(v) < 0) errors[key] = '不能小于 0';
+  } else if (key === 'lr_scheduler_min_lr_ratio') {
+    if (v === '' || Number.isNaN(Number(v)) || Number(v) < 0 || Number(v) > 1) errors[key] = '取值范围为 0 到 1';
+  } else if (key === 'max_data_loader_n_workers') {
+    if (v === '' || Number.isNaN(Number(v)) || Number(v) < 0 || Number(v) > 16) errors[key] = '取值范围为 0 到 16';
+  } else if (key === 'blocks_to_swap') {
+    if (v === '' || Number.isNaN(Number(v)) || Number(v) < 0 || Number(v) > 26) errors[key] = '取值范围为 0 到 26';
+  } else if (key === 'vae_batch_size') {
+    if (v === '' || Number.isNaN(Number(v)) || Number(v) < 1 || Number(v) > 32) errors[key] = '取值范围为 1 到 32';
+  } else if (key === 'output_name') {
+    if (!String(v).trim()) errors[key] = '输出名称不能为空';
+    else if (/[\\/:*?"<>|]/.test(String(v))) errors[key] = '不能包含路径分隔符或非法文件名字符';
+  } else if (key === 'optimizer_args') {
+    if (parseOptArgs(v) === null) errors[key] = '必须为有效的字符串 JSON 数组，例如 ["weight_decay=0.01"]';
+  }
+}
+
+// ===== Visibility helper for conditional fields =====
+function isFieldVisible(key) {
+  if (key === 'decouple') return /Prodigy|DAdapt/.test(state.optimizer_type);
+  if (key === 'lr_scheduler_num_cycles') return state.lr_scheduler === 'cosine_with_restarts';
+  if (key === 'lr_scheduler_min_lr_ratio') return state.lr_scheduler === 'cosine_with_min_lr';
+  if (key === 'lr_warmup_steps') return state.lr_warmup_unit === 'steps';
+  if (key === 'lr_warmup_epochs') return state.lr_warmup_unit === 'epochs';
+  if (key === 'max_train_epochs' || key === 'save_every_n_epochs') return state.duration_unit === 'epochs';
+  if (key === 'max_train_steps' || key === 'save_every_n_steps') return state.duration_unit === 'steps';
+  return true;
+}
+
+function isModified(key) {
+  if (!isFieldVisible(key)) return false;
+  if (key === 'learning_rate' || key === 'text_encoder_lr') {
+    const a = Number(state[key]), b = Number(SAVED_STATE[key]);
+    if (!Number.isNaN(a) && !Number.isNaN(b)) return a !== b;
+  }
+  return String(state[key]) !== String(SAVED_STATE[key]);
+}
+
+// ===== Render UI from State =====
+function render() {
+  // 1. Sync inputs & controls
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) el.value = val;
+  };
+  const setChecked = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!val;
+  };
+
+  setVal('f-learning_rate', state.learning_rate);
+  setVal('f-text_encoder_lr', state.text_encoder_lr);
+  setVal('f-optimizer_type', state.optimizer_type);
+  setVal('f-lr_warmup_steps', state.lr_warmup_steps);
+  setVal('f-lr_warmup_epochs', state.lr_warmup_epochs);
+  setVal('f-weight_decay', state.weight_decay);
+  setVal('f-seed', state.seed);
+  setVal('f-lr_scheduler_num_cycles', state.lr_scheduler_num_cycles);
+  setVal('f-lr_scheduler_min_lr_ratio', state.lr_scheduler_min_lr_ratio);
+  setChecked('f-decouple', state.decouple);
+  setVal('f-optimizer_args', state.optimizer_args);
+  document.getElementById('tt-opt-args-preview').textContent = state.optimizer_args;
+
+  setVal('f-max_train_epochs', state.max_train_epochs);
+  setVal('f-save_every_n_epochs', state.save_every_n_epochs);
+  setVal('f-max_train_steps', state.max_train_steps);
+  setVal('f-save_every_n_steps', state.save_every_n_steps);
+  setVal('f-output_name', state.output_name);
+
+  setVal('f-max_data_loader_n_workers', state.max_data_loader_n_workers);
+  setVal('f-gradient_accumulation_steps', state.gradient_accumulation_steps);
+  setChecked('f-persistent_data_loader_workers', state.persistent_data_loader_workers);
+  setChecked('f-gradient_checkpointing', state.gradient_checkpointing);
+  setChecked('f-flash_attn', state.flash_attn);
+  setChecked('f-torch_compile', state.torch_compile);
+  setChecked('f-lowram', state.lowram);
+  setVal('f-blocks_to_swap', state.blocks_to_swap);
+
+  setChecked('f-cache_latents_to_disk', state.cache_latents_to_disk);
+  setVal('f-vae_batch_size', state.vae_batch_size);
+  setChecked('f-cache_text_encoder_outputs_to_disk', state.cache_text_encoder_outputs_to_disk);
+  setChecked('f-cache_text_encoder_variants', state.cache_text_encoder_variants);
+  setVal('f-discrete_flow_shift', state.discrete_flow_shift);
+
+  // Segmented controls
+  document.querySelectorAll('[data-seg]').forEach(group => {
+    const key = group.dataset.seg;
+    group.querySelectorAll('.tt-seg-btn').forEach(btn => {
+      btn.setAttribute('aria-pressed', btn.dataset.value === String(state[key]));
+    });
+  });
+
+  // Scheduler trigger + sparkline
+  const schedObj = SCHEDULERS.find(s => s.id === state.lr_scheduler) || SCHEDULERS[0];
+  document.getElementById('f-lr_scheduler-text').textContent = schedObj.id;
+  document.getElementById('f-lr_scheduler-spark').innerHTML =
+    `<path d="M2 21 H46" stroke="currentColor" stroke-opacity="0.2" stroke-width="1"/>` +
+    `<path d="${schedObj.path}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  document.querySelectorAll('.tt-sched-opt').forEach(opt => {
+    opt.setAttribute('aria-selected', opt.dataset.sched === state.lr_scheduler);
+  });
+
+  // 2. Conditional nesting visibility
+  document.getElementById('wrap-decouple').classList.toggle('is-collapsed', !/Prodigy|DAdapt/.test(state.optimizer_type));
+  document.getElementById('wrap-cycles').classList.toggle('is-collapsed', state.lr_scheduler !== 'cosine_with_restarts');
+  document.getElementById('wrap-min-lr').classList.toggle('is-collapsed', state.lr_scheduler !== 'cosine_with_min_lr');
+
+  document.getElementById('row-warmup-steps').hidden = state.lr_warmup_unit !== 'steps';
+  document.getElementById('row-warmup-epochs').hidden = state.lr_warmup_unit !== 'epochs';
+
+  document.getElementById('row-max-epochs').hidden = state.duration_unit !== 'epochs';
+  document.getElementById('row-save-epochs').hidden = state.duration_unit !== 'epochs';
+  document.getElementById('row-max-steps').hidden = state.duration_unit !== 'steps';
+  document.getElementById('row-save-steps').hidden = state.duration_unit !== 'steps';
+
+  // 3. Dependent disabled states
+  const persistentDisabled = Number(state.max_data_loader_n_workers) === 0;
+  document.getElementById('f-persistent_data_loader_workers').disabled = persistentDisabled;
+  document.getElementById('row-persistent').classList.toggle('is-disabled', persistentDisabled);
+  document.getElementById('lock-persistent').hidden = !persistentDisabled;
+
+  const blocksDisabled = state.activation_offload !== 'none';
+  document.getElementById('f-blocks_to_swap').disabled = blocksDisabled;
+  document.getElementById('row-blocks').classList.toggle('is-disabled', blocksDisabled);
+  document.getElementById('lock-blocks').hidden = !blocksDisabled;
+
+  document.getElementById('f-torch_compile').disabled = compileLockedDemo;
+  document.getElementById('row-compile').classList.toggle('is-disabled', compileLockedDemo);
+  document.getElementById('lock-compile').hidden = !compileLockedDemo;
+
+  // 4. Modified dots, per-row revert, section counters, toolbar dirty dot
+  const secCounts = { 'sec-opt': 0, 'sec-sched': 0, 'sec-perf': 0, 'sec-cache': 0 };
+  let totalMod = 0;
+  document.querySelectorAll('.tt-row[data-field]').forEach(row => {
+    const key = row.dataset.field;
+    const mod = isModified(key);
+    row.classList.toggle('is-modified', mod);
+    if (mod) {
+      totalMod++;
+      const sec = FIELD_SECTIONS[key];
+      if (sec) secCounts[sec]++;
+    }
+    const errEl = row.querySelector(`[data-error="${key}"]`);
+    const hasErr = !!errors[key];
+    row.classList.toggle('has-error', hasErr);
+    if (errEl) errEl.textContent = errors[key] || '';
+  });
+
+  Object.entries(secCounts).forEach(([sec, cnt]) => {
+    const badge = document.querySelector(`[data-sec-badge="${sec}"]`);
+    if (badge) {
+      badge.textContent = String(cnt);
+      badge.hidden = cnt === 0;
+    }
+  });
+
+  document.getElementById('dirty-dot').hidden = totalMod === 0;
+  document.getElementById('tt-dirty-summary').textContent = totalMod === 0 ? '已与保存配置同步' : `已修改 ${totalMod} 项参数`;
+  document.getElementById('tt-revert-all').hidden = totalMod === 0;
+
+  // 5. Update live Run Recipe summary strip
+  const warmupTxt = state.lr_warmup_unit === 'epochs'
+    ? `${state.lr_warmup_epochs} ep`
+    : `${state.lr_warmup_steps} st`;
+  const durTxt = state.duration_unit === 'epochs'
+    ? `${state.max_train_epochs} ep · /${state.save_every_n_epochs}`
+    : `${state.max_train_steps} st · /${state.save_every_n_steps}`;
+  document.getElementById('tt-recipe').innerHTML = `
+    <div class="tt-recipe-item"><span class="tt-recipe-k">Optimizer</span><span class="tt-recipe-v">${state.optimizer_type}</span></div>
+    <div class="tt-recipe-item"><span class="tt-recipe-k">Learning Rate</span><span class="tt-recipe-v">${state.learning_rate}</span></div>
+    <div class="tt-recipe-item"><span class="tt-recipe-k">Scheduler</span><span class="tt-recipe-v">${state.lr_scheduler} · ${warmupTxt}</span></div>
+    <div class="tt-recipe-item"><span class="tt-recipe-k">Duration / Save</span><span class="tt-recipe-v">${durTxt}</span></div>
+    <div class="tt-recipe-item"><span class="tt-recipe-k">Precision</span><span class="tt-recipe-v">${state.mixed_precision} / ${state.save_precision}</span></div>
+  `;
+}
+
+// ===== Populate Scheduler Popover =====
+const schedPop = document.getElementById('f-lr_scheduler-pop');
+SCHEDULERS.forEach(s => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'tt-sched-opt';
+  btn.role = 'option';
+  btn.dataset.sched = s.id;
+  btn.innerHTML = `
+    <svg class="tt-sched-opt-svg" viewBox="0 0 48 24" fill="none" aria-hidden="true">
+      <path d="M2 21 H46" stroke="currentColor" stroke-opacity="0.2" stroke-width="1"/>
+      <path d="${s.path}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span>
+      <div class="tt-sched-opt-name">${s.id}</div>
+      <div class="tt-sched-opt-desc">${s.desc}</div>
+    </span>
+  `;
+  btn.addEventListener('click', () => {
+    state.lr_scheduler = s.id;
+    closeSchedPop();
+    render();
+  });
+  schedPop.appendChild(btn);
+});
+
+const schedBtn = document.getElementById('f-lr_scheduler-btn');
+function closeSchedPop() {
+  schedPop.hidden = true;
+  schedBtn.setAttribute('aria-expanded', 'false');
+}
+schedBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const next = schedPop.hidden;
+  schedPop.hidden = !next;
+  schedBtn.setAttribute('aria-expanded', String(next));
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.tt-sched-wrap')) closeSchedPop();
+});
+
+// ===== Wire Field Inputs =====
+function bindInput(id, key, isNum = false) {
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => {
+    state[key] = isNum ? (el.value === '' ? '' : Number(el.value)) : el.value;
+    if (key === 'weight_decay' && state[key] !== '' && !Number.isNaN(state[key])) {
+      state.optimizer_args = replaceOptArg(state.optimizer_args, 'weight_decay', state[key]);
+    }
+    if (key === 'optimizer_args') {
+      const wd = getOptArg(state.optimizer_args, 'weight_decay');
+      if (wd !== null && !Number.isNaN(Number(wd))) state.weight_decay = Number(wd);
+    }
+    if (key === 'max_data_loader_n_workers' && Number(state[key]) === 0) {
+      state.persistent_data_loader_workers = false;
+    }
+    validateField(key);
+    render();
+  });
+}
+
+bindInput('f-learning_rate', 'learning_rate', false);
+bindInput('f-text_encoder_lr', 'text_encoder_lr', false);
+bindInput('f-lr_warmup_steps', 'lr_warmup_steps', true);
+bindInput('f-lr_warmup_epochs', 'lr_warmup_epochs', true);
+bindInput('f-weight_decay', 'weight_decay', true);
+bindInput('f-seed', 'seed', true);
+bindInput('f-lr_scheduler_num_cycles', 'lr_scheduler_num_cycles', true);
+bindInput('f-lr_scheduler_min_lr_ratio', 'lr_scheduler_min_lr_ratio', true);
+bindInput('f-optimizer_args', 'optimizer_args', false);
+bindInput('f-max_train_epochs', 'max_train_epochs', true);
+bindInput('f-save_every_n_epochs', 'save_every_n_epochs', true);
+bindInput('f-max_train_steps', 'max_train_steps', true);
+bindInput('f-save_every_n_steps', 'save_every_n_steps', true);
+bindInput('f-output_name', 'output_name', false);
+bindInput('f-max_data_loader_n_workers', 'max_data_loader_n_workers', true);
+bindInput('f-gradient_accumulation_steps', 'gradient_accumulation_steps', true);
+bindInput('f-blocks_to_swap', 'blocks_to_swap', true);
+bindInput('f-vae_batch_size', 'vae_batch_size', true);
+bindInput('f-discrete_flow_shift', 'discrete_flow_shift', true);
+
+document.getElementById('f-optimizer_type').addEventListener('change', e => {
+  switchOptimizer(e.target.value);
+  render();
+});
+
+// Booleans + coupling rules
+function bindCheck(id, key, onChange) {
+  const el = document.getElementById(id);
+  el.addEventListener('change', () => {
+    state[key] = el.checked;
+    if (onChange) onChange(el.checked);
+    render();
+  });
+}
+bindCheck('f-decouple', 'decouple', val => {
+  state.optimizer_args = replaceOptArg(state.optimizer_args, 'decouple', val ? 'True' : 'False');
+});
+bindCheck('f-persistent_data_loader_workers', 'persistent_data_loader_workers');
+bindCheck('f-gradient_checkpointing', 'gradient_checkpointing', val => {
+  if (!val) state.activation_offload = 'none';
+});
+bindCheck('f-flash_attn', 'flash_attn');
+bindCheck('f-torch_compile', 'torch_compile');
+bindCheck('f-lowram', 'lowram');
+bindCheck('f-cache_latents_to_disk', 'cache_latents_to_disk');
+bindCheck('f-cache_text_encoder_outputs_to_disk', 'cache_text_encoder_outputs_to_disk', val => {
+  if (!val) state.cache_text_encoder_variants = false;
+});
+bindCheck('f-cache_text_encoder_variants', 'cache_text_encoder_variants', val => {
+  if (val) state.cache_text_encoder_outputs_to_disk = true;
+});
+
+// Segmented controls + offload coupling
+document.querySelectorAll('[data-seg]').forEach(group => {
+  const key = group.dataset.seg;
+  group.querySelectorAll('.tt-seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.value;
+      state[key] = val;
+      if (key === 'activation_offload' && val !== 'none') {
+        state.gradient_checkpointing = true;
+        state.blocks_to_swap = 0;
+        validateField('blocks_to_swap');
+      }
+      render();
+    });
+  });
+});
+
+// Disclosure toggle for Optimizer Args
+const optArgsToggle = document.getElementById('tt-opt-args-toggle');
+const optArgsBody = document.getElementById('tt-opt-args-body');
+optArgsToggle.addEventListener('click', e => {
+  if (e.target.closest('.tt-help-btn') || e.target.closest('.tt-revert')) return;
+  const open = optArgsBody.hidden;
+  optArgsBody.hidden = !open;
+  optArgsToggle.setAttribute('aria-expanded', String(open));
+});
+
+// Per-row Revert ("恢复") & Revert All
+document.querySelectorAll('[data-revert]').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const key = btn.dataset.revert;
+    state[key] = SAVED_STATE[key];
+    if (key === 'weight_decay') {
+      state.optimizer_args = replaceOptArg(state.optimizer_args, 'weight_decay', state.weight_decay);
+    }
+    if (key === 'max_data_loader_n_workers' && Number(state[key]) === 0) {
+      state.persistent_data_loader_workers = false;
+    }
+    if (key === 'gradient_checkpointing' && !state[key]) {
+      state.activation_offload = 'none';
+    }
+    if (key === 'activation_offload' && state[key] !== 'none') {
+      state.gradient_checkpointing = true;
+      state.blocks_to_swap = 0;
+    }
+    delete errors[key];
+    render();
+  });
+});
+
+document.getElementById('tt-revert-all').addEventListener('click', () => {
+  Object.assign(state, SAVED_STATE);
+  Object.keys(errors).forEach(k => delete errors[k]);
+  render();
+});
+
+// Shell Save button demo: commits current state as saved
+document.getElementById('shell-save-btn').addEventListener('click', () => {
+  Object.assign(SAVED_STATE, state);
+  render();
+});
+
+// ===== Demo State Toggles (Locked, Compile Locked, Validation Error) =====
+document.getElementById('demo-lock-toggle').addEventListener('change', e => {
+  const locked = e.target.checked;
+  document.getElementById('tt-root').disabled = locked;
+  document.getElementById('tt-locked-banner').hidden = !locked;
+});
+document.getElementById('demo-compile-lock').addEventListener('change', e => {
+  compileLockedDemo = e.target.checked;
+  if (compileLockedDemo) state.torch_compile = false;
+  render();
+});
+document.getElementById('demo-error-btn').addEventListener('click', () => {
+  state.duration_unit = 'epochs';
+  state.max_train_epochs = -1;
+  validateField('max_train_epochs');
+  render();
+  const input = document.getElementById('f-max_train_epochs');
+  input.value = '-1';
+  input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  input.focus();
+});
+
+// ===== Left Rail Navigation + Scroll-Spy =====
+const railButtons = [...document.querySelectorAll('.tt-rail-item')];
+const sections = [...document.querySelectorAll('.tt-section')];
+function setActiveRail(id) {
+  railButtons.forEach(b => b.classList.toggle('is-active', b.dataset.target === id));
+}
+railButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = document.getElementById(btn.dataset.target);
+    if (target) {
+      setActiveRail(btn.dataset.target);
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+const observer = new IntersectionObserver(entries => {
+  const visible = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+  if (visible.length) setActiveRail(visible[0].target.id);
+}, { rootMargin: '-15% 0px -65% 0px', threshold: 0 });
+sections.forEach(s => observer.observe(s));
+
+// ===== Shared `?` Help Tooltip Popover =====
+const helpPop = document.getElementById('tt-help-pop');
+let activeHelpBtn = null;
+let hideHelpTimer = null;
+
+function showHelp(btn) {
+  clearTimeout(hideHelpTimer);
+  const key = btn.dataset.help;
+  const entry = HELP_CATALOG[key];
+  if (!entry) return;
+  const [title, meaning, effect, ...notes] = entry;
+  if (activeHelpBtn && activeHelpBtn !== btn) activeHelpBtn.setAttribute('aria-expanded', 'false');
+  activeHelpBtn = btn;
+  btn.setAttribute('aria-expanded', 'true');
+
+  helpPop.innerHTML = `
+    <div class="tt-help-pop-head">
+      <span class="tt-help-pop-title">${title}</span>
+      <span class="tt-help-pop-key">${key}</span>
+    </div>
+    <p class="tt-help-pop-line"><strong>含义：</strong>${meaning}</p>
+    <p class="tt-help-pop-line"><strong>作用：</strong>${effect}</p>
+    ${notes.length ? `<ul class="tt-help-pop-notes">${notes.map(n => `<li>${n}</li>`).join('')}</ul>` : ''}
+  `;
+  helpPop.hidden = false;
+
+  const rect = btn.getBoundingClientRect();
+  const popRect = helpPop.getBoundingClientRect();
+  let left = rect.left;
+  if (left + popRect.width > window.innerWidth - 12) left = window.innerWidth - popRect.width - 12;
+  if (left < 12) left = 12;
+  let top = rect.bottom + 8;
+  if (top + popRect.height > window.innerHeight - 12) top = rect.top - popRect.height - 8;
+  if (top < 12) top = 12;
+  helpPop.style.left = `${left}px`;
+  helpPop.style.top = `${top}px`;
+}
+
+function scheduleHideHelp() {
+  clearTimeout(hideHelpTimer);
+  hideHelpTimer = setTimeout(() => {
+    helpPop.hidden = true;
+    if (activeHelpBtn) {
+      activeHelpBtn.setAttribute('aria-expanded', 'false');
+      activeHelpBtn = null;
+    }
+  }, 130);
+}
+
+document.querySelectorAll('.tt-help-btn').forEach(btn => {
+  btn.addEventListener('mouseenter', () => showHelp(btn));
+  btn.addEventListener('mouseleave', scheduleHideHelp);
+  btn.addEventListener('focus', () => showHelp(btn));
+  btn.addEventListener('blur', scheduleHideHelp);
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (activeHelpBtn === btn && !helpPop.hidden) {
+      helpPop.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      activeHelpBtn = null;
+    } else {
+      showHelp(btn);
+    }
+  });
+});
+helpPop.addEventListener('mouseenter', () => clearTimeout(hideHelpTimer));
+helpPop.addEventListener('mouseleave', scheduleHideHelp);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    helpPop.hidden = true;
+    closeSchedPop();
+  }
+});
+
+// Initial render
+render();
+</script>
+</body>
+</html>
