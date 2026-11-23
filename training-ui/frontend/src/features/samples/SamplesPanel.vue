@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { api, jobUrl } from '@/services/api'
 import { groupSamples, moveSamples, rangePaths, type Group, type Sample, type Order } from './gallery'
@@ -9,14 +9,20 @@ const groups = ref<Group[]>([]), selected = ref(new Set<string>()), anchor = ref
 const filter = ref(''), loading = ref(false), error = ref(''), metadata = ref('')
 const activePrompt = ref<string|null>(null), thumbnailSize = ref(108), selecting = ref(false)
 const sort = ref('custom')
+const horizontal = ref(false)
+const groupsHorizontal = ref(true)
 const lightbox = ref<Sample|null>(null), root = ref<HTMLElement|null>(null)
 const dragPaths = ref<string[]>([]), dragOver = ref('')
 const box = reactive({ active: false, x: 0, y: 0, left: 0, top: 0, width: 0, height: 0 })
 let boxInitial = new Set<string>(), generation = 0, request = 0
 let controller: AbortController | undefined, metadataController: AbortController | undefined
 let refreshTimer: ReturnType<typeof setTimeout> | undefined
+let visibilityObserver: ResizeObserver | undefined
+let active = false
+let lastSamples: Sample[] | undefined
 const matchingGroups = computed(() => {
   const query = filter.value.trim().toLowerCase()
+  if (!query) return groups.value.filter(group => group.images.length)
   return groups.value.map(group => ({ ...group, images: group.images.filter(image => image.name.toLowerCase().includes(query) || imageLabel(image).toLowerCase().includes(query)) })).filter(group => group.images.length)
 })
 const visibleGroups = computed(() => matchingGroups.value.filter(group => activePrompt.value === null || group.key === activePrompt.value).map(group => ({ ...group, images: sort.value === 'custom' ? group.images : [...group.images].sort((a,b) => sort.value === 'oldest' ? a.mtime-b.mtime : b.mtime-a.mtime) })))
@@ -42,9 +48,14 @@ async function refresh() {
   const name = store.name, version = generation, id = ++request
   loading.value = true; error.value = ''
   try {
-    const result = await api<Sample[]>(jobUrl(name, '/samples'), { signal: current.signal })
+    const result = await api<Sample[]>(jobUrl(name, '/samples'), { signal: current.signal }) || []
     if (current.signal.aborted || version !== generation || id !== request) return
-    groups.value = groupSamples(result || [], readOrder(name))
+    if (lastSamples?.length === result.length && lastSamples.every((previous, index) => {
+      const image = result[index]!
+      return previous.path === image.path && previous.name === image.name && previous.mtime === image.mtime && previous.thumbnail === image.thumbnail
+    })) return
+    lastSamples = result
+    groups.value = groupSamples(result, readOrder(name))
     const existing = new Set(allImages.value.map(image => image.path))
     selected.value = new Set([...selected.value].filter(path => existing.has(path)))
     if (lightbox.value && !existing.has(lightbox.value.path)) lightbox.value = null
@@ -52,11 +63,18 @@ async function refresh() {
   finally { if (version === generation && id === request) loading.value = false }
 }
 watch(() => store.name, () => {
-  generation++; controller?.abort(); metadataController?.abort(); clearTimeout(refreshTimer)
+  generation++; controller?.abort(); metadataController?.abort(); cancelScheduledRefresh(); lastSamples = undefined
   groups.value = []; selected.value.clear(); lightbox.value = null; anchor.value = null; filter.value = ''; activePrompt.value = null; selecting.value = false; sort.value = 'custom'; loading.value = false
-  void refresh()
-}, { immediate: true })
-watch(() => store.runtimeTick, () => { if (!refreshTimer) refreshTimer = setTimeout(() => { refreshTimer = undefined; void refresh() }, 5000) })
+  if (active) void refresh()
+})
+function cancelScheduledRefresh() {
+  clearTimeout(refreshTimer)
+  refreshTimer = undefined
+}
+watch(() => store.runtimeTick, () => {
+  if (!active || refreshTimer) return
+  refreshTimer = setTimeout(() => { refreshTimer = undefined; if (!loading.value) void refresh() }, 5000)
+})
 watch(() => lightbox.value?.path, async path => {
   metadataController?.abort(); metadata.value = ''
   if (!path) return
@@ -77,6 +95,10 @@ function clickImage(event: MouseEvent | KeyboardEvent, image: Sample) {
     const next = new Set(selected.value); if (next.has(image.path)) next.delete(image.path); else next.add(image.path); selected.value = next
   } else { selected.value = new Set([image.path]); lightbox.value = image }
   anchor.value = image.path
+}
+function useOriginal(event: Event, image: Sample) {
+  const element = event.currentTarget as HTMLImageElement
+  if (image.thumbnail && element.getAttribute('src') === image.thumbnail) element.src = image.path
 }
 async function remove(paths: string[]) {
   const name = store.name
@@ -100,8 +122,10 @@ function dragStart(event: DragEvent, image: Sample) {
 }
 function drop(event: DragEvent, group: string, image?: Sample) {
   event.preventDefault(); event.stopPropagation()
-  const element = event.currentTarget as HTMLElement
-  const after = !!image && event.clientX > element.getBoundingClientRect().left + element.clientWidth / 2
+  const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  const after = !!image && (horizontal.value
+    ? event.clientX > bounds.left + bounds.width / 2
+    : event.clientY > bounds.top + bounds.height / 2)
   groups.value = moveSamples(groups.value, dragPaths.value, group, image?.path, after)
   sort.value = 'custom'
   saveOrder(); dragOver.value = ''; dragPaths.value = []
@@ -129,6 +153,7 @@ function keydown(event: KeyboardEvent) {
   if (!root.value?.getClientRects().length) return
   const target = event.target as HTMLElement
   if (target.closest('input,textarea,select,[contenteditable=true]')) return
+  if (event.key === 'Enter' && target.closest('button,summary')) return
   if (event.key === 'Escape') { lightbox.value = null; return }
   if (event.key.startsWith('Arrow')) {
     const next = nextImage(event.key, anchor.value)
@@ -155,23 +180,74 @@ function boxMove(event: MouseEvent) {
   selected.value = next
 }
 function boxEnd() { box.active = false }
-onMounted(() => { document.addEventListener('keydown',keydown); document.addEventListener('mousemove',boxMove); document.addEventListener('mouseup',boxEnd) })
-onUnmounted(() => { generation++; controller?.abort(); metadataController?.abort(); clearTimeout(refreshTimer); document.removeEventListener('keydown',keydown); document.removeEventListener('mousemove',boxMove); document.removeEventListener('mouseup',boxEnd) })
+function activate() {
+  if (active) return
+  active = true
+  void refresh()
+}
+function deactivate() {
+  active = false
+  cancelScheduledRefresh()
+  controller?.abort()
+  boxEnd()
+}
+onMounted(() => {
+  activate()
+  if (root.value && typeof ResizeObserver !== 'undefined') {
+    visibilityObserver = new ResizeObserver(() => {
+      if (root.value?.getClientRects().length) activate()
+      else deactivate()
+    })
+    visibilityObserver.observe(root.value)
+  }
+  document.addEventListener('keydown',keydown)
+  document.addEventListener('mousemove',boxMove)
+  document.addEventListener('mouseup',boxEnd)
+})
+onActivated(activate)
+onDeactivated(deactivate)
+onUnmounted(() => {
+  generation++
+  deactivate()
+  metadataController?.abort()
+  visibilityObserver?.disconnect()
+  document.removeEventListener('keydown',keydown)
+  document.removeEventListener('mousemove',boxMove)
+  document.removeEventListener('mouseup',boxEnd)
+})
 </script>
 
 <template>
   <section class="panel samples-panel" ref="root" tabindex="0" :style="{'--sample-size': thumbnailSize+'px'}">
-    <header class="samples-toolbar"><h2>样例</h2><span class="sample-count">{{ images.length }} 张</span><input v-model="filter" type="search" placeholder="搜索文件名或轮次…" aria-label="筛选样例" /><select v-model="sort" aria-label="样例排列顺序"><option value="custom">默认 / 手动顺序</option><option value="newest">最新优先</option><option value="oldest">最早优先</option></select><label class="sample-density">缩略图<input v-model.number="thumbnailSize" type="range" min="90" max="210" aria-label="缩略图尺寸" /></label><button class="button" :class="{active:selecting}" :aria-pressed="selecting" @click="selecting = !selecting">多选</button><button class="button" :disabled="loading" @click="refresh">{{ loading ? '加载中…' : '刷新' }}</button></header>
+    <header class="samples-toolbar">
+      <h2>样例</h2>
+      <span class="sample-count">{{ images.length }} 张</span>
+      <input v-model="filter" type="search" placeholder="搜索文件名或轮次…" aria-label="筛选样例" />
+      <select v-model="sort" aria-label="样例排列顺序">
+        <option value="custom">默认 / 手动顺序</option>
+        <option value="newest">最新优先</option>
+        <option value="oldest">最早优先</option>
+      </select>
+      <label class="sample-density">缩略图<input v-model.number="thumbnailSize" type="range" min="90" max="210" aria-label="缩略图尺寸" /></label>
+      <button type="button" class="button" :aria-pressed="horizontal" aria-label="组内图片横向排布" @click="horizontal = !horizontal">
+        组内图片 · {{ horizontal ? '横向' : '纵向' }}
+      </button>
+      <button type="button" class="button" :aria-pressed="groupsHorizontal" aria-label="Prompt 分组横向排布" @click="groupsHorizontal = !groupsHorizontal">
+        Prompt 分组 · {{ groupsHorizontal ? '横向' : '纵向' }}
+      </button>
+      <button class="button" :class="{active:selecting}" :aria-pressed="selecting" @click="selecting = !selecting">多选</button>
+      <button class="button" :disabled="loading" @click="refresh">{{ loading ? '加载中…' : '刷新' }}</button>
+    </header>
     <nav class="sample-filters" aria-label="Prompt 分组"><button class="button" :class="{active:activePrompt === null}" :aria-pressed="activePrompt === null" @click="activePrompt = null">全部 {{ allImages.length }}</button><button v-for="group in groups.filter(g => g.images.length)" :key="group.key" class="button" :class="{active:activePrompt === group.key}" :aria-pressed="activePrompt === group.key" @click="activePrompt = group.key">{{ groupLabel(group.key) }} <span>{{ group.images.length }}</span></button><details class="sample-help"><summary>操作说明</summary><p>点击查看；Ctrl/⌘ 多选，Shift 范围选择；空白处拖动框选。拖动图片调整顺序，方向键导航，Enter 查看，Esc 关闭。</p></details></nav>
     <div v-if="selected.size || selecting" class="sample-selection-actions"><span>已选 {{ selected.size }} 张</span><button class="button" @click="selected = new Set(images.map(image => image.path))">全选可见图片</button><button class="button" @click="selected.clear()">清除选择</button><button v-if="selected.size" class="button" @click="remove([...selected])">删除选中 ({{ selected.size }})</button></div>
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="!images.length && !loading" class="muted">{{ filter ? '没有匹配的样例。' : '暂无样例图片。' }}</p>
-    <div class="gallery sample-gallery-columns" :class="{'single-prompt':visibleGroups.length === 1, selecting}" @mousedown="boxStart">
+    <div class="gallery sample-gallery-columns" :class="{'groups-horizontal': groupsHorizontal, 'single-prompt': visibleGroups.length === 1, horizontal, selecting}" @mousedown="boxStart">
       <section v-for="group in visibleGroups" :key="group.key" class="sample-group">
         <h3>{{ groupLabel(group.key) }} <span>{{ group.images.length }} 张</span></h3>
         <div class="sample-grid" @dragover.prevent @drop="drop($event,group.key)">
           <article v-for="image in group.images" :key="image.path" class="sample-card" :class="{ selected:selected.has(image.path), over:dragOver === image.path }" :data-sample-path="image.path" :title="image.name" tabindex="0" role="button" :aria-label="`查看 ${image.name}`" :aria-pressed="selected.has(image.path)" draggable="true" @click="clickImage($event,image)" @keydown.enter.stop.prevent="clickImage($event,image)" @keydown.space.stop.prevent="clickImage($event,image)" @dragstart="dragStart($event,image)" @dragover.stop.prevent="dragOver = image.path" @drop="drop($event,group.key,image)" @dragend="dragOver = ''; dragPaths = []">
-            <img :src="image.path" :alt="image.name" loading="lazy" draggable="false" /><span class="sample-caption">{{ imageLabel(image) }}</span><span v-if="selecting" class="selection-tick" aria-hidden="true">{{ selected.has(image.path) ? '✓' : '' }}</span><button class="delete-card" aria-label="删除图片" @click.stop="remove([image.path])" @keydown.stop>×</button>
+            <img :src="image.thumbnail || image.path" :alt="image.name" loading="lazy" decoding="async" draggable="false" @error="useOriginal($event,image)" /><span class="sample-caption">{{ imageLabel(image) }}</span><span v-if="selecting" class="selection-tick" aria-hidden="true">{{ selected.has(image.path) ? '✓' : '' }}</span><button class="delete-card" aria-label="删除图片" @click.stop="remove([image.path])" @keydown.stop>×</button>
           </article>
         </div>
       </section>
@@ -182,7 +258,17 @@ onUnmounted(() => { generation++; controller?.abort(); metadataController?.abort
 </template>
 
 <style scoped>
-.samples-panel{padding:12px;overflow:visible}.samples-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:9px}.samples-toolbar h2{margin:0;font-size:18px}.sample-count{font-size:12px;color:var(--muted-foreground);margin-right:auto}.samples-toolbar input[type=search]{width:220px}.samples-toolbar select{width:auto;font-size:12px}.sample-density{display:flex;align-items:center;gap:6px;color:var(--muted-foreground);font-size:12px}.sample-density input[type=range]{width:80px;min-height:30px;padding:0;border:0;accent-color:var(--primary)}.samples-toolbar .button,.sample-filters .button,.sample-selection-actions .button{min-height:34px;padding:5px 10px;font-size:12px}.samples-panel .button.active{background:var(--accent);border-color:var(--primary);color:var(--primary)}.sample-filters{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)}.sample-filters .button{border-radius:18px;min-height:30px}.sample-filters .button span{margin-left:4px;opacity:.8}.sample-help{margin-left:auto;position:relative;font-size:12px;color:var(--muted-foreground)}.sample-help p{position:absolute;right:0;top:100%;z-index:5;width:280px;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:6px;font-size:12px}.sample-selection-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:12px}.gallery{min-height:12rem;padding-bottom:20px}.sample-gallery-columns{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:12px;align-items:start}.sample-group{min-width:0}.sample-group h3{display:flex;align-items:center;justify-content:space-between;font-size:12px;margin:0 0 6px;font-weight:600}.sample-group h3 span{font-weight:400;color:var(--muted-foreground)}.sample-grid{columns:var(--sample-size);column-gap:5px;min-height:3rem}.single-prompt{grid-template-columns:minmax(0,1fr)}.single-prompt .sample-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--sample-size)),1fr));align-items:start;gap:5px;columns:auto}.sample-card{position:relative;break-inside:avoid;border-radius:3px;overflow:hidden;background:var(--muted);cursor:pointer;margin-bottom:5px;line-height:0}.single-prompt .sample-card{margin-bottom:0}.sample-card.selected{outline:3px solid var(--primary);outline-offset:-3px}.sample-card.over{outline:3px solid #fbbf24;outline-offset:-3px}.sample-card img{display:block;width:100%;height:auto}.sample-caption{display:block;position:absolute;bottom:0;left:0;right:0;padding:16px 5px 4px;background:linear-gradient(transparent,#080c13e8);color:#fff;font-size:12px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}.selection-tick{position:absolute;top:5px;left:5px;width:20px;height:20px;border:1px solid #fff9;border-radius:3px;background:#10151fcc;color:#fff;line-height:18px;text-align:center;font-size:12px}.selected .selection-tick{background:#326cd4}.delete-card{position:absolute;right:4px;top:4px;background:#111c;color:white;border-radius:4px;width:28px;height:28px;font-size:18px;line-height:1;opacity:0}.sample-card:hover .delete-card,.sample-card:focus-within .delete-card{opacity:1}.sample-selection-box{position:fixed;pointer-events:none;z-index:1100;border:1px solid #60a5fa;background:#60a5fa33}
+.samples-panel{padding:12px;overflow:visible}.samples-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:9px}.samples-toolbar h2{margin:0;font-size:18px}.sample-count{font-size:12px;color:var(--muted-foreground);margin-right:auto}.samples-toolbar input[type=search]{width:220px}.samples-toolbar select{width:auto;font-size:12px}.sample-density{display:flex;align-items:center;gap:6px;color:var(--muted-foreground);font-size:12px}.sample-density input[type=range]{width:80px;min-height:30px;padding:0;border:0;accent-color:var(--primary)}.samples-toolbar .button,.sample-filters .button,.sample-selection-actions .button{min-height:34px;padding:5px 10px;font-size:12px}.samples-panel .button.active{background:var(--accent);border-color:var(--primary);color:var(--primary)}.sample-filters{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)}.sample-filters .button{border-radius:18px;min-height:30px}.sample-filters .button span{margin-left:4px;opacity:.8}.sample-help{margin-left:auto;position:relative;font-size:12px;color:var(--muted-foreground)}.sample-help p{position:absolute;right:0;top:100%;z-index:5;width:280px;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:6px;font-size:12px}.sample-selection-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:12px}.gallery{min-height:12rem;padding-bottom:20px}
+.sample-gallery-columns{--sample-group-min:280px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}
+.groups-horizontal{grid-template-columns:repeat(auto-fit,minmax(min(var(--sample-group-min),100%),1fr))}
+.sample-group{min-width:0}.sample-group h3{display:flex;align-items:center;justify-content:space-between;font-size:12px;margin:0 0 6px;font-weight:600}.sample-group h3 span{font-weight:400;color:var(--muted-foreground)}
+.single-prompt{grid-template-columns:minmax(0,1fr)}
+.sample-grid{columns:var(--sample-size);column-gap:5px;min-height:3rem}
+.horizontal .sample-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(0,min(100%,var(--sample-size))));align-items:start;gap:5px;columns:auto}
+.sample-card{max-width:var(--sample-size);position:relative;break-inside:avoid;border-radius:3px;overflow:hidden;background:var(--muted);cursor:pointer;margin-bottom:5px;line-height:0}
+.horizontal .sample-card{margin-bottom:0}.sample-card.selected{outline:3px solid var(--primary);outline-offset:-3px}.sample-card.over{outline:3px solid #fbbf24;outline-offset:-3px}
+.sample-card img{display:block;width:100%;aspect-ratio:1;object-fit:contain}
+.sample-caption{display:block;position:absolute;bottom:0;left:0;right:0;padding:16px 5px 4px;background:linear-gradient(transparent,#080c13e8);color:#fff;font-size:12px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}.selection-tick{position:absolute;top:5px;left:5px;width:20px;height:20px;border:1px solid #fff9;border-radius:3px;background:#10151fcc;color:#fff;line-height:18px;text-align:center;font-size:12px}.selected .selection-tick{background:#326cd4}.delete-card{position:absolute;right:4px;top:4px;background:#111c;color:white;border-radius:4px;width:28px;height:28px;font-size:18px;line-height:1;opacity:0}.sample-card:hover .delete-card,.sample-card:focus-within .delete-card{opacity:1}.sample-selection-box{position:fixed;pointer-events:none;z-index:1100;border:1px solid #60a5fa;background:#60a5fa33}
 @media(max-width:1000px){.samples-toolbar input[type=search]{width:170px}.sample-density{display:none}}
-@media(max-width:600px){.samples-panel{padding:8px}.samples-toolbar{gap:6px}.samples-toolbar input[type=search]{order:5;width:100%}.samples-toolbar select{max-width:130px}.sample-filters{gap:4px}.sample-help{margin-left:0}.sample-gallery-columns{display:block}.sample-group{margin-bottom:12px}.sample-grid{columns:3;column-gap:4px}.single-prompt .sample-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.sample-card{margin-bottom:4px}.delete-card{opacity:1}}
+@media(max-width:600px){.samples-panel{padding:8px}.samples-toolbar{gap:6px}.samples-toolbar input[type=search]{order:5;width:100%}.samples-toolbar select{max-width:130px}.sample-filters{gap:4px}.sample-help{margin-left:0}.sample-gallery-columns{--sample-group-min:calc((100% - 12px) / 2)}.sample-grid{column-gap:4px}.horizontal .sample-grid{gap:4px}.sample-card{margin-bottom:4px}.delete-card{opacity:1}}
 </style>

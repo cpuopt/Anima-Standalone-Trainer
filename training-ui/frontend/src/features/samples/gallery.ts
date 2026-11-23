@@ -1,4 +1,4 @@
-export interface Sample { path: string; name: string; mtime: number }
+export interface Sample { path: string; name: string; mtime: number; thumbnail?: string }
 export interface Order { path: string; group: string }
 export interface Group { key: string; images: Sample[] }
 export function groupSamples(images: Sample[], order: Order[] = []): Group[] {

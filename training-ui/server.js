@@ -1942,7 +1942,8 @@ function collectImages(dir, relBase, jobName) {
                 name: entry.name,
                 dir: relBase.replace(/\\/g, '/'),
                 mtime: stat.mtimeMs,
-                path: `/api/jobs/${jobName}/samples/${relPath}`
+                path: `/api/jobs/${jobName}/samples/${relPath}`,
+                thumbnail: `/api/jobs/${encodeURIComponent(jobName)}/samples/${relPath.split('/').map(encodeURIComponent).join('/')}?thumbnail=${stat.mtimeMs}-${stat.size}`
             });
         }
     });
@@ -1968,18 +1969,28 @@ app.get('/api/jobs/:name/samples', (req, res) => {
 });
 
 // Serve sample image files (supports nested paths like output/sample/img.png)
-app.get('/api/jobs/:name/samples/*', (req, res) => {
+app.get('/api/jobs/:name/samples/*', async (req, res) => {
     try {
         const jobPath = getJobPath(req.params.name);
         const relativePath = req.params[0]; // everything after /samples/
         const filePath = path.join(jobPath, relativePath);
+        if (typeof req.query.thumbnail === 'string') {
+            const folder = path.relative(jobPath, filePath).split(path.sep)[0];
+            if (!['samples', 'output'].includes(folder) || !/\.(png|jpe?g|webp)$/i.test(filePath)) return res.sendStatus(404);
+            const target = await fs.promises.realpath(filePath);
+            const relativeTarget = path.relative(await fs.promises.realpath(jobPath), target);
+            if (path.isAbsolute(relativeTarget) || !['samples', 'output'].includes(relativeTarget.split(path.sep)[0])) return res.sendStatus(404);
+            if (!(await fs.promises.stat(target)).isFile()) return res.sendStatus(404);
+            const thumbnail = await datasetLibrary.thumbnail(target, { size: 420, quality: 92, smartSubsample: true });
+            return res.type('image/webp').send(thumbnail);
+        }
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
             res.sendFile(filePath);
         } else {
             res.status(404).json({ error: 'File not found' });
         }
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(err.code === 'ENOENT' ? 404 : err.status || 500).json({ error: err.message });
     }
 });
 

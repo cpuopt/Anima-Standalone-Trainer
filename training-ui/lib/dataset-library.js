@@ -297,9 +297,9 @@ class DatasetLibrary {
             images: summary.images, captions: summary.captions, missing: summary.missing, orphan: summary.orphan, total: filtered.length,
             pageSize: this.limits.pageSize, items: filtered.slice(offset, offset + this.limits.pageSize).map(e => ({ name: e.name, kind: e.kind, path: prefix + e.name, caption: e.caption ? prefix + e.caption : null })) };
     }
-    async thumbnail(target) {
+    async thumbnail(target, { size = 256, quality = 75, smartSubsample = false } = {}) {
         const stat = await fsp.stat(target);
-        const key = target + ':' + stat.mtimeMs + ':' + stat.size;
+        const key = JSON.stringify([target, stat.mtimeMs, stat.size, size, quality, smartSubsample]);
         if (this.thumbnails.has(key)) {
             const cached = this.thumbnails.get(key); this.thumbnails.delete(key); this.thumbnails.set(key, cached); return cached;
         }
@@ -311,7 +311,9 @@ class DatasetLibrary {
             try {
                 const sharp = require('sharp');
                 const buffer = await sharp(target, { limitInputPixels: 64 * 1024 ** 2, animated: false })
-                    .timeout({ seconds: 10 }).resize(256, 256, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
+                    .timeout({ seconds: 10 })
+                    .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+                    .webp({ quality, smartSubsample }).toBuffer();
                 this.thumbnails.set(key, buffer);
                 if (this.thumbnails.size > 128) this.thumbnails.delete(this.thumbnails.keys().next().value);
                 return buffer;
