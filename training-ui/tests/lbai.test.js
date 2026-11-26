@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const LBAI = require("../public/js/lbai.js");
+const LBAI = require("../shared/lbai.js");
 
 test("calculates constant and cosine LBAI", () => {
   assert.equal(LBAI.calculate({ repeats: 10, epochs: 20, learningRate: 0.0001, rank: 32, scheduler: "constant" }).value, 0.02);

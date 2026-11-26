@@ -3,7 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const TOML = require('@iarna/toml');
-const K = require('../public/js/krea2');
+const K = require('../shared/krea2');
 
 const REVISION = 'f8a1b03794a49239a3539015075f5123d6c07d66';
 const ROOT = path.resolve(__dirname, '../..');

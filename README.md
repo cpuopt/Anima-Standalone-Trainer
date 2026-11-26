@@ -115,7 +115,7 @@ To start the training server and open the web interface:
 ```
 Once launched, open your browser to: `http://localhost:3000`
 
-The default interface uses Vue 3.5.44, TypeScript, Pinia and shadcn-vue. `npm start` installs locked frontend build dependencies when needed and rebuilds changed sources; production runs on the existing Express port. The previous interface remains available at `/legacy/`. For development, build/test commands and rollback instructions, see [Vue frontend guide](docs/VUE_FRONTEND.md).
+The training interface uses Vue 3.5.44, TypeScript, Pinia and shadcn-vue. `npm start` installs locked frontend build dependencies when needed and rebuilds changed sources. Production serves the UI at `/ui/` on the Express port. See the [Vue frontend guide](docs/VUE_FRONTEND.md) for development, build and test commands.
 
 TensorBoard is embedded through the Web UI's same-origin `/tensorboard/…/` proxy. On cloud hosts, use the Web UI's domain and expose only its port; TensorBoard's internal port does not need to be published. This applies to both Anima and Krea 2 jobs.
 

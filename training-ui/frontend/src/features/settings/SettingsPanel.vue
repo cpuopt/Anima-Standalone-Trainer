@@ -6,7 +6,7 @@ import Field from '@/components/forms/ConfigField.vue'
 import EnvironmentPanel from './EnvironmentPanel.vue'
 import AccessPanel from './AccessPanel.vue'
 import PerformancePanel from './PerformancePanel.vue'
-import { LBAI } from '@/domain/legacy'
+import { LBAI } from '@/domain/training'
 const store=useEditorStore(), message=ref(''), busy=ref(false), environment=ref(''), preview=ref<HTMLElement|null>(null)
 const mossEnvironment=ref('')
 const arches=computed(()=>Object.entries(store.registry?.architectures||{}) as [string,any][])

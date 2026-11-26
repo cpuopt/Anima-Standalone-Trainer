@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const fsp = fs.promises;
 const path = require('node:path');
+const { sanitizeStripMetadata, streamSafetensorsResponse } = require('./safetensors-metadata');
 const MODELS = new Set(['.safetensors', '.ckpt', '.pt', '.pth', '.bin']);
 const IMAGES = new Set(['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.avif', '.jxl']);
 const PAGE_SIZE = 40, MAX_ENTRIES = 20000;
@@ -129,6 +130,14 @@ class JobArtifacts {
             }
             // Stream the already opened descriptor: no whole-model buffering or second path lookup.
             const extension = path.extname(file.target).toLowerCase();
+            if (extension === '.safetensors') {
+                const stripFields = sanitizeStripMetadata(req.query.strip_metadata);
+                await streamSafetensorsResponse(res, file.handle, file.stat, file.target, stripFields, {
+                    contentType: 'application/octet-stream',
+                    attachmentName: path.basename(file.target)
+                });
+                return;
+            }
             const mime = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.bmp':'image/bmp', '.avif':'image/avif', '.jxl':'image/jxl' };
             res.type(image ? mime[extension] : 'application/octet-stream');
             if (req.query.download === 'true' || !image) res.attachment(path.basename(file.target));

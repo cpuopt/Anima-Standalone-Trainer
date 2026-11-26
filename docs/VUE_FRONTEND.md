@@ -15,7 +15,6 @@ npm start
 
 - `/`：重定向到新版 `/ui/`。
 - `/ui/`：Vue 界面，包含所有十个功能页面。
-- `/legacy/`：保留的原生 HTML / JavaScript 界面。
 - API、WebSocket、`/uploads`、`/tensorboard` 路径保持原协议与同源访问。
 
 生产运行只有原 Express 服务，不需要 Vite 进程或额外端口。构建目录 `training-ui/frontend/dist/` 不提交版本控制，由启动流程生成。
@@ -62,24 +61,7 @@ shadcn-vue Button / Input 源码已提交在 `frontend/src/components/ui/`，源
 - Dataset 允许分别编辑多个分辨率 Dataset、每个子集的 Alpha Mask；Progressive Resolution 以原格式字符串编辑，不复刻旧的百分比滑块。
 - 控制台保留最多 500,000 字符，处理回车覆盖进度行。切换页面销毁页面轮询与键盘监听，避免后台泄漏。
 
-## 回退
-
-已运行的服务直接访问 `/legacy/` 即可。若要跳过 Vue 构建并以旧界面启动：
-
-PowerShell（在 `training-ui/`）：
-
-```powershell
-$env:TRAINER_UI = 'legacy'
-npm start
-```
-
-Linux：
-
-```sh
-TRAINER_UI=legacy npm start
-```
-
-取消该环境变量后恢复默认 Vue 入口。直接 `node server.js` 会跳过 npm 的预构建步骤，仅适合已构建部署或调试；缺少产物时根路径回退旧界面，`/ui/` 返回构建提示。
+直接运行 `node server.js` 会跳过 npm 的预构建步骤，适用于已构建的部署或调试。缺少产物时，`/ui/` 会返回构建提示。
 
 ## 实施与验证记录
 
@@ -90,7 +72,7 @@ TRAINER_UI=legacy npm start
 | M0 | 框架、任务切换、完整配置草稿/快照、按资源保存、Anima/Krea 配置往返 |
 | M1 | Training、Dataset、Network、Multi-GPU、Layer Rank 与矩阵预览、跨页互斥 |
 | M2 | 训练启动/停止接线、训练中采样设置、RAW/Turbo、提示词、画廊、日志、硬件、TensorBoard、全局及任务维护 |
-| M3 | 指纹构建、单端口发布、默认入口切换、旧入口回退、Windows/Linux 启动脚本 |
+| M3 | 指纹构建、单端口发布、Vue 入口、Windows/Linux 启动脚本 |
 
 已完成类型检查、生产构建、93 项 Node 回归及 57 项 Vue 行为测试。Windows `npm start` 的预构建检查与服务启动已验证；重复预构建检查无源码变化时不会重建。浏览器使用独立 `codex-vue-check-*` 任务验证创建、参数修改、保存、重载、切换及矩阵计算：Anima LoRA rank32 显示 131,072；Krea LoKR factor3/rank32 显示 131,081（0.3472%）；Full factor16 显示 16×16 / 384×384、147,712（0.3913%），factor0 被阻止保存。九页巡检无控制台警告/错误，单纯浏览未污染任务草稿。默认入口、新版、旧版和缺失资源响应已验证。测试任务已清理。
 

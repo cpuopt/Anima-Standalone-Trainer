@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Anima Client · 极白美术馆展厅（方向 2）</title>
+<style>
+  :root {
+    /* 色彩推导：采自水彩棉纸底色（oklch L=0.98 C=0.008）与淡墨字色，让 6 张高彩度插画成为视觉唯一主角；授权印章取植物墨绿 */
+    --paper: #f9f8f6;
+    --card: #ffffff;
+    --ink: #191918;
+    --ink-2: #57544e;
+    --ink-3: #8c877d;
+    --hair: #e6e2da;
+    --hair-strong: #d3cdc2;
+    --jade: #1e6b52;
+    --jade-bg: #eef7f3;
+    --jade-line: #b8dccd;
+    --ochre: #8a5a19;
+    --ochre-bg: #fbf6ec;
+    --ochre-line: #e9d7b5;
+    --thumb-cols: 3;
+    --serif: "Noto Serif SC", "Songti SC", "Georgia", serif;
+    --sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "JetBrains Mono", Consolas, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; background: none; border: 0; }
+  img { display: block; max-width: 100%; }
+
+  /* 单轴美术馆骨架：无侧栏，宽画廊容器 */
+  .shell {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 40px 96px;
+  }
+
+  /* 顶部展签式眉栏 */
+  .exhibit-head {
+    padding: 26px 0 20px;
+    border-bottom: 1px solid var(--hair);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: end;
+  }
+  .exhibit-kicker {
+    font-size: 12px;
+    color: var(--ink-3);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .exhibit-title {
+    font-family: var(--serif);
+    font-size: clamp(26px, 3vw, 36px);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    color: var(--ink);
+  }
+  .exhibit-sub {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--ink-2);
+    max-width: 640px;
+  }
+  .head-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+  }
+  .stage-seal {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--ochre-line);
+    background: var(--ochre-bg);
+    color: var(--ochre);
+  }
+  .stage-seal.unlocked {
+    border-color: var(--jade-line);
+    background: var(--jade-bg);
+    color: var(--jade);
+  }
+  .seal-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .mode-tabs {
+    display: flex;
+    gap: 24px;
+    border-bottom: 1px solid transparent;
+  }
+  .mode-tab {
+    font-size: 14px;
+    color: var(--ink-3);
+    padding: 6px 0;
+    position: relative;
+    transition: color 0.15s;
+  }
+  .mode-tab:hover:not(:disabled) { color: var(--ink); }
+  .mode-tab.active {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .mode-tab.active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1.5px;
+    background: var(--ink);
+  }
+  .mode-tab:disabled { opacity: 0.4; cursor: not-allowed; }
+  .tab-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    margin-left: 5px;
+    color: var(--ink-3);
+  }
+
+  /* 画廊筛选控制行：极轻发丝底线 */
+  .filter-strip {
+    padding: 18px 0;
+    border-bottom: 1px solid var(--hair);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .chip-group { display: flex; gap: 6px; flex-wrap: wrap; margin-right: auto; }
+  .chip {
+    padding: 6px 13px;
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--ink-2);
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    min-height: 34px;
+  }
+  .chip:hover { color: var(--ink); background: #f0ede7; }
+  .chip.active {
+    background: var(--ink);
+    color: #fff;
+  }
+  .search-line {
+    border: 1px solid var(--hair-strong);
+    background: #fff;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    width: 210px;
+    min-height: 36px;
+  }
+  .search-line:focus { outline: 1px solid var(--ink); border-color: var(--ink); }
+  .select-line {
+    border: 1px solid var(--hair-strong);
+    background: #fff;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    min-height: 36px;
+  }
+  .density-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--ink-3);
+    padding: 0 6px;
+  }
+  .density-pill input { width: 76px; accent-color: var(--ink); }
+  .btn-g {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 15px;
+    border-radius: 999px;
+    font-size: 13px;
+    border: 1px solid var(--hair-strong);
+    background: #fff;
+    color: var(--ink);
+    transition: all 0.15s;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .btn-g:hover:not(:disabled) { border-color: var(--ink); }
+  .btn-g.active, .btn-g.solid { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .btn-g.solid:hover { background: #33322f; }
+  .btn-g:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* 选中悬浮栏 */
+  .sel-strip {
+    margin-top: 16px;
+    padding: 10px 16px;
+    background: #fff;
+    border: 1px solid var(--hair-strong);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+
+  /* 瀑布流裱框展墙 */
+  .wall {
+    margin-top: 24px;
+    columns: var(--thumb-cols);
+    column-gap: 24px;
+  }
+  .frame-item {
+    break-inside: avoid;
+    margin-bottom: 32px;
+    background: var(--card);
+    padding: 14px 14px 16px;
+    border: 1px solid var(--hair);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    position: relative;
+  }
+  .frame-item:hover {
+    border-color: var(--hair-strong);
+    box-shadow: 0 12px 30px rgba(25, 25, 24, 0.06);
+  }
+  .frame-item.selected {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 1px var(--ink);
+  }
+  .frame-img-wrap {
+    position: relative;
+    background: #f2f0ec;
+    overflow: hidden;
+  }
+  .frame-img-wrap img {
+    width: 100%;
+    height: auto;
+    transition: transform 0.35s ease;
+  }
+  .frame-item:hover .frame-img-wrap img { transform: scale(1.015); }
+  .frame-tick {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid rgba(25,25,24,0.4);
+    background: rgba(255,255,255,0.88);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .selecting .frame-tick, .frame-item.selected .frame-tick, .frame-item:hover .frame-tick { opacity: 1; }
+  .frame-item.selected .frame-tick { background: var(--ink); border-color: var(--ink); }
+  .frame-dl {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.92);
+    border: 1px solid var(--hair-strong);
+    color: var(--ink);
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+    text-decoration: none;
+  }
+  .frame-item:hover .frame-dl { opacity: 1; }
+  .frame-dl:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .frame-placard {
+    padding-top: 12px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .placard-title {
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .placard-sub {
+    font-size: 12px;
+    color: var(--ink-3);
+    margin-top: 2px;
+    font-family: var(--mono);
+  }
+  .placard-epoch {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-2);
+    border: 1px solid var(--hair);
+    padding: 2px 8px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  /* 底部展签状态提示（未付费时保持极其安静诚实） */
+  .gallery-colophon {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--hair);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+
+  /* 交付档案册视图 */
+  .folio {
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+  }
+  .folio-block {
+    background: #fff;
+    border: 1px solid var(--hair);
+    padding: 28px 32px;
+  }
+  .folio-block-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 18px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--hair);
+    flex-wrap: wrap;
+  }
+  .folio-block-head h2 {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 500;
+  }
+  .folio-block-head p { font-size: 13px; color: var(--ink-2); margin-top: 4px; }
+  .folio-list { display: flex; flex-direction: column; }
+  .folio-row {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--hair);
+  }
+  .folio-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .folio-file { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--ink); }
+  .folio-note { font-size: 13px; color: var(--ink-2); margin-top: 3px; }
+  .stamp-jade {
+    display: inline-block;
+    font-size: 11px;
+    color: var(--jade);
+    border: 1px solid var(--jade-line);
+    background: var(--jade-bg);
+    padding: 1px 7px;
+    border-radius: 999px;
+    margin-left: 8px;
+    font-family: var(--sans);
+  }
+  .spec-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .spec-table td {
+    padding: 11px 0;
+    border-bottom: 1px solid var(--hair);
+    font-size: 13px;
+  }
+  .spec-table tr:last-child td { border-bottom: 0; }
+  .spec-k { color: var(--ink-3); width: 180px; }
+  .spec-v { font-family: var(--mono); color: var(--ink); }
+  .folio-locked {
+    padding: 20px 24px;
+    background: var(--paper);
+    border: 1px dashed var(--hair-strong);
+    color: var(--ink-2);
+    font-size: 13px;
+  }
+
+  /* 灯箱（美术馆暗幕） */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(20, 20, 19, 0.96);
+    color: #f3f1ec;
+    display: grid;
+    grid-template-rows: 56px minmax(0, 1fr);
+  }
+  .lightbox.hidden { display: none; }
+  .lb-bar {
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .lb-bar .btn-g {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.18);
+    color: #f3f1ec;
+  }
+  .lb-bar .btn-g:hover:not(:disabled) { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.4); }
+  .lb-bar .btn-g.solid { background: #f9f8f6; color: #191918; border-color: #f9f8f6; }
+  .lb-title { font-family: var(--mono); font-size: 13px; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: 0; }
+  .lightbox.no-info .lb-body { grid-template-columns: minmax(0, 1fr); }
+  .lb-stage-wrap { display: grid; grid-template-rows: minmax(0, 1fr) 52px; position: relative; min-height: 0; }
+  .lb-stage { position: relative; overflow: hidden; cursor: grab; touch-action: none; }
+  .lb-stage.dragging { cursor: grabbing; }
+  .lb-stage img { position: absolute; left: 50%; top: 50%; max-width: none; max-height: none; transform-origin: 0 0; pointer-events: none; user-select: none; }
+  .lb-zoom { display: flex; align-items: center; justify-content: center; gap: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .lb-zoom .btn-g { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.16); color: #f3f1ec; min-height: 32px; padding: 0 12px; }
+  .lb-zoom output { min-width: 52px; text-align: center; font-family: var(--mono); font-size: 12px; color: #b7b3aa; }
+  .lb-info { border-left: 1px solid rgba(255,255,255,0.1); padding: 24px; overflow-y: auto; background: #181816; }
+  .lb-info h3 { font-family: var(--serif); font-size: 18px; font-weight: 500; margin-bottom: 18px; }
+  .lb-row { margin-bottom: 16px; }
+  .lb-row span { display: block; font-size: 12px; color: #9c978d; margin-bottom: 3px; }
+  .lb-row p { font-size: 13px; color: #f3f1ec; word-break: break-word; }
+  .lb-pre { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); padding: 12px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; color: #d8d4cb; line-height: 1.65; }
+
+  /* Demo 权限模拟器 */
+  .demo-dock {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 900;
+    background: #fff;
+    border: 1px solid var(--hair-strong);
+    border-radius: 10px;
+    box-shadow: 0 14px 36px rgba(25,25,24,0.14);
+    width: 300px;
+    font-size: 12px;
+  }
+  .demo-dock.collapsed { width: auto; }
+  .demo-head { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; border-bottom: 1px solid var(--hair); }
+  .demo-dock.collapsed .demo-head { border-bottom: 0; }
+  .demo-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .demo-dock.collapsed .demo-body { display: none; }
+  .demo-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .demo-presets button { padding: 6px 4px; border-radius: 6px; border: 1px solid var(--hair-strong); background: var(--paper); font-size: 11px; }
+  .demo-presets button.on { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 500; }
+  .demo-checks { display: flex; flex-direction: column; gap: 7px; color: var(--ink-2); }
+  .demo-checks label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .demo-checks input { accent-color: var(--jade); width: 15px; height: 15px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; z-index: 1200; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 960px) {
+    .shell { padding: 0 20px 80px; }
+    .exhibit-head { grid-template-columns: 1fr; align-items: start; }
+    .head-right { align-items: flex-start; }
+    .wall { columns: 2; column-gap: 16px; }
+    .folio-row { grid-template-columns: 1fr; }
+    .lb-body { grid-template-columns: 1fr; }
+    .lb-info { display: none; }
+  }
+  @media (max-width: 600px) {
+    .wall { columns: 1; }
+    .search-line { width: 100%; }
+    .density-pill { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="exhibit-head">
+    <div>
+      <div class="exhibit-kicker">委托编号 #ORD-2026-1121 · 客户审片展厅</div>
+      <h1 class="exhibit-title">星尘水彩 · Cel-Ink Atelier v2</h1>
+      <p class="exhibit-sub">为 Atelier K 定制的赛璐璐水彩风格 LoRA 成果展厅。请逐幅放大审阅线条、光影与色彩还原度。</p>
+    </div>
+    <div class="head-right">
+      <div class="stage-seal" id="stageSeal"><span class="seal-dot"></span><span id="stageText">预览验收阶段 · 交付文件暂未开放</span></div>
+      <nav class="mode-tabs" aria-label="主视图切换">
+        <button class="mode-tab active" data-tab="gallery">预览作品<span class="tab-count">6</span></button>
+        <button class="mode-tab" data-tab="folio" id="folioTab">交付档案册<span class="tab-count" id="folioCount">未解锁</span></button>
+      </nav>
+    </div>
+  </header>
+
+  <section id="galleryView">
+    <div class="filter-strip">
+      <div class="chip-group" id="groupChips"></div>
+      <input type="search" class="search-line" id="searchInput" placeholder="搜索作品名或轮次…" aria-label="搜索预览图" />
+      <select class="select-line" id="sortSelect" aria-label="排序">
+        <option value="default">策展顺序</option>
+        <option value="newest">最新优先</option>
+        <option value="oldest">最早优先</option>
+      </select>
+      <label class="density-pill">
+        列数
+        <input type="range" id="colRange" min="2" max="4" step="1" value="3" aria-label="画廊列数" />
+      </label>
+      <button class="btn-g" id="selectBtn">多选</button>
+    </div>
+
+    <div class="sel-strip" id="selStrip" style="display:none">
+      <span>已选中 <strong id="selCount">0</strong> 幅预览作品</span>
+      <button class="btn-g" id="selAllBtn">全选当前</button>
+      <button class="btn-g" id="selClearBtn">清除</button>
+      <button class="btn-g solid" style="margin-left:auto" id="batchDlBtn">打包下载所选预览图</button>
+    </div>
+
+    <div class="wall" id="wall"></div>
+
+    <footer class="gallery-colophon" id="colophon"></footer>
+  </section>
+
+  <section id="folioView" class="folio" style="display:none"></section>
+</div>
+
+<!-- 暗幕灯箱 -->
+<section class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true">
+  <header class="lb-bar">
+    <button class="btn-g" id="lbClose">返回展厅</button>
+    <span class="lb-title" id="lbTitle"></span>
+    <button class="btn-g" id="lbPrev">上一幅</button>
+    <span style="font-family:var(--mono);font-size:12px;color:#b7b3aa" id="lbCounter">1 / 6</span>
+    <button class="btn-g" id="lbNext">下一幅</button>
+    <a class="btn-g solid" id="lbDl" download>下载原图</a>
+    <button class="btn-g" id="lbInfoBtn">展签信息</button>
+  </header>
+  <div class="lb-body">
+    <div class="lb-stage-wrap">
+      <div class="lb-stage" id="lbStage"><img id="lbImg" alt="" draggable="false" /></div>
+      <div class="lb-zoom">
+        <button class="btn-g" id="zOut">−</button>
+        <output id="zPct">100%</output>
+        <button class="btn-g" id="zIn">＋</button>
+        <button class="btn-g" id="zFit">适应画面</button>
+        <button class="btn-g" id="z100">1:1 细节</button>
+      </div>
+    </div>
+    <aside class="lb-info" id="lbInfo"></aside>
+  </div>
+</section>
+
+<!-- 权限状态模拟器 -->
+<aside class="demo-dock collapsed" id="demoDock">
+  <div class="demo-head" id="demoToggle">
+    <strong>原型权限模拟（评审用）</strong>
+    <span id="demoArrow" style="color:var(--ink-3)">展开</span>
+  </div>
+  <div class="demo-body">
+    <div class="demo-presets">
+      <button data-preset="unpaid" class="on">未付费预览</button>
+      <button data-preset="lora">仅交付模型</button>
+      <button data-preset="full">全权限交付</button>
+    </div>
+    <div class="demo-checks">
+      <label><input type="checkbox" id="chkLora" /> 允许下载指定 LoRA 模型</label>
+      <label><input type="checkbox" id="chkParams" /> 允许可见训练参数</label>
+      <label><input type="checkbox" id="chkDataset" /> 允许下载数据集归档</label>
+    </div>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const WORKS = [
+  { id: 'cur-1', group: 'curated', groupName: '精选主视觉', title: '黎明天文台露台', epoch: '精选', mtime: 1795240626, name: 'cel_ink_showcase_observatory.jpg', src: '../assets/sample_curated_01.jpg', size: '1024 × 1360', prompt: 'rooftop observatory at dawn, brass telescope, sheer curtains, cel-ink watercolor style', sampler: 'Euler a · 28 steps · CFG 5.5 · Weight 0.85' },
+  { id: 'p1-16', group: 'p1', groupName: 'Prompt 1 · 人物立绘', title: '暮色温室提灯', epoch: 'E16', mtime: 1795240625, name: 'cel_ink_p1_e16_lantern.jpg', src: '../assets/sample_p1_e16.jpg', size: '1024 × 1360', prompt: 'young botanical illustrator in ivory linen coat, twilight greenhouse, brass lantern warm rim light', sampler: 'Euler a · 28 steps · CFG 5.5 · Weight 0.85' },
+  { id: 'p2-12', group: 'p2', groupName: 'Prompt 2 · 场景光影', title: '海滨黄昏车站', epoch: 'E12', mtime: 1795240644, name: 'cel_ink_p2_e12_station.jpg', src: '../assets/sample_p2_e12.jpg', size: '1360 × 1024', prompt: 'quiet coastal train station golden hour, calm teal sea, wooden platform, billowing clouds', sampler: 'Euler a · 28 steps · CFG 5.5 · Weight 0.80' },
+  { id: 'p1-12', group: 'p1', groupName: 'Prompt 1 · 人物立绘', title: '日光玻璃植物园', epoch: 'E12', mtime: 1795240616, name: 'cel_ink_p1_e12_conservatory.jpg', src: '../assets/sample_p1_e12.jpg', size: '1024 × 1360', prompt: 'young botanical illustrator in ivory linen coat, sunlit glass conservatory, silver-blue ferns', sampler: 'Euler a · 28 steps · CFG 5.5 · Weight 0.80' },
+  { id: 'p3-16', group: 'p3', groupName: 'Prompt 3 · 器物细节', title: '雨窗速写案台', epoch: 'E16', mtime: 1795240621, name: 'cel_ink_p3_e16_desk.jpg', src: '../assets/sample_p3_e16.jpg', size: '1152 × 1152', prompt: 'antique wooden desk by rainy window, open floral sketchbook, glass ink bottle, brass fountain pen', sampler: 'Euler a · 28 steps · CFG 5.5 · Weight 0.85' },
+  { id: 'p2-16', group: 'p2', groupName: 'Prompt 2 · 场景光影', title: '雨后蓝调钟楼巷', epoch: 'E16', mtime: 1795240645, name: 'cel_ink_p2_e16_clocktower.jpg', src: '../assets/sample_p2_e16.jpg', size: '1360 × 1024', prompt: 'old stone clocktower cobblestone alley after rain, blue hour, glowing amber cafe windows', sampler: 'Euler a · 28 steps · CFG 5.5 · Weight 0.85' }
+];
+
+const state = {
+  tab: 'gallery',
+  group: 'all',
+  query: '',
+  sort: 'default',
+  selecting: false,
+  selected: new Set(),
+  perms: { lora: false, params: false, dataset: false },
+  lbIdx: -1, lbInfo: true,
+  zoom: 1, fit: 1, panX: 0, panY: 0, w: 0, h: 0
+};
+const $ = id => document.getElementById(id);
+let toastTimer;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function visibleWorks() {
+  const q = state.query.trim().toLowerCase();
+  let list = WORKS.filter(w => (state.group === 'all' || w.group === state.group) && (!q || w.title.toLowerCase().includes(q) || w.name.toLowerCase().includes(q) || w.epoch.toLowerCase().includes(q)));
+  if (state.sort === 'newest') list = [...list].sort((a, b) => b.mtime - a.mtime);
+  if (state.sort === 'oldest') list = [...list].sort((a, b) => a.mtime - b.mtime);
+  return list;
+}
+
+function renderAll() {
+  const unlockedCount = [state.perms.lora, state.perms.params, state.perms.dataset].filter(Boolean).length;
+  const anyPaid = unlockedCount > 0;
+  if (!anyPaid && state.tab === 'folio') state.tab = 'gallery';
+
+  $('stageSeal').classList.toggle('unlocked', anyPaid);
+  $('stageText').textContent = anyPaid ? `已授权交付 · 开放 ${unlockedCount} 项成果` : '预览验收阶段 · 交付文件暂未开放';
+  $('folioTab').disabled = !anyPaid;
+  $('folioCount').textContent = anyPaid ? `${unlockedCount} 项` : '未解锁';
+
+  document.querySelectorAll('.mode-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
+  $('galleryView').style.display = state.tab === 'gallery' ? '' : 'none';
+  $('folioView').style.display = state.tab === 'folio' ? 'flex' : 'none';
+
+  // 分组筛选芯片
+  const chips = [
+    { key: 'all', label: `全部 ${WORKS.length}` },
+    { key: 'curated', label: '精选主视觉' },
+    { key: 'p1', label: 'Prompt 1 · 立绘' },
+    { key: 'p2', label: 'Prompt 2 · 场景' },
+    { key: 'p3', label: 'Prompt 3 · 器物' }
+  ];
+  $('groupChips').innerHTML = chips.map(c => `<button class="chip ${state.group === c.key ? 'active' : ''}" data-group="${c.key}">${c.label}</button>`).join('');
+
+  $('selectBtn').classList.toggle('active', state.selecting);
+  $('selStrip').style.display = (state.selecting || state.selected.size > 0) ? 'flex' : 'none';
+  $('selCount').textContent = state.selected.size;
+
+  const list = visibleWorks();
+  const wall = $('wall');
+  wall.classList.toggle('selecting', state.selecting);
+  wall.innerHTML = list.length ? list.map(w => `
+    <article class="frame-item ${state.selected.has(w.id) ? 'selected' : ''}" data-id="${w.id}">
+      <div class="frame-img-wrap">
+        <img src="${w.src}" alt="${w.title}" loading="lazy" />
+        <button class="frame-tick" data-tick="${w.id}" aria-label="选择">${state.selected.has(w.id) ? '✓' : ''}</button>
+        <a class="frame-dl" href="${w.src}" download="${w.name}" title="下载原图" onclick="event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+        </a>
+      </div>
+      <div class="frame-placard">
+        <div>
+          <div class="placard-title">${w.title}</div>
+          <div class="placard-sub">${w.groupName} · ${w.size}</div>
+        </div>
+        <span class="placard-epoch">${w.epoch}</span>
+      </div>
+    </article>
+  `).join('') : `<p style="color:var(--ink-3);padding:48px 0;">当前筛选条件下暂无预览作品。</p>`;
+
+  $('colophon').innerHTML = anyPaid
+    ? `<span>训练师已为您开启 ${unlockedCount} 项交付权限，可随时前往「交付档案册」下载资产。</span><button class="btn-g solid" id="goFolioBtn">打开交付档案册</button>`
+    : `<span>当前为成果预览验收期：仅展示训练师挑选的预览画作，模型权重、训练参数及数据集均未对外暴露。</span><span style="font-family:var(--mono);font-size:12px;color:var(--ink-3)">READ-ONLY PREVIEW</span>`;
+
+  // 交付档案册内容
+  if (anyPaid) {
+    let html = '';
+    if (state.perms.lora) {
+      html += `
+        <section class="folio-block">
+          <div class="folio-block-head">
+            <div><h2>指定 LoRA 模型权重</h2><p>训练师为本委托选定的正式交付权重，已完成完整性校验。</p></div>
+            <span class="stamp-jade">已授权下载</span>
+          </div>
+          <div class="folio-list">
+            <div class="folio-row">
+              <div><div class="folio-file">cel_ink_atelier_v2_e16_final.safetensors<span class="stamp-jade">推荐终版</span></div><div class="folio-note">Epoch 16 · 148.2 MiB · BF16 · SHA-256: a94c8f12e0b7…4d91a2</div></div>
+              <div class="folio-note">线条与水彩通透感最平衡</div>
+              <button class="btn-g solid" data-dl="cel_ink_atelier_v2_e16_final.safetensors">下载模型</button>
+            </div>
+            <div class="folio-row">
+              <div><div class="folio-file">cel_ink_atelier_v2_e12_soft.safetensors</div><div class="folio-note">Epoch 12 · 148.2 MiB · BF16 · SHA-256: 71b0e4c9f82a…88c310</div></div>
+              <div class="folio-note">更轻柔的风格渗透，泛化度高</div>
+              <button class="btn-g" data-dl="cel_ink_atelier_v2_e12_soft.safetensors">下载模型</button>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+    if (state.perms.params) {
+      html += `
+        <section class="folio-block">
+          <div class="folio-block-head">
+            <div><h2>训练参数档案</h2><p>只读记录本次训练的核心超参数与推荐推理配置。</p></div>
+            <button class="btn-g" id="copySpecBtn">复制参数摘要</button>
+          </div>
+          <table class="spec-table">
+            <tr><td class="spec-k">基础模型架构</td><td class="spec-v">Anima-v1.5-Preview</td></tr>
+            <tr><td class="spec-k">网络类型与维度</td><td class="spec-v">LoRA · Rank 32 / Alpha 16</td></tr>
+            <tr><td class="spec-k">优化器与学习率</td><td class="spec-v">AdamW8bit · UNet 1.0e-4 · TE 2.0e-5 · Cosine</td></tr>
+            <tr><td class="spec-k">训练轮次与步数</td><td class="spec-v">16 Epochs · 2,400 Steps · BF16</td></tr>
+            <tr><td class="spec-k">分辨率与分桶</td><td class="spec-v">1024 × 1024 (Aspect Ratio Bucketing)</td></tr>
+            <tr><td class="spec-k">推荐权重与触发词</td><td class="spec-v">0.75 – 0.90 · cel_ink_atelier</td></tr>
+          </table>
+        </section>
+      `;
+    }
+    if (state.perms.dataset) {
+      html += `
+        <section class="folio-block">
+          <div class="folio-block-head">
+            <div><h2>训练数据集归档</h2><p>经清洗、裁切与完整标注的 128 组训练素材归档包。</p></div>
+            <button class="btn-g solid" data-dl="cel_ink_atelier_dataset_v2.zip">下载归档 (.zip · 412.6 MiB)</button>
+          </div>
+          <table class="spec-table">
+            <tr><td class="spec-k">归档文件名</td><td class="spec-v">cel_ink_atelier_dataset_v2.zip</td></tr>
+            <tr><td class="spec-k">素材与标注统计</td><td class="spec-v">128 张高精原图 · 100% .txt 标注覆盖 · 平均长边 1536px</td></tr>
+            <tr><td class="spec-k">SHA-256 校验码</td><td class="spec-v">f2e91a0c7b4d8e1a…91e402</td></tr>
+          </table>
+        </section>
+      `;
+    }
+    $('folioView').innerHTML = html;
+  }
+}
+
+/* 灯箱逻辑 */
+function applyT() {
+  const img = $('lbImg');
+  img.style.width = state.w + 'px';
+  img.style.height = state.h + 'px';
+  img.style.transform = `translate(${state.panX - state.w * state.zoom / 2}px, ${state.panY - state.h * state.zoom / 2}px) scale(${state.zoom})`;
+  $('zPct').textContent = Math.round(state.zoom * 100) + '%';
+}
+function fitLB() {
+  const st = $('lbStage');
+  if (!st || !state.w || !state.h) return;
+  state.fit = Math.min((st.clientWidth - 36) / state.w, (st.clientHeight - 36) / state.h);
+  state.zoom = state.fit; state.panX = 0; state.panY = 0;
+  applyT();
+}
+function zoomLB(f, cx, cy) {
+  const st = $('lbStage'), prev = state.zoom;
+  state.zoom = Math.max(state.fit * 0.25, Math.min(8, state.zoom * f));
+  const x = (cx ?? st.clientWidth / 2) - st.clientWidth / 2;
+  const y = (cy ?? st.clientHeight / 2) - st.clientHeight / 2;
+  state.panX = x - (x - state.panX) * state.zoom / prev;
+  state.panY = y - (y - state.panY) * state.zoom / prev;
+  applyT();
+}
+function openLB(id) {
+  const list = visibleWorks();
+  state.lbIdx = list.findIndex(w => w.id === id);
+  if (state.lbIdx < 0) return;
+  renderLB();
+  $('lightbox').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function closeLB() { $('lightbox').classList.add('hidden'); document.body.style.overflow = ''; }
+function renderLB() {
+  const list = visibleWorks(), w = list[state.lbIdx];
+  if (!w) return;
+  $('lbTitle').textContent = `${w.title} — ${w.name}`;
+  $('lbCounter').textContent = `${state.lbIdx + 1} / ${list.length}`;
+  $('lbPrev').disabled = state.lbIdx <= 0;
+  $('lbNext').disabled = state.lbIdx >= list.length - 1;
+  $('lbDl').href = w.src; $('lbDl').download = w.name;
+  const img = $('lbImg');
+  img.onload = () => { state.w = img.naturalWidth; state.h = img.naturalHeight; fitLB(); };
+  img.src = w.src;
+  if (img.complete && img.naturalWidth) { state.w = img.naturalWidth; state.h = img.naturalHeight; fitLB(); }
+
+  $('lightbox').classList.toggle('no-info', !state.lbInfo);
+  $('lbInfo').innerHTML = `
+    <h3>${w.title}</h3>
+    <div class="lb-row"><span>所属分组</span><p>${w.groupName}</p></div>
+    <div class="lb-row"><span>训练轮次</span><p style="font-family:var(--mono)">${w.epoch}</p></div>
+    <div class="lb-row"><span>画面尺寸</span><p style="font-family:var(--mono)">${w.size}</p></div>
+    <div class="lb-row"><span>文件名</span><p style="font-family:var(--mono)">${w.name}</p></div>
+    <div class="lb-row">
+      <span>生成与训练参数</span>
+      ${state.perms.params
+        ? `<pre class="lb-pre">${w.prompt}\n\n${w.sampler}</pre>`
+        : `<p style="color:#9c978d;line-height:1.6">预览阶段不公开训练及生成参数。授权「可见训练参数」后可在此查阅。</p>`}
+    </div>
+  `;
+}
+
+document.querySelectorAll('.mode-tab').forEach(b => b.addEventListener('click', () => { if (!b.disabled) { state.tab = b.dataset.tab; renderAll(); } }));
+$('groupChips').addEventListener('click', e => { const c = e.target.closest('[data-group]'); if (c) { state.group = c.dataset.group; renderAll(); } });
+$('searchInput').addEventListener('input', e => { state.query = e.target.value; renderAll(); });
+$('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderAll(); });
+$('colRange').addEventListener('input', e => document.documentElement.style.setProperty('--thumb-cols', e.target.value));
+$('selectBtn').addEventListener('click', () => { state.selecting = !state.selecting; renderAll(); });
+$('selAllBtn').addEventListener('click', () => { visibleWorks().forEach(w => state.selected.add(w.id)); renderAll(); });
+$('selClearBtn').addEventListener('click', () => { state.selected.clear(); renderAll(); });
+$('batchDlBtn').addEventListener('click', () => { if (state.selected.size) toast(`已打包下载 ${state.selected.size} 幅预览作品`); });
+
+$('wall').addEventListener('click', e => {
+  const tk = e.target.closest('[data-tick]');
+  if (tk) { e.stopPropagation(); const id = tk.dataset.tick; state.selected.has(id) ? state.selected.delete(id) : state.selected.add(id); renderAll(); return; }
+  const card = e.target.closest('.frame-item');
+  if (!card) return;
+  const id = card.dataset.id;
+  if (state.selecting || e.ctrlKey || e.metaKey) { state.selected.has(id) ? state.selected.delete(id) : state.selected.add(id); renderAll(); }
+  else openLB(id);
+});
+$('colophon').addEventListener('click', e => { if (e.target.id === 'goFolioBtn') { state.tab = 'folio'; renderAll(); } });
+$('folioView').addEventListener('click', e => {
+  const dl = e.target.closest('[data-dl]');
+  if (dl) { toast(`开始下载：${dl.dataset.dl}`); return; }
+  if (e.target.id === 'copySpecBtn') toast('训练参数摘要已复制');
+});
+
+$('lbClose').addEventListener('click', closeLB);
+$('lbPrev').addEventListener('click', () => { if (state.lbIdx > 0) { state.lbIdx--; renderLB(); } });
+$('lbNext').addEventListener('click', () => { if (state.lbIdx < visibleWorks().length - 1) { state.lbIdx++; renderLB(); } });
+$('lbInfoBtn').addEventListener('click', () => { state.lbInfo = !state.lbInfo; renderLB(); setTimeout(fitLB, 20); });
+$('zIn').addEventListener('click', () => zoomLB(1.25));
+$('zOut').addEventListener('click', () => zoomLB(0.8));
+$('zFit').addEventListener('click', fitLB);
+$('z100').addEventListener('click', () => { state.zoom = 1; state.panX = 0; state.panY = 0; applyT(); });
+
+const st = $('lbStage');
+let drag = false, sx = 0, sy = 0, ox = 0, oy = 0;
+st.addEventListener('wheel', e => { e.preventDefault(); const r = st.getBoundingClientRect(); zoomLB(Math.exp(-Math.max(-120, Math.min(120, e.deltaY)) * 0.002), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+st.addEventListener('pointerdown', e => { if (e.button !== 0) return; drag = true; sx = e.clientX; sy = e.clientY; ox = state.panX; oy = state.panY; st.setPointerCapture(e.pointerId); st.classList.add('dragging'); });
+st.addEventListener('pointermove', e => { if (!drag) return; state.panX = ox + e.clientX - sx; state.panY = oy + e.clientY - sy; applyT(); });
+st.addEventListener('pointerup', () => { drag = false; st.classList.remove('dragging'); });
+st.addEventListener('dblclick', fitLB);
+document.addEventListener('keydown', e => {
+  if ($('lightbox').classList.contains('hidden')) return;
+  if (e.key === 'Escape') closeLB();
+  if (e.key === 'ArrowLeft' && state.lbIdx > 0) { state.lbIdx--; renderLB(); }
+  if (e.key === 'ArrowRight' && state.lbIdx < visibleWorks().length - 1) { state.lbIdx++; renderLB(); }
+  if (e.key === '+' || e.key === '=') zoomLB(1.25);
+  if (e.key === '-') zoomLB(0.8);
+  if (e.key === '0') fitLB();
+});
+
+function syncDemo() {
+  $('chkLora').checked = state.perms.lora;
+  $('chkParams').checked = state.perms.params;
+  $('chkDataset').checked = state.perms.dataset;
+  document.querySelectorAll('.demo-presets button').forEach(b => b.classList.remove('on'));
+  if (!state.perms.lora && !state.perms.params && !state.perms.dataset) document.querySelector('[data-preset="unpaid"]').classList.add('on');
+  else if (state.perms.lora && !state.perms.params && !state.perms.dataset) document.querySelector('[data-preset="lora"]').classList.add('on');
+  else if (state.perms.lora && state.perms.params && state.perms.dataset) document.querySelector('[data-preset="full"]').classList.add('on');
+  renderAll();
+  if (!$('lightbox').classList.contains('hidden')) renderLB();
+}
+$('demoToggle').addEventListener('click', () => {
+  const d = $('demoDock'); d.classList.toggle('collapsed');
+  $('demoArrow').textContent = d.classList.contains('collapsed') ? '展开' : '收起';
+});
+document.querySelectorAll('.demo-presets button').forEach(b => b.addEventListener('click', () => {
+  const p = b.dataset.preset;
+  if (p === 'unpaid') state.perms = { lora: false, params: false, dataset: false };
+  if (p === 'lora') state.perms = { lora: true, params: false, dataset: false };
+  if (p === 'full') state.perms = { lora: true, params: true, dataset: true };
+  syncDemo();
+}));
+$('chkLora').addEventListener('change', e => { state.perms.lora = e.target.checked; syncDemo(); });
+$('chkParams').addEventListener('change', e => { state.perms.params = e.target.checked; syncDemo(); });
+$('chkDataset').addEventListener('change', e => { state.perms.dataset = e.target.checked; syncDemo(); });
+
+renderAll();
+</script>
+</body>
+</html>

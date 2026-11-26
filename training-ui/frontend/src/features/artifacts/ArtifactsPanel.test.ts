@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { reactive } from 'vue'
+import { KeepAlive, defineComponent, h, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import ArtifactsPanel from './ArtifactsPanel.vue'
 let state: any
@@ -44,4 +44,42 @@ it('polls only while the tab is active and releases timers/requests on unmount',
   await wrapper.setProps({active:true});await flushPromises();expect(mocks.api).toHaveBeenCalledTimes(1)
   await wrapper.setProps({active:false});await vi.advanceTimersByTimeAsync(30000);expect(mocks.api).toHaveBeenCalledTimes(1)
   wrapper.unmount();await vi.advanceTimersByTimeAsync(30000);expect(mocks.api).toHaveBeenCalledTimes(1)
+})
+it('stops polling when KeepAlive deactivates and resumes on reactivation',async()=>{
+  vi.useFakeTimers();mocks.api.mockResolvedValue(listing([]))
+  const show=ref(true)
+  const Host=defineComponent({setup:()=>()=>h(KeepAlive,null,()=>show.value?h(ArtifactsPanel):null)})
+  const wrapper=mount(Host,{global});await flushPromises();expect(mocks.api).toHaveBeenCalledTimes(1)
+  show.value=false;await flushPromises()
+  await vi.advanceTimersByTimeAsync(30000);expect(mocks.api).toHaveBeenCalledTimes(1)
+  show.value=true;await flushPromises();expect(mocks.api).toHaveBeenCalledTimes(2)
+  await vi.advanceTimersByTimeAsync(10000);await flushPromises();expect(mocks.api).toHaveBeenCalledTimes(3)
+  wrapper.unmount()
+})
+it('renders per-model metadata checkboxes and appends strip_metadata only for unchecked fields',async()=>{
+  const model2={...model,name:'model-000004.safetensors',path:'output/model-000004.safetensors',label:'Epoch 4'}
+  mocks.api.mockImplementation((url:string)=>Promise.resolve(url.includes('/preview?')?{metadata:{ss_epoch:'3'},tensorCount:1,tensors:[]}:listing([model,model2])))
+  const wrapper=mount(ArtifactsPanel,{global});await flushPromises()
+  const rows=wrapper.findAll('tbody tr')
+  expect(rows).toHaveLength(2)
+  const row1Checks=rows[0]!.findAll('.artifact-meta-checks input[type="checkbox"]')
+  const row2Checks=rows[1]!.findAll('.artifact-meta-checks input[type="checkbox"]')
+  expect(row1Checks).toHaveLength(3)
+  expect(row2Checks).toHaveLength(3)
+  expect(row1Checks.every(c=>(c.element as HTMLInputElement).checked)).toBe(true)
+  expect(rows[0]!.find('a[download]').attributes('href')).not.toContain('strip_metadata')
+
+  // Uncheck ss_datasets[*].bucket_info and ss_tag_frequency on model 1 only
+  await row1Checks[0]!.setValue(false)
+  await row1Checks[2]!.setValue(false)
+  const href1=rows[0]!.find('a[download]').attributes('href')!
+  const params1=new URLSearchParams(href1.split('?')[1])
+  expect(params1.get('strip_metadata')).toBe('ss_datasets[*].bucket_info,ss_tag_frequency')
+  expect(rows[1]!.find('a[download]').attributes('href')).not.toContain('strip_metadata')
+
+  // Preview dialog download link also honors model 1's unchecked metadata
+  await rows[0]!.findAll('button').find(b=>b.text()==='预览信息')!.trigger('click');await flushPromises()
+  const dialogHref=wrapper.find('.artifact-dialog a[download]').attributes('href')!
+  expect(new URLSearchParams(dialogHref.split('?')[1]).get('strip_metadata')).toBe('ss_datasets[*].bucket_info,ss_tag_frequency')
+  wrapper.unmount()
 })

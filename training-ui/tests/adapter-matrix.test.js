@@ -1,10 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('fs');
-const vm = require('vm');
-const path = require('path');
-const M = require('../public/js/adapter-matrix');
-const Krea2 = require('../public/js/krea2');
+const M = require('../shared/adapter-matrix');
+const Krea2 = require('../shared/krea2');
 
 test('ordinary LoRA reproduces Anima and Krea2 examples, with output/input matrix order', () => {
   const anima = M.calculate({ input: 2048, output: 2048, rank: 32 });
@@ -70,47 +67,4 @@ test('Krea2 preview reads actual module-specific args without sharing Anima adva
   const rows = M.preview({ architecture: 'krea2', networkModule: Krea2.LOKR_MODULE, rank: 32, args: ['factor=3'] });
   assert.equal(rows[0].count, 131081); assert.equal(rows[1].count, 81929);
   assert.throws(() => M.preview({ architecture: 'krea2', networkModule: Krea2.LOKR_MODULE, rank: 32, args: ['factor=3', 'factor=4'] }), /重复/);
-});
-
-class Element {
-  constructor() {
-    this.value = ''; this.children = []; this.textContent = ''; this.hidden = false;
-    this.classList = { toggle: (_, value) => { this.hidden = value; } };
-  }
-  append(node) { this.children.push(node); }
-  replaceChildren() { this.children = []; }
-}
-function ui() {
-  const elements = new Map();
-  const $ = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
-  const context = { $, Krea2, AdapterMatrix: M, currentArchitecture: 'anima',
-    document: { createElement: () => new Element() }, gatherNetworkArgs: () => context.args, args: [] };
-  const source = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
-  const start = source.indexOf('function updateAdapterMatrixPreview()');
-  vm.runInNewContext(source.slice(start, source.indexOf('\nfunction checkDirty()', start)), context);
-  $('cfg-network-module').value = 'networks.lora_anima'; $('cfg-network-dim').value = '32'; $('cfg-training-type').value = 'lora';
-  return { $, context, update: context.updateAdapterMatrixPreview };
-}
-test('UI updates shapes/counts after module, rank, factor, full and architecture changes', () => {
-  const { $, context, update } = ui();
-  const row = () => $('adapter-matrix-rows').children[0].children.map(cell => cell.textContent);
-  update(); assert.equal(row()[4], '131,072'); assert.equal(row()[5], '3.1250%');
-  $('cfg-network-dim').value = '16'; update(); assert.equal(row()[4], '65,536');
-  context.currentArchitecture = 'krea2'; $('cfg-network-module').value = Krea2.LOKR_MODULE;
-  $('cfg-network-dim').value = '32'; context.args = ['factor=3']; update();
-  assert.equal(row()[1], '6144 × 6144'); assert.equal(row()[4], '131,081');
-  context.args = ['factor=16', 'full_matrix=true']; update(); assert.equal(row()[4], '147,712'); assert.match(row()[2], /手动/);
-  context.args = ['factor=-1']; $('cfg-network-dim').value = '48'; update(); assert.match(row()[2], /自动/);
-  assert.match($('adapter-matrix-description').textContent, /Krea2/);
-});
-test('UI clears stale counts on errors and hides for full finetuning or other architectures', () => {
-  const { $, context, update } = ui(); update();
-  $('cfg-network-dim').value = ''; update(); assert.equal($('adapter-matrix-rows').children.length, 0);
-  assert.match($('adapter-matrix-error').textContent, /Rank/);
-  $('cfg-network-dim').value = '32'; update(); assert.equal($('adapter-matrix-error').textContent, '');
-  $('cfg-network-module').value = 'networks.lokr'; $('cfg-lokr-factor').value = '1.5'; update();
-  assert.equal($('adapter-matrix-rows').children.length, 0); assert.match($('adapter-matrix-error').textContent, /Factor/);
-  $('cfg-training-type').value = 'full_finetune'; update(); assert.equal($('adapter-matrix-preview').hidden, true);
-  $('cfg-training-type').value = 'lora'; context.currentArchitecture = 'lumina'; update();
-  assert.equal($('adapter-matrix-preview').hidden, true);
 });

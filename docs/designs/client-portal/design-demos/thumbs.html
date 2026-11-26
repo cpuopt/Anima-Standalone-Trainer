@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Anima Client Portal · 六候选方向缩略图总览</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #14161a;
+    color: #eef1f5;
+    font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    padding: 28px 32px 36px;
+  }
+  .board-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #262a32;
+    padding-bottom: 14px;
+  }
+  .board-head h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+  .board-head p { font-size: 13px; color: #949ca8; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 22px;
+    max-width: 1520px;
+    margin: 0 auto;
+  }
+  .tile-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .tile-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #b4bcc8;
+  }
+  .tile-meta strong { color: #fff; font-weight: 600; }
+  .badge-pick {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: #1f3b2c;
+    color: #6ee7b7;
+    border: 1px solid #2f6b4b;
+  }
+  .badge-alt {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: #22262e;
+    color: #9aa3b2;
+    border: 1px solid #323741;
+  }
+  .thumb {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid #2c313c;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.4);
+  }
+  .thumb img { display: block; object-fit: cover; }
+
+  /* 1. 精密暗房审片台 (dir-1) */
+  .t1 { background: #0e1013; color: #e6e8ec; display: grid; grid-template-columns: 118px 1fr; height: 100%; font-size: 10px; }
+  .t1-side { background: #14171c; border-right: 1px solid #232831; padding: 12px 10px; display: flex; flex-direction: column; gap: 10px; }
+  .t1-logo { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.06em; color: #9aa4b2; border-bottom: 1px solid #232831; padding-bottom: 8px; }
+  .t1-logo b { color: #f4f6f8; display: block; font-size: 11px; margin-top: 2px; }
+  .t1-nav { display: flex; flex-direction: column; gap: 4px; }
+  .t1-nav div { padding: 4px 6px; border-radius: 3px; color: #8c95a3; font-size: 9px; display: flex; justify-content: space-between; }
+  .t1-nav div.act { background: #1f252e; color: #fff; border-left: 2px solid #f59e0b; }
+  .t1-lock { margin-top: auto; background: #191d24; border: 1px solid #2a303b; border-radius: 4px; padding: 6px; font-size: 8.5px; color: #fbbf24; line-height: 1.4; }
+  .t1-main { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .t1-top { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f242d; padding-bottom: 6px; }
+  .t1-top span { font-family: ui-monospace, monospace; font-size: 9px; color: #8c95a3; }
+  .t1-pill { background: #262015; color: #fbbf24; border: 1px solid #594418; padding: 2px 6px; border-radius: 3px; font-size: 8px; }
+  .t1-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; flex: 1; }
+  .t1-card { background: #161a20; border: 1px solid #242933; border-radius: 3px; overflow: hidden; position: relative; }
+  .t1-card img { width: 100%; height: 100%; }
+  .t1-tag { position: absolute; bottom: 3px; left: 3px; background: rgba(10,12,15,0.82); color: #dce1e8; font-family: ui-monospace, monospace; font-size: 7.5px; padding: 1px 4px; border-radius: 2px; }
+
+  /* 2. 极白美术馆展厅 (dir-2) */
+  .t2 { background: #f9f8f6; color: #191918; height: 100%; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .t2-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid #e7e4de; padding-bottom: 8px; }
+  .t2-title { font-family: "Georgia", "Songti SC", serif; font-size: 15px; font-weight: 400; letter-spacing: 0.02em; }
+  .t2-sub { font-size: 8.5px; color: #7a766e; margin-top: 2px; }
+  .t2-tabs { display: flex; gap: 10px; font-size: 9px; color: #7a766e; }
+  .t2-tabs span.on { color: #191918; border-bottom: 1px solid #191918; padding-bottom: 2px; }
+  .t2-gallery { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 10px; flex: 1; align-items: start; }
+  .t2-frame { background: #fff; padding: 5px; border: 1px solid #ece9e3; }
+  .t2-frame img { width: 100%; height: 132px; }
+  .t2-frame.tall img { height: 174px; }
+  .t2-cap { font-size: 8px; color: #7c7870; margin-top: 4px; display: flex; justify-content: space-between; }
+
+  /* 3. 分屏交付工作舱 (dir-3) */
+  .t3 { background: #f4f5f7; color: #111827; height: 100%; display: flex; flex-direction: column; }
+  .t3-bar { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 9.5px; }
+  .t3-steps { display: flex; gap: 8px; font-size: 8.5px; color: #6b7280; }
+  .t3-steps b { color: #1e3a8a; }
+  .t3-body { display: grid; grid-template-columns: 1fr 132px; flex: 1; min-height: 0; }
+  .t3-left { padding: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; align-content: start; }
+  .t3-img { background: #fff; border-radius: 5px; overflow: hidden; border: 1px solid #e5e7eb; height: 84px; position: relative; }
+  .t3-img img { width: 100%; height: 100%; }
+  .t3-right { background: #fff; border-left: 1px solid #e5e7eb; padding: 10px; display: flex; flex-direction: column; gap: 7px; }
+  .t3-right h4 { font-size: 10px; font-weight: 600; color: #111827; }
+  .t3-row { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 5px 6px; font-size: 8px; display: flex; justify-content: space-between; align-items: center; color: #475569; }
+  .t3-row.ok { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+  .t3-btn { margin-top: auto; background: #1e3a8a; color: #fff; text-align: center; padding: 5px; border-radius: 4px; font-size: 8.5px; font-weight: 500; }
+
+  /* 4. Are.na 目录索引看板 */
+  .t4 { background: #fbfbfb; color: #111; height: 100%; padding: 10px 12px; font-family: system-ui, sans-serif; display: flex; flex-direction: column; gap: 8px; }
+  .t4-path { font-family: ui-monospace, monospace; font-size: 9.5px; border-bottom: 1px solid #ddd; padding-bottom: 6px; display: flex; justify-content: space-between; }
+  .t4-path span { color: #0000ee; text-decoration: underline; }
+  .t4-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; flex: 1; }
+  .t4-cell { border: 1px solid #e2e2e2; background: #fff; padding: 4px; display: flex; flex-direction: column; gap: 3px; }
+  .t4-cell img { width: 100%; height: 102px; }
+  .t4-cell small { font-family: ui-monospace, monospace; font-size: 7.5px; color: #555; }
+  .t4-foot { border-top: 1px solid #ddd; padding-top: 5px; font-family: ui-monospace, monospace; font-size: 8px; color: #555; display: flex; justify-content: space-between; }
+
+  /* 5. Web 09 · 复古 HUD 验收档案 */
+  .t5 { background: #1b2230; color: #f4f7fb; height: 100%; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-family: ui-monospace, monospace; }
+  .t5-hud { background: #101622; border: 2px solid #4ade80; padding: 6px 8px; display: flex; justify-content: space-between; align-items: center; font-size: 8.5px; }
+  .t5-bar { display: flex; gap: 3px; }
+  .t5-bar i { width: 12px; height: 7px; background: #4ade80; display: block; }
+  .t5-bar i.off { background: #2d3748; }
+  .t5-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 1; }
+  .t5-slot { border: 2px solid #3b4963; background: #121826; padding: 3px; display: flex; flex-direction: column; }
+  .t5-slot img { width: 100%; height: 112px; }
+  .t5-slot span { font-size: 7.5px; color: #93c5fd; margin-top: 3px; }
+  .t5-chest { background: #2a2115; border: 2px solid #f59e0b; padding: 5px 8px; font-size: 8px; color: #fcd34d; display: flex; justify-content: space-between; }
+
+  /* 6. East 09 · 田中一光几何构成画册 */
+  .t6 { background: #f3efe6; color: #141414; height: 100%; display: grid; grid-template-columns: 126px 1fr; }
+  .t6-poster { background: #1f3b5c; color: #f3efe6; padding: 12px 10px; position: relative; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+  .t6-circle { position: absolute; right: -24px; top: -18px; width: 76px; height: 76px; border-radius: 50%; background: #c83e2b; }
+  .t6-poster h3 { font-size: 16px; line-height: 1.25; font-weight: 700; position: relative; z-index: 1; }
+  .t6-seal { border: 1.5px solid #e6a89c; color: #f3efe6; padding: 3px 5px; font-size: 8px; width: fit-content; letter-spacing: 0.12em; }
+  .t6-right { padding: 10px 12px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; align-content: center; }
+  .t6-pic { background: #fff; padding: 4px; border: 1px solid #ddd6c7; }
+  .t6-pic img { width: 100%; height: 84px; }
+  .t6-pic span { display: block; font-size: 7.5px; margin-top: 3px; color: #524c42; }
+</style>
+</head>
+<body>
+  <header class="board-head">
+    <h1>Anima Client Portal · 六候选方向缩略图</h1>
+    <p>三套逻辑各出两版，精选前 3 版构建完整可交互原型，后 3 版作为备选</p>
+  </header>
+  <main class="grid">
+    <!-- 1 -->
+    <div class="tile-wrap">
+      <div class="tile-meta">
+        <span><strong>方向 1 · 精密暗房审片台</strong>（最佳设计师 B）</span>
+        <span class="badge-pick">完整版 dir-1</span>
+      </div>
+      <div class="thumb" data-thumb="1">
+        <div class="t1">
+          <aside class="t1-side">
+            <div class="t1-logo">ANIMA CLIENT<b>Cel-Ink Atelier v2</b></div>
+            <div class="t1-nav">
+              <div class="act"><span>全部预览图</span><span>6</span></div>
+              <div><span>Prompt 1 立绘</span><span>2</span></div>
+              <div><span>Prompt 2 场景</span><span>2</span></div>
+              <div><span>Prompt 3 器物</span><span>1</span></div>
+              <div><span>精选上传</span><span>1</span></div>
+            </div>
+            <div class="t1-lock">预览验收期<br>模型与参数已锁定</div>
+          </aside>
+          <section class="t1-main">
+            <div class="t1-top">
+              <span>6 张可见样图 · 100% 色准暗房</span>
+              <span class="t1-pill">阶段一 · 未付费</span>
+            </div>
+            <div class="t1-grid">
+              <div class="t1-card"><img src="../assets/sample_p1_e12.jpg" alt="" /><span class="t1-tag">E12</span></div>
+              <div class="t1-card"><img src="../assets/sample_p1_e16.jpg" alt="" /><span class="t1-tag">E16</span></div>
+              <div class="t1-card"><img src="../assets/sample_curated_01.jpg" alt="" /><span class="t1-tag">精选</span></div>
+              <div class="t1-card"><img src="../assets/sample_p2_e12.jpg" alt="" /><span class="t1-tag">E12</span></div>
+              <div class="t1-card"><img src="../assets/sample_p2_e16.jpg" alt="" /><span class="t1-tag">E16</span></div>
+              <div class="t1-card"><img src="../assets/sample_p3_e16.jpg" alt="" /><span class="t1-tag">E16</span></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="tile-wrap">
+      <div class="tile-meta">
+        <span><strong>方向 2 · 极白美术馆展厅</strong>（最佳设计师 A）</span>
+        <span class="badge-pick">完整版 dir-2</span>
+      </div>
+      <div class="thumb" data-thumb="2">
+        <div class="t2">
+          <header class="t2-head">
+            <div>
+              <div class="t2-title">星尘水彩 · Cel-Ink Atelier v2</div>
+              <div class="t2-sub">客户专属审片展厅 · 6 件公开预览作品</div>
+            </div>
+            <div class="t2-tabs">
+              <span class="on">预览作品</span>
+              <span>交付清单</span>
+            </div>
+          </header>
+          <div class="t2-gallery">
+            <div class="t2-frame tall">
+              <img src="../assets/sample_curated_01.jpg" alt="" />
+              <div class="t2-cap"><span>精选主视觉</span><span>1024×1360</span></div>
+            </div>
+            <div class="t2-frame">
+              <img src="../assets/sample_p1_e16.jpg" alt="" />
+              <div class="t2-cap"><span>Prompt 1 · E16</span><span>立绘</span></div>
+            </div>
+            <div class="t2-frame">
+              <img src="../assets/sample_p2_e12.jpg" alt="" />
+              <div class="t2-cap"><span>Prompt 2 · E12</span><span>场景</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="tile-wrap">
+      <div class="tile-meta">
+        <span><strong>方向 3 · 分屏交付工作舱</strong>（现实参照 A）</span>
+        <span class="badge-pick">完整版 dir-3</span>
+      </div>
+      <div class="thumb" data-thumb="3">
+        <div class="t3">
+          <header class="t3-bar">
+            <strong>Cel-Ink Atelier v2</strong>
+            <div class="t3-steps"><b>1. 预览验收</b> → 2. 确认授权 → 3. 资产提货</div>
+          </header>
+          <div class="t3-body">
+            <div class="t3-left">
+              <div class="t3-img"><img src="../assets/sample_p1_e16.jpg" alt="" /></div>
+              <div class="t3-img"><img src="../assets/sample_p2_e12.jpg" alt="" /></div>
+              <div class="t3-img"><img src="../assets/sample_p2_e16.jpg" alt="" /></div>
+              <div class="t3-img"><img src="../assets/sample_p3_e16.jpg" alt="" /></div>
+            </div>
+            <aside class="t3-right">
+              <h4>交付权限舱</h4>
+              <div class="t3-row ok"><span>预览图下载</span><span>已开放</span></div>
+              <div class="t3-row"><span>LoRA 权重</span><span>未授权</span></div>
+              <div class="t3-row"><span>训练参数</span><span>隐藏</span></div>
+              <div class="t3-row"><span>数据集归档</span><span>未授权</span></div>
+              <div class="t3-btn">打包下载预览图</div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4 -->
+    <div class="tile-wrap">
+      <div class="tile-meta">
+        <span><strong>备选 4 · Are.na 目录索引看板</strong>（现实参照 B）</span>
+        <span class="badge-alt">备选</span>
+      </div>
+      <div class="thumb" data-thumb="4">
+        <div class="t4">
+          <div class="t4-path"><span>client-portal / cel-ink-v2 / previews</span><em>STAGE: PREVIEW</em></div>
+          <div class="t4-grid">
+            <div class="t4-cell"><img src="../assets/sample_p1_e12.jpg" alt="" /><small>001_p1_e12</small></div>
+            <div class="t4-cell"><img src="../assets/sample_p1_e16.jpg" alt="" /><small>002_p1_e16</small></div>
+            <div class="t4-cell"><img src="../assets/sample_p2_e12.jpg" alt="" /><small>003_p2_e12</small></div>
+            <div class="t4-cell"><img src="../assets/sample_curated_01.jpg" alt="" /><small>004_curated</small></div>
+          </div>
+          <div class="t4-foot"><span>VISIBLE: 6 ITEMS</span><span>WEIGHTS / PARAMS / DATASET: RESTRICTED</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 -->
+    <div class="tile-wrap">
+      <div class="tile-meta">
+        <span><strong>备选 5 · 复古 HUD 验收档案</strong>（轮盘 Web 09）</span>
+        <span class="badge-alt">备选</span>
+      </div>
+      <div class="thumb" data-thumb="5">
+        <div class="t5">
+          <div class="t5-hud">
+            <span>STAGE 1/2 · PREVIEW CHECK</span>
+            <div class="t5-bar"><i></i><i></i><i class="off"></i><i class="off"></i></div>
+          </div>
+          <div class="t5-grid">
+            <div class="t5-slot"><img src="../assets/sample_p1_e16.jpg" alt="" /><span>SLOT 01 · E16</span></div>
+            <div class="t5-slot"><img src="../assets/sample_p2_e16.jpg" alt="" /><span>SLOT 02 · E16</span></div>
+            <div class="t5-slot"><img src="../assets/sample_p3_e16.jpg" alt="" /><span>SLOT 03 · E16</span></div>
+          </div>
+          <div class="t5-chest"><span>LOCKED VAULT · 付款后解锁 LoRA / 参数 / 数据集</span><span>[LOCKED]</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6 -->
+    <div class="tile-wrap">
+      <div class="tile-meta">
+        <span><strong>备选 6 · 田中一光几何画册</strong>（轮盘 East 09）</span>
+        <span class="badge-alt">备选</span>
+      </div>
+      <div class="thumb" data-thumb="6">
+        <div class="t6">
+          <div class="t6-poster">
+            <div class="t6-circle"></div>
+            <h3>星尘<br>水彩<br>交付册</h3>
+            <div class="t6-seal">预览印鉴</div>
+          </div>
+          <div class="t6-right">
+            <div class="t6-pic"><img src="../assets/sample_curated_01.jpg" alt="" /><span>精选 · 01</span></div>
+            <div class="t6-pic"><img src="../assets/sample_p1_e12.jpg" alt="" /><span>立绘 · E12</span></div>
+            <div class="t6-pic"><img src="../assets/sample_p2_e12.jpg" alt="" /><span>场景 · E12</span></div>
+            <div class="t6-pic"><img src="../assets/sample_p3_e16.jpg" alt="" /><span>器物 · E16</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

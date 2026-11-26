@@ -1,10 +1,8 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { useEditorStore } from '@/stores/editor'
-import { Moss } from '@/domain/legacy'
+import { Moss } from '@/domain/training'
 import TrainingPanel from './TrainingPanel.vue'
 import NetworkPanel from '../network/NetworkPanel.vue'
 import DatasetPanel from '../dataset/DatasetPanel.vue'
@@ -57,23 +55,4 @@ it('MOSS prompt serialization preserves seed 0 and explicit empty negative witho
   const p=parsePromptLine('fox --w 512 --h 768 --s 3 --l 0 --d 0 --n')
   const text=serializePrompt(p,'moss_image','do not replace explicit empty')
   expect(text).toContain('--d 0');expect(text).toContain('--l 0');expect(text).not.toContain('--ss');expect(text).not.toContain('do not replace');expect(text).not.toContain('--n')
-})
-it('legacy MOSS forms preserve loaded configuration, adapter options and dataset snapshots',async()=>{
-  const html=readFileSync(resolve('../public/index.html'),'utf8').replace(/<script[\s\S]*?<\/script>/g,'')
-  document.body.innerHTML=html
-  const src=readFileSync(resolve('../public/js/moss-ui.js'),'utf8')
-  const ui=new Function('Moss',src+';return MossUI;')(Moss)
-  const config=Moss.defaults();config.network_arguments.network_module='networks.lokr';config.network_arguments.network_args=['factor=3','full_matrix=true']
-  ui.populate(config);ui.setDataset(Moss.datasetDefaults());(document.getElementById('cfg-enable-sampling') as HTMLInputElement).checked=false
-  expect(ui.config()).toEqual(config);expect(ui.datasetValue()).toEqual(Moss.datasetDefaults())
-  const compile=document.querySelector('input[id^="moss-compile-"]') as HTMLInputElement
-  compile.checked=true;compile.dispatchEvent(new Event('input'))
-  const mode=document.querySelector('select[id^="moss-compile_mode-"]') as HTMLSelectElement
-  mode.value='max-autotune';mode.dispatchEvent(new Event('input'))
-  expect(ui.config().training_arguments.compile).toBe(true)
-  expect(ui.config().training_arguments.compile_mode).toBe('max-autotune');Moss.validate(ui.config())
-  const factor=[...document.querySelectorAll('.moss-panel input')].find(x=>x.id.startsWith('moss-factor-')) as HTMLInputElement
-  factor.value='16';factor.dispatchEvent(new Event('input'));factor.dispatchEvent(new Event('change'))
-  expect(ui.config().network_arguments.network_args).toContain('factor=16');Moss.validate(ui.config())
-  ui.populate({architecture:'anima'});expect(document.body.classList.contains('moss-mode')).toBe(false);document.body.innerHTML='';await flushPromises()
 })

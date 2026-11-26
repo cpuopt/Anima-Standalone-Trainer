@@ -1,4 +1,4 @@
-import { Krea2, LayerRank, Moss } from '@/domain/legacy'
+import { Krea2, LayerRank, Moss } from '@/domain/training'
 import { api } from '@/services/api'
 
 export type Config = Record<string, any>
@@ -127,12 +127,12 @@ export async function validateConfig(config: Config): Promise<void> {
     if (value === undefined) return
     if (typeof value !== 'number' || !Number.isFinite(value) || value < min || (integer && !Number.isInteger(value))) throw Error(`${label} 必须为不小于 ${min} 的${integer ? '整数' : '数字'}`)
   }
-  for (const key of ['max_train_epochs','max_train_steps','save_every_n_epochs','save_every_n_steps','sample_every_n_epochs','sample_every_n_steps','gradient_accumulation_steps']) finite(t[key], key, 1, true)
+  for (const key of ['max_train_epochs','max_train_steps','save_every_n_epochs','save_every_n_steps','sample_every_n_epochs','sample_every_n_steps','gradient_accumulation_steps','lr_scheduler_num_cycles']) finite(t[key], key, 1, true)
   for (const key of ['max_data_loader_n_workers','blocks_to_swap','lr_warmup_steps']) finite(t[key], key, 0, true)
   if (t.lr_warmup_unit !== undefined && !['steps','epochs'].includes(t.lr_warmup_unit)) throw Error('LR Warmup Unit 必须为 steps 或 epochs')
   if (t.lr_warmup_unit === 'epochs') {
     finite(t.lr_warmup_epochs, 'LR Warmup Epochs', 0)
-    if (/ScheduleFree$/i.test(t.optimizer_type || '')) throw Error('Epoch warmup 不支持 ScheduleFree 优化器，请使用 Steps 模式')
+    if (!t.use_muon && /ScheduleFree$/i.test(t.optimizer_type || '')) throw Error('Epoch warmup 不支持 ScheduleFree 优化器，请使用 Steps 模式')
   }
   for (const key of ['learning_rate','text_encoder_lr']) finite(t[key], key, Number.EPSILON)
   if (t.persistent_data_loader_workers && t.max_data_loader_n_workers === 0) throw Error('Persistent workers 需要 DataLoader Workers > 0')

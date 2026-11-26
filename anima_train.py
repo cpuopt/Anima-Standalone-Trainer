@@ -23,6 +23,7 @@ from accelerate.utils import set_seed
 from library import deepspeed_utils, anima_models, anima_train_utils, anima_utils, save_utils, strategy_base, strategy_anima, sai_model_spec
 
 import library.train_util as train_util
+from library import muon_optimizer
 
 from library.utils import setup_logging, add_logging_arguments
 from library.i18n import tr
@@ -174,6 +175,10 @@ class AnimaTrainer:
 
     def train(self, args):
         setup_logging(args, reset=True)
+        if args.use_muon:
+            if args.deepspeed or getattr(args, "use_fsdp", False) or args.blockwise_fused_optimizers or args.fused_backward_pass:
+                raise ValueError("Muon supports single-device training without DeepSpeed, FSDP or fused optimizers.")
+            args.optimizer_type = "Muon"
         self.on_train_begin(args)
         train_util.verify_training_args(args)
         train_util.prepare_dataset_args(args, True)
@@ -354,6 +359,12 @@ class AnimaTrainer:
         # prepare accelerator
         logger.info(tr("preparing_accelerator"))
         accelerator = train_util.prepare_accelerator(args)
+        if args.use_muon and (
+            accelerator.num_processes != 1
+            or getattr(accelerator.state, "fsdp_plugin", None) is not None
+            or getattr(accelerator.state, "deepspeed_plugin", None) is not None
+        ):
+            raise ValueError("Muon is supported only in single-process Anima full fine-tuning.")
 
         # mixed precision dtype
         weight_dtype, save_dtype = train_util.prepare_dtype(args)
@@ -548,7 +559,10 @@ class AnimaTrainer:
         # prepare optimizer
         accelerator.print(tr("prepare_optimizer_data"))
 
-        if args.blockwise_fused_optimizers:
+        if args.use_muon:
+            optimizer = muon_optimizer.build_optimizer(args, param_groups)
+            optimizer_train_fn, optimizer_eval_fn = train_util.get_optimizer_train_eval_fn(optimizer, args)
+        elif args.blockwise_fused_optimizers:
             # Split params into per-block groups for blockwise fused optimizer
             # Build param_id → lr mapping from param_groups to propagate per-component LRs
             param_lr_map = {}
@@ -1188,6 +1202,7 @@ def setup_parser() -> argparse.ArgumentParser:
     deepspeed_utils.add_deepspeed_arguments(parser)
     train_util.add_sd_saving_arguments(parser)
     train_util.add_optimizer_arguments(parser)
+    muon_optimizer.add_muon_arguments(parser)
     config_util.add_config_arguments(parser)
     add_custom_train_arguments(parser)
     train_util.add_dit_training_arguments(parser)

@@ -5,13 +5,13 @@ const path = require('path');
 const { environmentPath: animaLuminaEnvironmentPath } = require('./lib/anima-lumina-env');
 const { snapshotSamplePrompts } = require('./lib/prompt-snapshot');
 const { countDatasetImages } = require('./lib/dataset-images');
-const LBAI = require('./public/js/lbai');
+const LBAI = require('./shared/lbai');
 const { memoryTraceUpdateError } = require('./lib/memory-trace-settings');
 const {readAnimaLayers, validateLayerArgs} = require('./lib/anima-layers');
 const TOML = require('@iarna/toml');
-const Krea2 = require('./public/js/krea2');
+const Krea2 = require('./shared/krea2');
 const kreaBackend = require('./lib/krea2-backend');
-const Moss = require('./public/js/moss');
+const Moss = require('./shared/moss');
 const mossBackend = require('./lib/moss-backend');
 const { tensorboardPath, tensorboardProxy, waitForTensorboard } = require('./lib/tensorboard-proxy');
 const { findAvailablePort } = require('./lib/ports');
@@ -84,7 +84,7 @@ function buildModelArgs(arch, globalConfig) {
 app.use('/tensorboard/:jobKey', tensorboardProxy(name => tbProcesses.get(name)));
 app.use(express.json({ limit: '50mb' }));
 require('./lib/frontend').mountFrontend(app);
-app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(UPLOAD_DIR));
 app.get('/api/anima-layers', (req, res) => {
     try {
         res.json(readAnimaLayers(getGlobalConfig().model_paths?.dit_path));
@@ -112,6 +112,8 @@ if (!fs.existsSync(GLOBAL_CONFIG_PATH) && fs.existsSync(TEMPLATE_CONFIG_PATH)) {
 
 // Track running processes
 const runningJobs = new Map();
+const trainingQueue = [];
+let lastTrainingFailure = null;
 const { DatasetLibrary } = require('./lib/dataset-library');
 const datasetLibrary = new DatasetLibrary({
     root: path.join(__dirname, 'datasets'),
@@ -123,6 +125,21 @@ datasetLibrary.initialize().catch(error => console.warn('Dataset storage initial
 const { JobArtifacts } = require('./lib/job-artifacts');
 new JobArtifacts({ jobsDir: JOBS_DIR, isRunning: name => runningJobs.has(name),
     thumbnail: target => datasetLibrary.thumbnail(target) }).mount(app);
+
+const { ClientPortalStore, mountClientPortalAdmin } = require('./lib/client-portal-store');
+const { ClientPortalService } = require('./lib/client-portal-service');
+const clientPortalDataDir = path.join(__dirname, 'client-portal-data');
+const clientPortalStore = new ClientPortalStore({
+    jobsDir: JOBS_DIR,
+    dataDir: clientPortalDataDir,
+    toNativePath,
+});
+const clientPortalService = new ClientPortalService({
+    jobsDir: JOBS_DIR,
+    dataDir: clientPortalDataDir,
+    toNativePath,
+});
+mountClientPortalAdmin(app, clientPortalStore, { service: clientPortalService });
 
 // WebSocket clients per job
 const wsClients = new Map(); // jobName -> Set<ws>
@@ -385,6 +402,48 @@ function broadcastStatus(jobName, status) {
     }
 }
 
+function activeTraining() {
+    for (const [name, job] of runningJobs) {
+        if (job.type === 'training') return name;
+    }
+    return null;
+}
+
+function trainingQueueStatus() {
+    return { active: activeTraining(), pending: [...trainingQueue], lastFailure: lastTrainingFailure };
+}
+
+function broadcastTrainingQueue() {
+    const message = JSON.stringify({ type: 'training_queue', data: trainingQueueStatus() });
+    for (const ws of wss.clients) {
+        if (ws.readyState === WebSocket.OPEN) ws.send(message);
+    }
+}
+
+function advanceTrainingQueue() {
+    while (trainingQueue.length && !activeTraining()) {
+        const name = trainingQueue.shift();
+        try {
+            const result = startTrainingJob(name);
+            if (result.error) throw new Error(result.error);
+        } catch (err) {
+            lastTrainingFailure = { name, message: err.message };
+            console.error(`[Training queue] ${name}: ${err.message}`);
+            broadcastLog(name, `\nERROR: ${err.message}\n`);
+        }
+    }
+    broadcastTrainingQueue();
+}
+
+async function finishTrainingJob(name, job, failure) {
+    if (job.stopPending) await job.stopPending.catch(() => {});
+    if (runningJobs.get(name) !== job) return;
+    if (failure) lastTrainingFailure = { name, message: failure };
+    runningJobs.delete(name);
+    broadcastStatus(name, 'idle');
+    advanceTrainingQueue();
+}
+
 // Find the most recently modified state folder in a job's output directory
 function findLastStateDir(jobPath) {
     const outputDir = path.join(jobPath, 'output');
@@ -529,6 +588,7 @@ wss.on('connection', (ws) => {
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
     ws.subscribedJob = null;
+    ws.send(JSON.stringify({ type: 'training_queue', data: trainingQueueStatus() }));
 
     ws.on('message', (message) => {
         try {
@@ -796,9 +856,13 @@ app.put('/api/jobs/:name', (req, res) => {
 // Delete job
 app.delete('/api/jobs/:name', (req, res) => {
     try {
-        const jobPath = getJobPath(req.params.name);
-        if (runningJobs.has(req.params.name)) {
+        const name = sanitizeName(req.params.name);
+        const jobPath = getJobPath(name);
+        if (runningJobs.has(name)) {
             return res.status(400).json({ error: 'Stop job before deleting' });
+        }
+        if (trainingQueue.includes(name)) {
+            return res.status(409).json({ error: '任务正在训练队列中' });
         }
         if (fs.existsSync(jobPath)) {
             fs.rmSync(jobPath, { recursive: true });
@@ -937,7 +1001,8 @@ function killAllJobs() {
 for (const sig of ['exit', 'SIGINT', 'SIGTERM']) {
     process.on(sig, () => {
         killAllJobs();
-        if (sig !== 'exit') process.exit(0);
+        if (sig === 'exit') clientPortalService.forceCloseSync();
+        else clientPortalService.stop().finally(() => process.exit(0));
     });
 }
 
@@ -1033,6 +1098,17 @@ function buildLaunchConfig(gpuIds, mergedConfig, mergedConfigPath, jobArch) {
     const ta = mergedConfig.training_arguments || {};
     const mixedPrec = ta.mixed_precision || 'bf16';
     const mode = ta.multigpu_mode || (ta.deepspeed ? 'deepspeed' : (ta.use_fsdp ? 'fsdp' : 'ddp'));
+    if (ta.use_muon) {
+        if (jobArch.scripts.train !== 'anima_train.py' || mergedConfig.network_arguments?.network_module) {
+            return { error: 'Muon 仅支持 Anima 全量微调。' };
+        }
+        if (mode !== 'ddp' || ta.deepspeed || ta.use_fsdp || gpuIds?.split(',').filter(id => id.trim()).length > 1) {
+            return { error: 'Muon 仅支持单 GPU，请选择一张显卡并使用单进程模式。' };
+        }
+        if (ta.blockwise_fused_optimizers || ta.fused_backward_pass) {
+            return { error: '启用 Muon 时请关闭分块融合优化器和融合反向传播。' };
+        }
+    }
 
     let gpuEnv = '';
     let accelerateFlags = '';
@@ -1228,6 +1304,15 @@ app.post('/api/jobs/:name/train/stop', async (req, res) => {
             return res.status(400).json({ error: 'Job not running' });
         }
 
+        if (job.type === 'training') {
+            if (!job.stopPending) {
+                job.phase = 'stopping';
+                broadcastStatus(jobName, 'stopping');
+                job.stopPending = job.krea2 || job.moss ? job.stop() : killProcess(job.pid, 8000);
+            }
+            await job.stopPending;
+            return res.json({ success: true });
+        }
         if (job.krea2 || job.moss) {
             await job.stop();
             return res.json({ success: true });
@@ -1290,6 +1375,7 @@ app.get('/api/jobs/:name/checkpoints', (req, res) => {
 app.post('/api/jobs/:name/generate', async (req, res) => {
     try {
         const jobName = sanitizeName(req.params.name);
+        if (trainingQueue.includes(jobName)) return res.status(409).json({ error: '任务正在训练队列中' });
         if (runningJobs.has(jobName)) {
             return res.status(400).json({ error: 'Job is running. Stop it first.' });
         }
@@ -1580,10 +1666,16 @@ function startKreaPipeline(jobName, jobPath, prepared, type) {
         },
         onPhase: phase => {
             broadcastLog(jobName, `[Krea 2 phase] ${phase}\n`);
-            broadcastStatus(jobName, ['completed', 'failed', 'stopped'].includes(phase) ? 'idle' : 'running');
+            if (!['completed', 'failed', 'stopped'].includes(phase)) broadcastStatus(jobName, 'running');
         },
-        onDone: outcome => {
-            logStream.end(); runningJobs.delete(jobName); kreaOutcomes.set(jobName, outcome);
+        onDone: (outcome, error) => {
+            logStream.end();
+            kreaOutcomes.set(jobName, outcome);
+            if (type === 'training') void finishTrainingJob(jobName, job, outcome === 'failed' ? error?.message : null);
+            else {
+                runningJobs.delete(jobName);
+                broadcastStatus(jobName, 'idle');
+            }
         },
         kill: proc => killProcess(proc.pid, 8000),
     });
@@ -1599,8 +1691,18 @@ function startMossPipeline(jobName, jobPath, prepared, type) {
     stream.on('error', err => console.error('MOSS log:', err.message));
     const job = mossBackend.pipeline(prepared, {
         onLog: text => { job.logBuffer.push(text); if (job.logBuffer.length > 5000) job.logBuffer.shift(); stream.write(text); broadcastLog(jobName, text); },
-        onPhase: phase => broadcastStatus(jobName, ['completed','failed','stopped'].includes(phase) ? 'idle' : 'running'),
-        onDone: outcome => { stream.end(); runningJobs.delete(jobName); kreaOutcomes.set(jobName, outcome); broadcastStatus(jobName, 'idle'); },
+        onPhase: phase => {
+            if (!['completed', 'failed', 'stopped'].includes(phase)) broadcastStatus(jobName, 'running');
+        },
+        onDone: (outcome, error) => {
+            stream.end();
+            kreaOutcomes.set(jobName, outcome);
+            if (type === 'training') void finishTrainingJob(jobName, job, outcome === 'failed' ? error?.message : null);
+            else {
+                runningJobs.delete(jobName);
+                broadcastStatus(jobName, 'idle');
+            }
+        },
         kill: proc => killProcess(proc.pid, 8000),
     });
     job.type = type; kreaOutcomes.delete(jobName); runningJobs.set(jobName, job);
@@ -1608,225 +1710,244 @@ function startMossPipeline(jobName, jobPath, prepared, type) {
 }
 // --- Training Control ---
 
-app.post('/api/jobs/:name/train/start', async (req, res) => {
+app.get('/api/training-queue', (req, res) => res.json(trainingQueueStatus()));
+
+app.post('/api/jobs/:name/train/start', (req, res) => {
     try {
         const jobName = sanitizeName(req.params.name);
-        const jobPath = getJobPath(jobName);
-        const configPath = path.join(jobPath, 'config.toml');
-
-        if (!fs.existsSync(configPath)) {
+        if (trainingQueue.includes(jobName)) return res.json({ success: true, queued: true });
+        if (runningJobs.has(jobName)) return res.status(400).json({ error: 'Job already running' });
+        if (!fs.existsSync(path.join(getJobPath(jobName), 'config.toml'))) {
             return res.status(404).json({ error: 'Job not found' });
         }
-        if (runningJobs.has(jobName)) {
-            return res.status(400).json({ error: 'Job already running' });
+        if (activeTraining()) {
+            trainingQueue.push(jobName);
+            broadcastTrainingQueue();
+            return res.status(202).json({ success: true, queued: true });
         }
-
-        const rawJob = TOML.parse(fs.readFileSync(configPath, 'utf8'));
-        if (getArchForJob(rawJob).id === 'moss_image') {
-            if (runningJobs.size || persistentGenProcess) return res.status(400).json({ error: 'GPU busy; stop other training/generation and unload the persistent model before starting MOSS' });
-            const prepared = mossBackend.prepareTraining(rawJob, TOML.parse(fs.readFileSync(path.join(jobPath, 'dataset.toml'), 'utf8')), jobPath, getGlobalConfig(), toNativePath);
-            startMossPipeline(jobName, jobPath, prepared, 'training');
-            return res.json({ success: true, phase: 'preparing' });
-        }
-        if ([...runningJobs.values()].some(j => j.moss)) return res.status(400).json({ error: 'A MOSS operation owns the GPU; stop it first' });
-        if (getArchForJob(rawJob).id === 'krea2') {
-            if ([...runningJobs.values()].some(j => j.krea2)) return res.status(400).json({ error: 'Another Krea 2 operation is running' });
-            if (persistentGenProcess) killPersistentGen();
-            const data = TOML.parse(fs.readFileSync(path.join(jobPath, 'dataset.toml'), 'utf8'));
-            const prepared = kreaBackend.prepareTraining(rawJob, data, jobPath, getGlobalConfig(), toNativePath);
-            startKreaPipeline(jobName, jobPath, prepared, 'training');
-            return res.json({ success: true, phase: 'preparing' });
-        }
-        // Auto-kill persistent gen server to free VRAM
-        if (persistentGenProcess) {
-            console.log("Stopping persistent generation server before training...");
-            killPersistentGen();
-        }
-
-        // Build merged config and write to temp file
-        const mergedConfig = buildTrainingConfig(jobName, jobPath);
-        // The trainer caches text-encoder outputs once, but re-reads its prompt
-        // file for every sampling pass. Keep the active run on a snapshot so a
-        // prompt save in the UI cannot invalidate that cache mid-training.
-        snapshotSamplePrompts(jobPath, mergedConfig);
-
-        // TP/SP: strip options that are incompatible with the TP training script.
-        const launchMode = mergedConfig.training_arguments?.multigpu_mode
-            || (mergedConfig.training_arguments?.deepspeed ? 'deepspeed' : (mergedConfig.training_arguments?.use_fsdp ? 'fsdp' : 'ddp'));
-        if (launchMode === 'tp_sp' && mergedConfig.training_arguments) {
-            mergedConfig.training_arguments.sequence_parallel = true;
-            // Normalize tp_degree with NaN guard
-            let tp = Number(mergedConfig.training_arguments.tp_degree || 2);
-            if (!Number.isFinite(tp)) tp = 2;
-            mergedConfig.training_arguments.tp_degree = Math.max(2, tp);
-            // Validate tp_backend against whitelist
-            const allowedBackends = ['nccl', 'cuda_direct', 'gloo', 'mpi'];
-            const rawBackend = mergedConfig.training_arguments.tp_backend || (isWindows ? 'gloo' : 'nccl');
-            mergedConfig.training_arguments.tp_backend = allowedBackends.includes(rawBackend) ? rawBackend : (isWindows ? 'gloo' : 'nccl');
-            delete mergedConfig.training_arguments.use_cuda_direct;
-            delete mergedConfig.training_arguments.save_state;
-            delete mergedConfig.training_arguments.save_state_on_train_end;
-            delete mergedConfig.training_arguments.save_last_n_steps_state;
-            delete mergedConfig.training_arguments.save_last_n_epochs_state;
-        } else if (mergedConfig.training_arguments) {
-            delete mergedConfig.training_arguments.no_fuse_qkv;
-            delete mergedConfig.training_arguments.tp_backend;
-            delete mergedConfig.training_arguments.tp_degree;
-            delete mergedConfig.training_arguments.sequence_parallel;
-        }
-
-        if (mergedConfig.training_arguments && launchMode !== 'deepspeed') {
-            delete mergedConfig.training_arguments.deepspeed;
-            delete mergedConfig.training_arguments.zero_stage;
-            delete mergedConfig.training_arguments.offload_optimizer_device;
-            delete mergedConfig.training_arguments.offload_optimizer_nvme_path;
-            delete mergedConfig.training_arguments.offload_param_device;
-            delete mergedConfig.training_arguments.offload_param_nvme_path;
-            delete mergedConfig.training_arguments.zero3_init_flag;
-            delete mergedConfig.training_arguments.zero3_save_16bit_model;
-            delete mergedConfig.training_arguments.fp16_master_weights_and_gradients;
-        } else if (mergedConfig.training_arguments) {
-            mergedConfig.training_arguments.deepspeed = true;
-        }
-
-        // Convert Windows paths to WSL paths when running under WSL
-        if (isWSL) {
-            // Convert all paths in merged config (model paths, output dirs, etc.)
-            const converted = convertPathsInObject(mergedConfig);
-            // Also convert image_dir entries inside dataset.toml -> write a WSL version
-            const datasetPath = path.join(jobPath, 'dataset.toml');
-            if (fs.existsSync(datasetPath)) {
-                const datasetRaw = TOML.parse(fs.readFileSync(datasetPath, 'utf8'));
-                const datasetConverted = convertPathsInObject(datasetRaw);
-                const mergedDatasetPath = path.join(jobPath, '_merged_dataset.toml');
-                fs.writeFileSync(mergedDatasetPath, TOML.stringify(datasetConverted), 'utf8');
-                if (converted.dataset_arguments) {
-                    converted.dataset_arguments.dataset_config = mergedDatasetPath;
-                }
-            }
-            Object.assign(mergedConfig, converted);
-        }
-
-        const mergedConfigPath = path.join(jobPath, '_merged_config.toml');
-        fs.writeFileSync(mergedConfigPath, TOML.stringify(mergedConfig), 'utf8');
-
-        // Ensure output dirs exist
-        const outputDir = path.join(jobPath, 'output');
-        const logsDir = path.join(jobPath, 'logs');
-        if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-        if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
-
-        // Get venv path from global config
-        const globalConfig = getGlobalConfig();
-        const venvPath = animaLuminaEnvironmentPath(ROOT_DIR, globalConfig, toNativePath);
-        const venv = getVenvPaths(venvPath);
-
-        const jobArch = getArchForJob(mergedConfig);
-        const hasNetwork = !!(mergedConfig.network_arguments && mergedConfig.network_arguments.network_module);
-
-        let currentGpuIds = '';
-        try {
-            const rawConfig = TOML.parse(fs.readFileSync(configPath, 'utf8'));
-            currentGpuIds = rawConfig.gpu_ids ? rawConfig.gpu_ids.toString().trim() : '';
-        } catch (err) {
-            console.warn("Failed to parse config for GPU options:", err);
-        }
-
-        const launch = buildLaunchConfig(currentGpuIds, mergedConfig, mergedConfigPath, jobArch);
-        if (launch.error) return res.status(400).json({ error: launch.error });
-        const { gpuEnv, accelerateFlags, tpTrainCmd } = launch;
-
-        const resolvedMode = mergedConfig.training_arguments?.multigpu_mode
-            || (mergedConfig.training_arguments?.deepspeed ? 'deepspeed' : (mergedConfig.training_arguments?.use_fsdp ? 'fsdp' : 'ddp'));
-
-        let trainCmd;
-        if (resolvedMode === 'tp_sp' && tpTrainCmd) {
-            trainCmd = tpTrainCmd;
-        } else {
-            const scriptName = hasNetwork ? jobArch.scripts.train_network : jobArch.scripts.train;
-            const targetScript = path.join(ROOT_DIR, scriptName);
-            trainCmd = `python -m accelerate.commands.launch --num_cpu_threads_per_process 1 ${accelerateFlags} "${targetScript}" --config_file="${mergedConfigPath}"`;
-        }
-
-        // Spawn training process
-        const isMultiGpu = currentGpuIds && currentGpuIds.split(',').map(s => s.trim()).filter(s => s.length > 0).length > 1;
-        const trainEnvVars = [
-            buildEnvVar('PYTHONIOENCODING', 'utf-8'),
-            buildEnvVar('TOKENIZERS_PARALLELISM', 'false'),
-            buildEnvVar(
-                'ANIMA_LOG_LANGUAGE',
-                normalizeLogLanguage(globalConfig.ui?.log_language)
-            ),
-            gpuEnv,
-            mergedConfig.training_arguments?.step_profile ? buildEnvVar('STEP_PROFILE', '1') : '',
-            mergedConfig.training_arguments?.profile_microbatch ? buildEnvVar('PROFILE_MICROBATCH', '1') : '',
-            (isWindows && isMultiGpu) ? buildEnvVar('USE_LIBUV', '0') : '',
-            (isWindows && isMultiGpu) ? buildEnvVar('MASTER_ADDR', '127.0.0.1') : '',
-            (isWindows && isMultiGpu) ? buildEnvVar('MASTER_PORT', '29500') : ''
-        ].filter(Boolean).join('\n');
-        const trainScript = buildShellScript(venv.activate, trainEnvVars, trainCmd);
-
-        const scriptPath = path.join(jobPath, isWindows ? 'launch_command.ps1' : 'launch_command.sh');
-        fs.writeFileSync(scriptPath, trainScript, 'utf8');
-        console.log(`\n--- Training Launch Command for ${jobName} ---`);
-        console.log(trainScript);
-        console.log("----------------------------------------------\n");
-
-        const proc = spawnShell(trainScript, ROOT_DIR);
-
-        const logBuffer = [];
-        const MAX_LOG_LINES = 5000;
-
-        // Write logs to file
-        const logFileName = `train_${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
-        const logStream = fs.createWriteStream(path.join(logsDir, logFileName), { flags: 'a' });
-
-        const appendLog = (data) => {
-            const text = data.toString();
-            logBuffer.push(text);
-            if (logBuffer.length > MAX_LOG_LINES) logBuffer.shift();
-            logStream.write(text);
-            broadcastLog(jobName, text);
-        };
-
-        proc.stdout.on('data', appendLog);
-        proc.stderr.on('data', appendLog);
-
-        // Prevent crashes on stream errors
-        proc.stdout.on('error', (err) => console.error(`[Train/stdout] ${err.message}`));
-        proc.stderr.on('error', (err) => console.error(`[Train/stderr] ${err.message}`));
-        logStream.on('error', (err) => console.error(`[Train/LogFile] ${err.message}`));
-
-        proc.on('close', (code) => {
-            const msg = `\n--- Training ${code === 0 ? 'completed' : 'stopped'} (exit code: ${code}) ---\n`;
-            logStream.write(msg);
-            logStream.end();
-            appendLog(Buffer.from(msg));
-            runningJobs.delete(jobName);
-            broadcastStatus(jobName, 'idle');
-        });
-
-        proc.on('error', (err) => {
-            appendLog(Buffer.from(`\nERROR: ${err.message}\n`));
-            runningJobs.delete(jobName);
-            broadcastStatus(jobName, 'idle');
-        });
-
-        runningJobs.set(jobName, {
-            process: proc,
-            pid: proc.pid,
-            startTime: Date.now(),
-            logBuffer,
-            type: 'training',
-            gpuIds: currentGpuIds
-        });
-
-        broadcastStatus(jobName, 'running');
-        res.json({ success: true, pid: proc.pid });
+        const result = startTrainingJob(jobName);
+        if (result.error) return res.status(result.status).json({ error: result.error });
+        broadcastTrainingQueue();
+        res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
+
+function startTrainingJob(jobName) {
+    const jobPath = getJobPath(jobName);
+    const configPath = path.join(jobPath, 'config.toml');
+
+    if (!fs.existsSync(configPath)) {
+        return { status: 404, error: 'Job not found' };
+    }
+    if (runningJobs.has(jobName)) {
+        return { status: 400, error: 'Job already running' };
+    }
+
+    const rawJob = TOML.parse(fs.readFileSync(configPath, 'utf8'));
+    if (getArchForJob(rawJob).id === 'moss_image') {
+        if (runningJobs.size || persistentGenProcess) return { status: 400, error: 'GPU busy; stop other training/generation and unload the persistent model before starting MOSS' };
+        const prepared = mossBackend.prepareTraining(rawJob, TOML.parse(fs.readFileSync(path.join(jobPath, 'dataset.toml'), 'utf8')), jobPath, getGlobalConfig(), toNativePath);
+        startMossPipeline(jobName, jobPath, prepared, 'training');
+        return { success: true, phase: 'preparing' };
+    }
+    if ([...runningJobs.values()].some(j => j.moss)) return { status: 400, error: 'A MOSS operation owns the GPU; stop it first' };
+    if (getArchForJob(rawJob).id === 'krea2') {
+        if ([...runningJobs.values()].some(j => j.krea2)) return { status: 400, error: 'Another Krea 2 operation is running' };
+        if (persistentGenProcess) killPersistentGen();
+        const data = TOML.parse(fs.readFileSync(path.join(jobPath, 'dataset.toml'), 'utf8'));
+        const prepared = kreaBackend.prepareTraining(rawJob, data, jobPath, getGlobalConfig(), toNativePath);
+        startKreaPipeline(jobName, jobPath, prepared, 'training');
+        return { success: true, phase: 'preparing' };
+    }
+    // Auto-kill persistent gen server to free VRAM
+    if (persistentGenProcess) {
+        console.log("Stopping persistent generation server before training...");
+        killPersistentGen();
+    }
+
+    // Build merged config and write to temp file
+    const mergedConfig = buildTrainingConfig(jobName, jobPath);
+    // The trainer caches text-encoder outputs once, but re-reads its prompt
+    // file for every sampling pass. Keep the active run on a snapshot so a
+    // prompt save in the UI cannot invalidate that cache mid-training.
+    snapshotSamplePrompts(jobPath, mergedConfig);
+
+    // TP/SP: strip options that are incompatible with the TP training script.
+    const launchMode = mergedConfig.training_arguments?.multigpu_mode
+        || (mergedConfig.training_arguments?.deepspeed ? 'deepspeed' : (mergedConfig.training_arguments?.use_fsdp ? 'fsdp' : 'ddp'));
+    if (launchMode === 'tp_sp' && mergedConfig.training_arguments) {
+        mergedConfig.training_arguments.sequence_parallel = true;
+        // Normalize tp_degree with NaN guard
+        let tp = Number(mergedConfig.training_arguments.tp_degree || 2);
+        if (!Number.isFinite(tp)) tp = 2;
+        mergedConfig.training_arguments.tp_degree = Math.max(2, tp);
+        // Validate tp_backend against whitelist
+        const allowedBackends = ['nccl', 'cuda_direct', 'gloo', 'mpi'];
+        const rawBackend = mergedConfig.training_arguments.tp_backend || (isWindows ? 'gloo' : 'nccl');
+        mergedConfig.training_arguments.tp_backend = allowedBackends.includes(rawBackend) ? rawBackend : (isWindows ? 'gloo' : 'nccl');
+        delete mergedConfig.training_arguments.use_cuda_direct;
+        delete mergedConfig.training_arguments.save_state;
+        delete mergedConfig.training_arguments.save_state_on_train_end;
+        delete mergedConfig.training_arguments.save_last_n_steps_state;
+        delete mergedConfig.training_arguments.save_last_n_epochs_state;
+    } else if (mergedConfig.training_arguments) {
+        delete mergedConfig.training_arguments.no_fuse_qkv;
+        delete mergedConfig.training_arguments.tp_backend;
+        delete mergedConfig.training_arguments.tp_degree;
+        delete mergedConfig.training_arguments.sequence_parallel;
+    }
+
+    if (mergedConfig.training_arguments && launchMode !== 'deepspeed') {
+        delete mergedConfig.training_arguments.deepspeed;
+        delete mergedConfig.training_arguments.zero_stage;
+        delete mergedConfig.training_arguments.offload_optimizer_device;
+        delete mergedConfig.training_arguments.offload_optimizer_nvme_path;
+        delete mergedConfig.training_arguments.offload_param_device;
+        delete mergedConfig.training_arguments.offload_param_nvme_path;
+        delete mergedConfig.training_arguments.zero3_init_flag;
+        delete mergedConfig.training_arguments.zero3_save_16bit_model;
+        delete mergedConfig.training_arguments.fp16_master_weights_and_gradients;
+    } else if (mergedConfig.training_arguments) {
+        mergedConfig.training_arguments.deepspeed = true;
+    }
+
+    // Convert Windows paths to WSL paths when running under WSL
+    if (isWSL) {
+        // Convert all paths in merged config (model paths, output dirs, etc.)
+        const converted = convertPathsInObject(mergedConfig);
+        // Also convert image_dir entries inside dataset.toml -> write a WSL version
+        const datasetPath = path.join(jobPath, 'dataset.toml');
+        if (fs.existsSync(datasetPath)) {
+            const datasetRaw = TOML.parse(fs.readFileSync(datasetPath, 'utf8'));
+            const datasetConverted = convertPathsInObject(datasetRaw);
+            const mergedDatasetPath = path.join(jobPath, '_merged_dataset.toml');
+            fs.writeFileSync(mergedDatasetPath, TOML.stringify(datasetConverted), 'utf8');
+            if (converted.dataset_arguments) {
+                converted.dataset_arguments.dataset_config = mergedDatasetPath;
+            }
+        }
+        Object.assign(mergedConfig, converted);
+    }
+
+    const mergedConfigPath = path.join(jobPath, '_merged_config.toml');
+    fs.writeFileSync(mergedConfigPath, TOML.stringify(mergedConfig), 'utf8');
+
+    // Ensure output dirs exist
+    const outputDir = path.join(jobPath, 'output');
+    const logsDir = path.join(jobPath, 'logs');
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+    if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+
+    // Get venv path from global config
+    const globalConfig = getGlobalConfig();
+    const venvPath = animaLuminaEnvironmentPath(ROOT_DIR, globalConfig, toNativePath);
+    const venv = getVenvPaths(venvPath);
+
+    const jobArch = getArchForJob(mergedConfig);
+    const hasNetwork = !!(mergedConfig.network_arguments && mergedConfig.network_arguments.network_module);
+
+    let currentGpuIds = '';
+    try {
+        const rawConfig = TOML.parse(fs.readFileSync(configPath, 'utf8'));
+        currentGpuIds = rawConfig.gpu_ids ? rawConfig.gpu_ids.toString().trim() : '';
+    } catch (err) {
+        console.warn("Failed to parse config for GPU options:", err);
+    }
+
+    const launch = buildLaunchConfig(currentGpuIds, mergedConfig, mergedConfigPath, jobArch);
+    if (launch.error) return { status: 400, error: launch.error };
+    const { gpuEnv, accelerateFlags, tpTrainCmd } = launch;
+
+    const resolvedMode = mergedConfig.training_arguments?.multigpu_mode
+        || (mergedConfig.training_arguments?.deepspeed ? 'deepspeed' : (mergedConfig.training_arguments?.use_fsdp ? 'fsdp' : 'ddp'));
+
+    let trainCmd;
+    if (resolvedMode === 'tp_sp' && tpTrainCmd) {
+        trainCmd = tpTrainCmd;
+    } else {
+        const scriptName = hasNetwork ? jobArch.scripts.train_network : jobArch.scripts.train;
+        const targetScript = path.join(ROOT_DIR, scriptName);
+        const processFlags = mergedConfig.training_arguments?.use_muon ? '--num_processes 1 --num_machines 1' : '';
+        trainCmd = `python -m accelerate.commands.launch --num_cpu_threads_per_process 1 ${accelerateFlags} ${processFlags} "${targetScript}" --config_file="${mergedConfigPath}"`;
+    }
+
+    // Spawn training process
+    const isMultiGpu = currentGpuIds && currentGpuIds.split(',').map(s => s.trim()).filter(s => s.length > 0).length > 1;
+    const trainEnvVars = [
+        buildEnvVar('PYTHONIOENCODING', 'utf-8'),
+        buildEnvVar('TOKENIZERS_PARALLELISM', 'false'),
+        buildEnvVar(
+            'ANIMA_LOG_LANGUAGE',
+            normalizeLogLanguage(globalConfig.ui?.log_language)
+        ),
+        gpuEnv,
+        mergedConfig.training_arguments?.step_profile ? buildEnvVar('STEP_PROFILE', '1') : '',
+        mergedConfig.training_arguments?.profile_microbatch ? buildEnvVar('PROFILE_MICROBATCH', '1') : '',
+        (isWindows && isMultiGpu) ? buildEnvVar('USE_LIBUV', '0') : '',
+        (isWindows && isMultiGpu) ? buildEnvVar('MASTER_ADDR', '127.0.0.1') : '',
+        (isWindows && isMultiGpu) ? buildEnvVar('MASTER_PORT', '29500') : ''
+    ].filter(Boolean).join('\n');
+    const trainScript = buildShellScript(venv.activate, trainEnvVars, trainCmd);
+
+    const scriptPath = path.join(jobPath, isWindows ? 'launch_command.ps1' : 'launch_command.sh');
+    fs.writeFileSync(scriptPath, trainScript, 'utf8');
+    console.log(`\n--- Training Launch Command for ${jobName} ---`);
+    console.log(trainScript);
+    console.log("----------------------------------------------\n");
+
+    const proc = spawnShell(trainScript, ROOT_DIR);
+
+    const logBuffer = [];
+    const MAX_LOG_LINES = 5000;
+
+    // Write logs to file
+    const logFileName = `train_${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+    const logStream = fs.createWriteStream(path.join(logsDir, logFileName), { flags: 'a' });
+
+    const appendLog = (data) => {
+        const text = data.toString();
+        logBuffer.push(text);
+        if (logBuffer.length > MAX_LOG_LINES) logBuffer.shift();
+        logStream.write(text);
+        broadcastLog(jobName, text);
+    };
+
+    proc.stdout.on('data', appendLog);
+    proc.stderr.on('data', appendLog);
+
+    // Prevent crashes on stream errors
+    proc.stdout.on('error', (err) => console.error(`[Train/stdout] ${err.message}`));
+    proc.stderr.on('error', (err) => console.error(`[Train/stderr] ${err.message}`));
+    logStream.on('error', (err) => console.error(`[Train/LogFile] ${err.message}`));
+
+    const job = {
+        process: proc,
+        pid: proc.pid,
+        startTime: Date.now(),
+        logBuffer,
+        type: 'training',
+        gpuIds: currentGpuIds
+    };
+    let spawnError;
+    proc.once('error', (err) => {
+        spawnError = err;
+        appendLog(`\nERROR: ${err.message}\n`);
+    });
+    // Node emits close after a spawn error as well as after a normal exit.
+    proc.once('close', (code, signal) => {
+        const outcome = job.stopPending ? 'stopped' : code === 0 ? 'completed' : 'failed';
+        const exit = signal ? `signal: ${signal}` : `exit code: ${code}`;
+        appendLog(`\n--- Training ${outcome} (${exit}) ---\n`);
+        logStream.end();
+        void finishTrainingJob(jobName, job, outcome === 'failed' ? spawnError?.message || exit : null);
+    });
+    runningJobs.set(jobName, job);
+
+    broadcastStatus(jobName, 'running');
+    return { success: true, pid: proc.pid };
+}
 
 
 app.get('/api/jobs/:name/train/status', (req, res) => {

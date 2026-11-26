@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anima Client · 成果审片与交付门户</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!-- 访问码入口 / 失效提示门户 -->
+  <main class="gate-wrap hidden" id="gateWrap">
+    <section class="gate-card">
+      <div class="brand-row">
+        <span class="brand-mark"><span class="brand-dot"></span>ANIMA CLIENT</span>
+        <span class="order-id">DARKROOM PORTAL</span>
+      </div>
+      <h1 class="gate-title" id="gateTitle">客户专属审片与交付入口</h1>
+      <p class="gate-desc" id="gateDesc">请输入训练师提供的专属访问链接或访问码（Token），进入隔离审片室查验预览图或下载已授权训练成果。</p>
+      <form class="gate-form" id="gateForm">
+        <input type="text" class="ctrl-input gate-input" id="gateInput" placeholder="粘贴完整交付链接或输入访问码…" autocomplete="off" required />
+        <button type="submit" class="btn primary gate-submit">进入审片台</button>
+      </form>
+      <p class="gate-err hidden" id="gateErr" role="alert"></p>
+    </section>
+  </main>
+
+  <!-- 主工作台（方向 1 · 精密暗房审片台） -->
+  <div class="app hidden" id="appShell">
+    <div class="rail-backdrop hidden" id="railBackdrop"></div>
+    <aside class="rail" id="rail" aria-label="项目与权限导航">
+      <div class="rail-head">
+        <div class="brand-row">
+          <span class="brand-mark"><span class="brand-glyph">A</span><span>Anima Client</span></span>
+          <span class="order-id" id="railClientTag">CLIENT</span>
+        </div>
+      </div>
+
+      <div class="rail-project">
+        <h1 class="project-name" id="projectTitle">—</h1>
+        <div class="project-meta"><span id="clientNameMeta">客户：—</span><span>·</span><span>独立隔离舱</span></div>
+        <p class="project-note hidden" id="projectNote"></p>
+      </div>
+
+      <div class="stage-box" id="stageBox">
+        <div class="stage-head"><span class="led"></span><span id="stageTitle">阶段一 · 成果预览期</span></div>
+        <p class="stage-desc" id="stageDesc">当前仅开放训练师精选预览图查看与下载。模型权重、训练参数与数据集均处于锁定隔离状态。</p>
+      </div>
+
+      <div class="rail-section">
+        <div class="rail-label">预览画廊分组</div>
+        <nav class="nav-list" id="groupNav"></nav>
+      </div>
+
+      <div class="rail-section">
+        <div class="rail-label">成果交付项</div>
+        <nav class="nav-list" id="deliverNav"></nav>
+      </div>
+
+      <div class="rail-foot">
+        <div class="rail-foot-title">当前会话授权状态</div>
+        <div class="perm-matrix" id="permMatrix"></div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar" id="topbar">
+        <button class="btn mobile-menu-btn" id="menuBtn" aria-label="打开菜单">菜单</button>
+        <h2 class="topbar-title" id="viewTitle">预览画廊</h2>
+        <span class="topbar-count" id="viewCount">0 张可见</span>
+
+        <input type="search" class="ctrl-input" id="searchInput" placeholder="搜索文件名、轮次或分组…" aria-label="搜索预览图" />
+        <select class="ctrl-select" id="sortSelect" aria-label="排序方式">
+          <option value="default">默认精选顺序</option>
+          <option value="newest">最新优先</option>
+          <option value="oldest">最早优先</option>
+        </select>
+        <label class="density-wrap" id="densityWrap">
+          密度
+          <input type="range" id="densityRange" min="150" max="360" value="255" aria-label="缩略图密度" />
+        </label>
+        <button class="btn" id="selectToggleBtn" aria-pressed="false">多选</button>
+        <button class="btn" id="refreshBtn" title="刷新当前权限与预览图">刷新</button>
+      </header>
+
+      <div class="sel-bar" id="selBar" style="display:none">
+        <span>已选 <strong id="selCount">0</strong> 张预览图</span>
+        <button class="btn" id="selectAllBtn">全选可见</button>
+        <button class="btn" id="clearSelBtn">清除选择</button>
+        <span class="sel-spacer"></span>
+        <button class="btn primary" id="batchDlBtn">打包下载选中预览图 (.zip)</button>
+      </div>
+
+      <section class="content" id="mainContent"></section>
+    </main>
+  </div>
+
+  <!-- 专业灯箱看图器 -->
+  <section class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true" aria-label="预览图详情">
+    <header class="lb-head">
+      <button class="btn" id="lbClose" aria-label="关闭">关闭</button>
+      <span class="lb-title" id="lbName"></span>
+      <button class="btn" id="lbPrev" aria-label="上一张">上一张</button>
+      <span class="mono lb-counter" id="lbCounter">1 / 1</span>
+      <button class="btn" id="lbNext" aria-label="下一张">下一张</button>
+      <a class="btn primary" id="lbDl" download>下载原图</a>
+      <button class="btn" id="lbInfoToggle">信息栏</button>
+    </header>
+    <div class="lb-body">
+      <div class="lb-stage-wrap">
+        <div class="lb-stage" id="lbStage">
+          <img id="lbImg" alt="" draggable="false" />
+          <p class="lb-status hidden" id="lbStatus"></p>
+        </div>
+        <span class="lb-hint">滚轮缩放 · 拖拽平移 · 双击适应 · ←/→ 切图 · Esc 关闭</span>
+        <div class="lb-zoom">
+          <button class="btn" id="zoomOut" aria-label="缩小">−</button>
+          <output id="zoomPct">100%</output>
+          <button class="btn" id="zoomIn" aria-label="放大">＋</button>
+          <button class="btn" id="zoomFit">适应窗口</button>
+          <button class="btn" id="zoomActual">1:1 原图</button>
+        </div>
+      </div>
+      <aside class="lb-info" id="lbInfo"></aside>
+    </div>
+  </section>
+
+  <!-- Safetensors 元数据预览弹窗 -->
+  <div class="modal-mask hidden" id="metaModal" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <strong id="metaModalTitle" class="mono">Safetensors 元数据</strong>
+        <button class="btn" id="metaModalClose">关闭</button>
+      </div>
+      <div class="modal-body">
+        <pre class="lb-pre" id="metaModalBody"></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

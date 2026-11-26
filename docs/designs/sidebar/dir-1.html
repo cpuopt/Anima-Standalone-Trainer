@@ -1,0 +1,1305 @@
+<!doctype html>
+<html lang="zh-CN" class="dark" data-theme="github-dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sidebar Redesign · Dir 1 · 细线台账 Hairline Ledger</title>
+<style>
+/* ===== Theme tokens & unchanged right-side app shell (from training-ui/frontend/src/style.css) ===== */
+:root {
+  --background:#f5f7fa; --foreground:#202b40; --card:#fff; --primary:#326cd4; --primary-foreground:#fff;
+  --secondary:#e9edf4; --muted:#edf0f5; --muted-foreground:#5c677d; --accent:#e0e9fc; --destructive:#bc364a; --border:#dbe1eb;
+  --sb-ok-dot:#1d9d68; --sb-ok-text:#147a50; --sb-warn:#9a6310;
+  --sb-hairline-soft-override: color-mix(in srgb, #cbd3e0 72%, transparent);
+  --arch-anm:#2459b8; --arch-kr2:#8f5b08; --arch-mos:#7043b8;
+  font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif; color-scheme:light;
+}
+.dark {
+  --background:#10151f; --foreground:#e0e7f2; --card:#171e2b; --primary:#86aafa; --primary-foreground:#111b32;
+  --secondary:#222d40; --muted:#1b2434; --muted-foreground:#94a3bb; --accent:#253650; --destructive:#db4e67; --border:#2b374c;
+  --sb-ok-dot:#5ace9d; --sb-ok-text:#70be9d; --sb-warn:#e3b76a;
+  --sb-hairline-soft-override: color-mix(in srgb, #2b374c 48%, transparent);
+  --arch-anm:#86aafa; --arch-kr2:#e3b76a; --arch-mos:#c19cf7;
+  color-scheme:dark;
+}
+[data-theme="midnight-blue"] { --background:#0c172b; --card:#10213b; --border:#263f61; --primary:#6ec1eb; --arch-anm:#6ec1eb; }
+[data-theme="cherry-pink"] { --background:#241622; --card:#2d1e2c; --border:#513347; --primary:#e8a0c1; --arch-anm:#e8a0c1; }
+
+* { box-sizing:border-box; border-color:var(--border); }
+body { margin:0; background:var(--background); color:var(--foreground); font-size:14px; line-height:1.55; }
+button { cursor:pointer; font:inherit; color:inherit; background:none; border:0; }
+button:disabled { cursor:not-allowed; opacity:.45; }
+input,select,textarea { max-width:100%; font:inherit; }
+:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+a { color:var(--primary); text-decoration:none; }
+h1,h2,h3,p { margin-top:0; }
+small { display:block; }
+
+.studio-shell { display:grid; grid-template-columns:230px minmax(0,1fr); min-height:100dvh; }
+main { min-width:0; }
+.toolbar { min-height:115px; padding:25px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:color-mix(in srgb,var(--background) 90%,transparent); }
+.eyebrow { font-size:9px; font-weight:650; letter-spacing:.18em; color:var(--muted-foreground); }
+h1 { font-size:22px; font-weight:650; margin:2px 0; }
+.dirty-dot { font-size:10px; color:var(--sb-warn); margin-left:9px; }
+.toolbar-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.sbtn { display:inline-flex; align-items:center; height:36px; padding:0 16px; border-radius:6px; font-size:14px; font-weight:500; background:var(--primary); color:var(--primary-foreground); }
+.sbtn.outline { background:color-mix(in srgb,var(--border) 30%,transparent); border:1px solid var(--border); color:var(--foreground); }
+.sbtn.ghost { background:none; color:var(--foreground); }
+.sbtn.train { background:#599e7d; color:#071e15; font-weight:600; }
+.tabs { display:flex; gap:3px; padding:0 25px; border-bottom:1px solid var(--border); overflow:auto; }
+.tabs button { white-space:nowrap; padding:15px 13px; border-bottom:2px solid transparent; color:var(--muted-foreground); font-size:12px; }
+.tabs button.active { color:var(--primary); border-bottom-color:var(--primary); }
+.tabs button:hover { color:var(--foreground); }
+.workspace { padding:26px 32px 60px; margin:auto; }
+.muted { color:var(--muted-foreground); }
+
+/* ===== Direction 1 Sidebar · 细线台账 Hairline Ledger (230px) ===== */
+.sb1 {
+  --sb-mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+  --sb-hairline: color-mix(in srgb, var(--border) 82%, transparent);
+  --sb-hairline-soft: var(--sb-hairline-soft-override);
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 96%, var(--background));
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  user-select: none;
+}
+.sb1 [hidden] { display: none !important; }
+
+/* Compact header band: single-line home link + refresh + new toggle */
+.sb1-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 11px 11px 10px;
+  border-bottom: 1px solid var(--sb-hairline);
+}
+.sb1-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+}
+.sb1-brand:hover { color: var(--primary); }
+.sb1-brand-glyph {
+  font-family: var(--sb-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--primary);
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--primary) 50%, var(--border));
+  border-radius: 3px;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+.sb1-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.sb1-icon-btn {
+  height: 23px;
+  min-width: 23px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.sb1-icon-btn:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  border-color: var(--sb-hairline);
+}
+.sb1-icon-btn.is-primary {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  font-weight: 600;
+  font-size: 12px;
+}
+.sb1-icon-btn.is-primary[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border-color: var(--primary);
+}
+.sb1-icon-btn.spinning { animation: sb1spin .45s linear; }
+@keyframes sb1spin { to { transform: rotate(360deg); } }
+
+/* Collapsible inline New Job drawer */
+.sb1-create-drawer {
+  padding: 10px 12px 11px;
+  border-bottom: 1px solid var(--sb-hairline);
+  background: color-mix(in srgb, var(--muted) 45%, var(--card));
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.sb1-create-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.sb1-create-close {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  padding: 0 4px;
+}
+.sb1-create-close:hover { color: var(--foreground); }
+.sb1-create-input {
+  width: 100%;
+  height: 30px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 3px 2px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+}
+.sb1-create-input:focus { outline: none; border-bottom-color: var(--primary); }
+.sb1-arch-seg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--sb-hairline);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sb1-arch-seg button {
+  padding: 4px 2px;
+  font-family: var(--sb-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  border-right: 1px solid var(--sb-hairline);
+  text-align: center;
+}
+.sb1-arch-seg button:last-child { border-right: 0; }
+.sb1-arch-seg button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--primary);
+  font-weight: 600;
+}
+.sb1-create-submit {
+  height: 28px;
+  border-radius: 4px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Search + Architecture filter hairline bar */
+.sb1-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border-bottom: 1px solid var(--sb-hairline-soft);
+}
+.sb1-search-ico {
+  width: 13px;
+  height: 13px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.sb1-search-row:focus-within .sb1-search-ico { color: var(--primary); }
+.sb1-search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  padding: 3px 0;
+}
+.sb1-search-input::placeholder { color: var(--muted-foreground); }
+.sb1-search-input:focus { outline: none; }
+.sb1-search-count {
+  font-family: var(--sb-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.sb1-clear-btn {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  padding: 0 3px;
+}
+.sb1-clear-btn:hover { color: var(--foreground); }
+
+.sb1-filters {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--sb-hairline);
+}
+.sb1-filter-btn {
+  flex: 1;
+  padding: 6px 2px 5px;
+  font-family: var(--sb-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  text-align: center;
+  white-space: nowrap;
+}
+.sb1-filter-btn:hover { color: var(--foreground); }
+.sb1-filter-btn[aria-pressed="true"] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+/* Dense hairline job ledger */
+.sb1-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+.sb1-job {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6.5px 12px 6.5px 10px;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid var(--sb-hairline-soft);
+  text-align: left;
+  transition: background .12s, border-color .12s;
+}
+.sb1-job:hover {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+.sb1-job.selected {
+  border-left-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.sb1-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+  flex-shrink: 0;
+}
+.sb1-dot.running {
+  background: var(--sb-ok-dot);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--sb-ok-dot) 65%, transparent);
+}
+.sb1-dot.queued {
+  background: var(--sb-warn);
+}
+.sb1-job-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb1-job.selected .sb1-job-name {
+  font-weight: 600;
+}
+.sb1-arch {
+  font-family: var(--sb-mono);
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+  letter-spacing: -.01em;
+}
+.sb1-arch[data-arch="anima"] { color: var(--arch-anm); }
+.sb1-arch[data-arch="krea2"] { color: var(--arch-kr2); }
+.sb1-arch[data-arch="moss_image"] { color: var(--arch-mos); }
+.sb1-empty {
+  padding: 18px 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+/* Collapsible Queue Strip */
+.sb1-queue {
+  border-top: 1px solid var(--sb-hairline);
+  background: color-mix(in srgb, var(--muted) 32%, var(--card));
+}
+.sb1-queue-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--foreground);
+}
+.sb1-queue-toggle:hover { background: color-mix(in srgb, var(--foreground) 4%, transparent); }
+.sb1-queue-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb1-queue-meta {
+  font-family: var(--sb-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.sb1-queue-body {
+  border-top: 1px solid var(--sb-hairline-soft);
+  padding: 4px 12px 8px;
+  max-height: 165px;
+  overflow-y: auto;
+}
+.sb1-qitem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+  font-size: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--sb-hairline-soft);
+}
+.sb1-qitem:last-child { border-bottom: 0; }
+.sb1-qitem:hover { color: var(--primary); }
+.sb1-qidx {
+  font-family: var(--sb-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  min-width: 16px;
+}
+.sb1-qerr {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--destructive);
+  overflow-wrap: anywhere;
+}
+
+/* Single-line hairline footer */
+.sb1-foot {
+  border-top: 1px solid var(--sb-hairline);
+  padding: 7px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.sb1-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  padding: 2px 0;
+}
+.sb1-settings-btn:hover,
+.sb1-settings-btn.active { color: var(--primary); }
+.sb1-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--sb-ok-text);
+  white-space: nowrap;
+}
+
+/* ===== Demo dock (theme + queue state toggles) ===== */
+.demo-dock {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 6px 20px #0005;
+  font-size: 11px;
+}
+.demo-dock-group { display: flex; gap: 3px; }
+.demo-dock-sep { width: 1px; height: 16px; background: var(--border); }
+.demo-dock button { padding: 4px 7px; border-radius: 5px; color: var(--muted-foreground); }
+.demo-dock button[aria-pressed="true"] { background: var(--accent); color: var(--foreground); font-weight: 600; }
+
+/* ===== Right-side Training Tab (exact Tufte hairline system from training-tab/dir-1.html) ===== */
+.tt-wrap {
+  --tt-mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+  --tt-hairline: color-mix(in srgb, var(--border) 75%, transparent);
+  --tt-hairline-soft: color-mix(in srgb, var(--border) 45%, transparent);
+  --tt-ink-soft: color-mix(in srgb, var(--foreground) 72%, var(--background));
+  --tt-ink-faint: var(--muted-foreground);
+  --tt-surface-whisper: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+  --tt-warn: #d49b4b;
+  max-width: 1560px;
+  margin: 0 auto;
+}
+.tt-topbar { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--tt-hairline); }
+.tt-recipe { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.tt-recipe-item { display: inline-flex; align-items: baseline; gap: 5px; cursor: pointer; border-bottom: 1px dotted transparent; transition: border-color .15s, color .15s; }
+.tt-recipe-item:hover { border-bottom-color: var(--primary); color: var(--primary); }
+.tt-recipe-mono { font-family: var(--tt-mono); font-weight: 500; }
+.tt-recipe-sep { color: var(--tt-ink-faint); user-select: none; }
+.tt-demo-bar { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted-foreground); flex-shrink: 0; }
+.tt-demo-btn { padding: 3px 9px; border: 1px solid var(--tt-hairline); border-radius: 4px; font-size: 12px; color: var(--muted-foreground); }
+.tt-demo-btn:hover { color: var(--foreground); border-color: var(--border); background: var(--tt-surface-whisper); }
+.tt-demo-btn[aria-pressed="true"] { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); background: color-mix(in srgb, var(--primary) 10%, transparent); }
+.tt-dirty-count { font-family: var(--tt-mono); font-size: 12px; color: var(--tt-warn); }
+.tt-lock-banner { display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--tt-hairline); font-size: 13px; color: var(--muted-foreground); }
+.tt-lock-banner.is-visible { display: flex; }
+.tt { border: 0; padding: 0; margin: 0; min-width: 0; }
+.tt:disabled { opacity: .58; }
+.tt-hero { padding: 18px 0 20px; border-bottom: 1px solid var(--tt-hairline); }
+.tt-hero-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.tt-hero-title { font-size: 14px; font-weight: 600; color: var(--foreground); margin: 0; }
+.tt-hero-caption { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.tt-chart-stage { position: relative; width: 100%; overflow: visible; }
+.tt-chart-svg { display: block; width: 100%; height: 204px; overflow: visible; user-select: none; }
+.tt-chart-svg text { font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; fill: var(--muted-foreground); font-size: 12px; }
+.tt-chart-svg text.mono { font-family: var(--tt-mono); font-variant-numeric: tabular-nums; }
+.tt-chart-svg text.ink { fill: var(--foreground); font-weight: 500; }
+.tt-chart-svg text.primary-ink { fill: var(--primary); font-weight: 500; }
+.tt-chart-hit { cursor: pointer; }
+.tt-chart-hit:hover .tt-hit-label { fill: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.tt-columns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; padding-top: 22px; }
+.tt-col { min-width: 0; padding: 0 22px; border-right: 1px solid var(--tt-hairline-soft); }
+.tt-col:first-child { padding-left: 0; }
+.tt-col:last-child { padding-right: 0; border-right: 0; }
+.tt-col-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 10px; margin-bottom: 6px; border-bottom: 1px solid var(--tt-hairline); }
+.tt-col-head h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--foreground); letter-spacing: -.01em; }
+.tt-col-meta { font-size: 12px; color: var(--muted-foreground); font-family: var(--tt-mono); }
+.tt-fields { display: flex; flex-direction: column; }
+.tt-field { display: block; padding: 9px 0 8px; border-bottom: 1px solid var(--tt-hairline-soft); position: relative; }
+.tt-field:last-child { border-bottom: 0; }
+.tt-field[hidden] { display: none; }
+.tt-field.is-highlighted { background: color-mix(in srgb, var(--primary) 11%, transparent); box-shadow: -8px 0 0 color-mix(in srgb, var(--primary) 11%, transparent), 8px 0 0 color-mix(in srgb, var(--primary) 11%, transparent); }
+.tt-field.is-disabled { opacity: .48; }
+.tt-field.is-error { border-bottom-color: var(--destructive); }
+.tt-label-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 2px; }
+.tt-label-left { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font-size: 12px; font-weight: 500; color: var(--muted-foreground); line-height: 1.35; }
+.tt-mod-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--tt-warn); flex-shrink: 0; display: none; }
+.tt-field.is-modified .tt-mod-dot { display: inline-block; }
+.tt-help { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--muted-foreground) 42%, transparent); color: var(--muted-foreground); font-size: 10px; line-height: 1; flex-shrink: 0; cursor: help; vertical-align: middle; }
+.tt-control,.tt-select,.tt-textarea { width: 100%; background: transparent; color: var(--foreground); border: 0; border-radius: 3px; padding: 2px 2px 2px 0; font-size: 14px; line-height: 1.45; }
+.tt-control.mono,.tt-select.mono { font-family: var(--tt-mono); font-variant-numeric: tabular-nums; }
+.tt-control:focus,.tt-select:focus { outline: none; background: color-mix(in srgb, var(--primary) 6%, transparent); }
+.tt-select option { background: var(--card); color: var(--foreground); }
+.tt-textarea { font-family: var(--tt-mono); font-size: 13px; min-height: 68px; border: 1px solid var(--tt-hairline); border-radius: 4px; padding: 6px 8px; margin-top: 4px; }
+.tt-seg { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; margin-top: 2px; }
+.tt-seg button { padding: 3px 8px 5px; font-size: 14px; color: var(--muted-foreground); border-bottom: 2px solid transparent; margin-bottom: -9px; text-align: center; }
+.tt-seg button[aria-pressed="true"] { color: var(--foreground); font-weight: 600; border-bottom-color: var(--primary); }
+.tt-lr-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tt-lr-row .tt-control { flex: 1; min-width: 0; font-size: 18px; font-weight: 600; }
+.tt-stepper { display: inline-flex; border: 1px solid var(--tt-hairline); border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--muted) 65%, transparent); flex-shrink: 0; }
+.tt-stepper button { width: 26px; height: 24px; display: grid; place-items: center; font-family: var(--tt-mono); font-size: 14px; font-weight: 600; color: var(--foreground); }
+.tt-stepper button + button { border-left: 1px solid var(--tt-hairline); }
+.tt-gauge { position: relative; height: 8px; margin-top: 6px; background: color-mix(in srgb, var(--muted) 80%, transparent); border: 1px solid var(--tt-hairline); border-radius: 2px; overflow: hidden; cursor: ew-resize; touch-action: none; }
+.tt-gauge-fill { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--primary) 78%, transparent); pointer-events: none; }
+.tt-gauge-ticks { position: absolute; inset: 0; background-image: repeating-linear-gradient(90deg, transparent, transparent 11px, color-mix(in srgb, var(--background) 65%, transparent) 11px, color-mix(in srgb, var(--background) 65%, transparent) 12px); pointer-events: none; }
+.tt-scale-marks { display: flex; justify-content: space-between; font-family: var(--tt-mono); font-size: 10px; color: color-mix(in srgb, var(--muted-foreground) 80%, transparent); margin-top: 3px; user-select: none; }
+.tt-sched-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 2px 2px 2px 0; color: var(--foreground); font-family: var(--tt-mono); font-size: 14px; text-align: left; }
+.tt-sched-content { position: fixed; z-index: 90; width: min(600px, calc(100vw - 24px)); border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--foreground); box-shadow: 0 12px 36px #0005; }
+.tt-sched-content[hidden] { display: none; }
+.scheduler-menu-layout { display: grid; grid-template-columns: minmax(210px, .9fr) minmax(0, 1.1fr); }
+.scheduler-options-column { min-width: 0; padding: 10px; }
+.scheduler-menu-hint { padding: 3px 7px 9px; color: var(--muted-foreground); font-size: 11px; }
+.scheduler-options { display: flex; flex-direction: column; gap: 2px; }
+.scheduler-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 9px; border-radius: 6px; font-family: var(--tt-mono); font-size: 12px; text-align: left; }
+.scheduler-option[data-highlighted="true"] { background: var(--accent); color: var(--primary); }
+.scheduler-option[aria-selected="true"] { font-weight: 650; }
+.scheduler-selected { color: var(--primary); }
+.scheduler-curve { padding: 15px; border-left: 1px solid var(--border); background: color-mix(in srgb, var(--muted) 50%, var(--card)); min-width: 0; }
+.scheduler-preview-eyebrow { font-size: 10px; letter-spacing: .12em; color: var(--muted-foreground); margin-bottom: 5px; }
+.scheduler-preview-title { font-size: 15px; font-weight: 650; }
+.scheduler-curve > code { display: block; font-family: var(--tt-mono); font-size: 11px; color: var(--muted-foreground); margin-top: 2px; }
+.scheduler-figure { margin: 12px 0 9px; }
+.scheduler-graph { display: block; width: 100%; height: auto; color: var(--primary); }
+.scheduler-grid { fill: none; stroke: var(--border); stroke-dasharray: 3 4; stroke-width: .7; }
+.scheduler-axis { fill: none; stroke: var(--muted-foreground); stroke-width: .8; }
+.scheduler-axis-text { fill: var(--muted-foreground); font-size: 8px; }
+.scheduler-line { fill: none; stroke: var(--primary); stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+.scheduler-floor { fill: none; stroke: var(--muted-foreground); stroke-width: 1; stroke-dasharray: 4 3; }
+.scheduler-figure figcaption,.scheduler-preview-description,.scheduler-preview-disclaimer { font-size: 11px; color: var(--muted-foreground); line-height: 1.55; }
+.tt-bool-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; cursor: pointer; }
+.tt-bool-label { display: block; font-size: 14px; color: var(--foreground); line-height: 1.4; min-width: 0; }
+.tt-bool-label .tt-help { margin-left: 5px; vertical-align: -2px; }
+.tt-switch { position: relative; width: 34px; height: 19px; margin-top: 1px; flex-shrink: 0; }
+.tt-switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.tt-switch-track { position: absolute; inset: 0; border-radius: 99px; border: 1px solid var(--border); background: color-mix(in srgb, var(--border) 45%, transparent); }
+.tt-switch-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--muted-foreground); transition: transform .15s, background .15s; }
+.tt-switch input:checked + .tt-switch-track { background: color-mix(in srgb, var(--primary) 24%, transparent); border-color: var(--primary); }
+.tt-switch input:checked + .tt-switch-track::after { transform: translateX(15px); background: var(--primary); }
+.tt-note { margin-top: 5px; font-size: 12px; line-height: 1.45; color: var(--muted-foreground); }
+.tt-dep-note { margin-top: 4px; font-size: 12px; color: var(--tt-warn); }
+.tt-dep-note[hidden],.tt-error[hidden] { display: none; }
+.tt-error { margin-top: 4px; font-size: 12px; color: var(--destructive); font-weight: 500; }
+.tt-details { padding: 10px 0 2px; }
+.tt-details summary { cursor: pointer; font-size: 12px; font-weight: 500; color: var(--muted-foreground); list-style: none; display: flex; align-items: center; justify-content: space-between; }
+.tt-mini-figure { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--tt-hairline-soft); }
+.tt-mini-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted-foreground); margin-bottom: 6px; }
+.tt-mini-head strong { font-weight: 500; color: var(--foreground); }
+.tt-mini-svg { display: block; width: 100%; height: 46px; overflow: visible; }
+.tt-mini-axis { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; font-family: var(--tt-mono); color: var(--muted-foreground); }
+.tt-tooltip { position: fixed; z-index: 1200; width: min(320px, calc(100vw - 24px)); padding: 12px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 12px 32px color-mix(in srgb, #000 32%, transparent); font-size: 13px; line-height: 1.5; pointer-events: none; opacity: 0; }
+.tt-tooltip.is-open { opacity: 1; }
+.tt-tooltip-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; display: flex; justify-content: space-between; }
+.tt-tooltip-key { font-family: var(--tt-mono); font-size: 11px; color: var(--muted-foreground); }
+.tt-tooltip .tt-tip-note { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--tt-hairline-soft); font-size: 12px; color: var(--muted-foreground); }
+
+@media (max-width: 1220px) {
+  .tt-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 28px; }
+  .tt-col:nth-child(odd) { padding-left: 0; }
+  .tt-col:nth-child(even) { padding-right: 0; border-right: 0; }
+}
+@media (max-width: 680px) {
+  .studio-shell { display: block; }
+  .sb1 { position: relative; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+  .sb1-list { max-height: 220px; }
+}
+</style>
+</head>
+<body>
+<div class="studio-shell">
+  <!-- ===== Direction 1 Sidebar: 细线台账 Hairline Ledger ===== -->
+  <aside class="sb1" aria-label="任务导航栏">
+    <div class="sb1-head">
+      <a class="sb1-brand" href="#home" id="sb1-home" title="返回工作台首页">
+        <span class="sb1-brand-glyph">A</span>
+        <span>Training Studio</span>
+      </a>
+      <div class="sb1-head-actions">
+        <button type="button" class="sb1-icon-btn" id="sb-refresh" title="刷新任务列表" aria-label="刷新任务">↻</button>
+        <button type="button" class="sb1-icon-btn is-primary" id="sb-new-toggle" aria-expanded="false" aria-controls="sb1-create-drawer">+ 新建</button>
+      </div>
+    </div>
+
+    <!-- Collapsible inline New Job drawer -->
+    <form class="sb1-create-drawer" id="sb1-create-drawer" hidden>
+      <div class="sb1-create-row">
+        <span>新建训练任务</span>
+        <button type="button" class="sb1-create-close" id="sb-new-close" aria-label="关闭新建面板">×</button>
+      </div>
+      <input class="sb1-create-input" id="sb-new-name" placeholder="输入任务名称…" aria-label="新建任务名称" />
+      <div class="sb1-arch-seg" role="group" aria-label="选择模型架构">
+        <button type="button" data-new-arch="anima" aria-pressed="true">anima</button>
+        <button type="button" data-new-arch="krea2" aria-pressed="false">krea2</button>
+        <button type="button" data-new-arch="moss_image" aria-pressed="false">moss</button>
+      </div>
+      <button type="submit" class="sb1-create-submit" id="sb-new-submit" disabled>创建任务</button>
+    </form>
+
+    <!-- Search + count -->
+    <div class="sb1-search-row">
+      <svg class="sb1-search-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.8"/><path d="M10.7 10.7L14 14" stroke-linecap="round"/></svg>
+      <input class="sb1-search-input" id="sb-search" placeholder="搜索任务…" aria-label="搜索任务" />
+      <button type="button" class="sb1-clear-btn" id="sb-search-clear" aria-label="清空搜索" hidden>×</button>
+      <span class="sb1-search-count" id="sb-count">13</span>
+    </div>
+
+    <!-- Architecture filter hairline strip -->
+    <div class="sb1-filters" role="group" aria-label="按模型类型筛选">
+      <button type="button" class="sb1-filter-btn" data-filter="all" aria-pressed="true">全部</button>
+      <button type="button" class="sb1-filter-btn" data-filter="anima" aria-pressed="false">anima</button>
+      <button type="button" class="sb1-filter-btn" data-filter="krea2" aria-pressed="false">krea2</button>
+      <button type="button" class="sb1-filter-btn" data-filter="moss_image" aria-pressed="false">moss</button>
+    </div>
+
+    <!-- Dense Job Ledger -->
+    <nav class="sb1-list" id="sb-job-list" aria-label="任务列表"></nav>
+
+    <!-- Collapsible Queue Strip -->
+    <section class="sb1-queue" aria-label="训练队列">
+      <button type="button" class="sb1-queue-toggle" id="sb-queue-toggle" aria-expanded="false" aria-controls="sb1-queue-body">
+        <span class="sb1-queue-summary" id="sb-queue-summary"></span>
+        <span class="sb1-queue-meta" id="sb-queue-chev">▾</span>
+      </button>
+      <div class="sb1-queue-body" id="sb1-queue-body" hidden></div>
+    </section>
+
+    <!-- Single-line Footer -->
+    <footer class="sb1-foot">
+      <button type="button" class="sb1-settings-btn" id="sb-settings-btn">全局设置</button>
+      <span class="sb1-conn"><span class="sb1-dot running"></span>实时连接正常</span>
+    </footer>
+  </aside>
+
+  <!-- ===== Unchanged Right-Side Content ===== -->
+  <main>
+    <header class="toolbar">
+      <div class="title">
+        <span class="eyebrow">TRAINING WORKSPACE</span>
+        <h1><span id="tb-job-name">rin_style_v3</span><span class="dirty-dot" id="dirty-dot" hidden>●</span></h1>
+        <span class="muted" id="tb-job-meta">anima · 就绪</span>
+      </div>
+      <div class="toolbar-actions">
+        <button class="sbtn outline">复制</button>
+        <button class="sbtn outline">删除</button>
+        <button class="sbtn">保存</button>
+        <button class="sbtn train">开始训练</button>
+      </div>
+    </header>
+    <nav class="tabs" id="main-tabs" aria-label="配置页面">
+      <button class="active" data-tab="training">训练</button>
+      <button data-tab="dataset">数据集</button>
+      <button data-tab="network">网络</button>
+      <button data-tab="multi-gpu">多 GPU</button>
+      <button data-tab="prompts">提示词与生成</button>
+      <button data-tab="samples">样例</button>
+      <button data-tab="console">控制台</button>
+      <button data-tab="tensorboard">TensorBoard</button>
+      <button data-tab="artifacts">训练产出</button>
+      <button data-tab="client-portal">客户交付</button>
+      <button data-tab="settings">设置</button>
+    </nav>
+    <div class="workspace">
+      <div class="tt-wrap">
+        <div class="tt-topbar">
+          <div class="tt-recipe" id="tt-recipe" aria-label="当前训练配方摘要"></div>
+          <div class="tt-demo-bar">
+            <span class="tt-dirty-count" id="tt-dirty-count" hidden></span>
+            <button type="button" class="tt-demo-btn" id="tt-toggle-lock" aria-pressed="false">预览锁定状态</button>
+            <button type="button" class="tt-demo-btn" id="tt-toggle-error" aria-pressed="false">预览校验错误</button>
+          </div>
+        </div>
+        <div class="tt-lock-banner" id="tt-lock-banner" role="status">
+          <span><strong>表单已锁定</strong> — 正在保存配置或任务运行中，当前参数只读。</span>
+          <span>点击右上角“预览锁定状态”恢复编辑</span>
+        </div>
+        <fieldset class="tt" id="tt-fieldset">
+          <section class="tt-hero" aria-label="学习率与保存时间线">
+            <div class="tt-hero-head">
+              <h2 class="tt-hero-title">训练时间线 · 学习率曲线与检查点节奏</h2>
+              <span class="tt-hero-caption">点击曲线、预热区间、保存刻度或终点名称可定位对应参数</span>
+            </div>
+            <div class="tt-chart-stage">
+              <svg class="tt-chart-svg" id="tt-timeline-svg" viewBox="0 0 1120 196" preserveAspectRatio="xMidYMid meet" role="img" aria-label="学习率曲线"></svg>
+            </div>
+          </section>
+
+          <div class="tt-columns">
+            <section class="tt-col" aria-labelledby="col-opt">
+              <div class="tt-col-head"><h2 id="col-opt">Optimization</h2><span class="tt-col-meta" id="meta-opt">AdamW8bit</span></div>
+              <div class="tt-fields">
+                <div class="tt-field" data-field="learning_rate">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span><label for="f-learning_rate">Learning Rate</label><button type="button" class="tt-help" data-help="learning_rate">?</button></span></span>
+                  <div class="tt-lr-row">
+                    <input class="tt-control mono" id="f-learning_rate" type="text" inputmode="decimal" value="5e-5" />
+                    <div class="tt-stepper"><button type="button" id="tt-lr-dec">−</button><button type="button" id="tt-lr-inc">+</button></div>
+                  </div>
+                  <div class="tt-gauge" id="tt-lr-gauge" role="slider" tabindex="0" aria-label="Learning Rate 滑条" aria-valuemin="0.000001" aria-valuemax="0.001" aria-valuenow="0.00005"><div class="tt-gauge-fill" id="tt-lr-gauge-fill"></div><div class="tt-gauge-ticks"></div></div>
+                  <div class="tt-scale-marks" aria-hidden="true"><span>1e-6</span><span>1e-5</span><span>5e-5</span><span>1e-4</span><span>1e-3</span></div>
+                  <span class="tt-error" id="err-learning_rate" hidden></span>
+                </div>
+                <label class="tt-field" data-field="text_encoder_lr">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Text Encoder LR<button type="button" class="tt-help" data-help="text_encoder_lr">?</button></span></span>
+                  <input class="tt-control mono" id="f-text_encoder_lr" type="text" inputmode="decimal" value="5e-5" />
+                  <span class="tt-error" id="err-text_encoder_lr" hidden></span>
+                </label>
+                <label class="tt-field" data-field="optimizer_type">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Optimizer<button type="button" class="tt-help" data-help="optimizer_type">?</button></span></span>
+                  <select class="tt-select mono" id="f-optimizer_type">
+                    <option value="AdamW8bit">AdamW8bit</option><option value="AdamW">AdamW</option><option value="PagedAdamW8bit">PagedAdamW8bit</option><option value="Prodigy">Prodigy</option><option value="Lion8bit">Lion8bit</option>
+                  </select>
+                </label>
+                <div class="tt-field" data-field="lr_scheduler">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span><label for="f-lr_scheduler">LR Scheduler</label><button type="button" class="tt-help" data-help="lr_scheduler">?</button></span></span>
+                  <button type="button" id="f-lr_scheduler" class="tt-sched-trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="tt-sched-pop">
+                    <span id="tt-sched-value">cosine</span><span aria-hidden="true">⌄</span>
+                  </button>
+                  <div class="tt-sched-content" id="tt-sched-pop" role="dialog" hidden>
+                    <div class="scheduler-menu-layout">
+                      <div class="scheduler-options-column"><div class="scheduler-menu-hint">悬停 / ↑↓ 预览 · 选择后应用</div><div class="scheduler-options" id="tt-sched-options" role="listbox"></div></div>
+                      <section class="scheduler-curve" id="tt-sched-curve"></section>
+                    </div>
+                  </div>
+                </div>
+                <label class="tt-field" data-field="lr_scheduler_num_cycles" id="row-lr_scheduler_num_cycles" hidden>
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Restart Cycles</span></span>
+                  <input class="tt-control mono" id="f-lr_scheduler_num_cycles" type="number" min="1" step="1" value="1" />
+                </label>
+                <label class="tt-field" data-field="lr_scheduler_min_lr_ratio" id="row-lr_scheduler_min_lr_ratio" hidden>
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Min LR Ratio</span></span>
+                  <input class="tt-control mono" id="f-lr_scheduler_min_lr_ratio" type="number" min="0" max="1" step="0.01" value="0" />
+                </label>
+                <div class="tt-field" data-field="lr_warmup_unit">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>LR Warmup Unit<button type="button" class="tt-help" data-help="lr_warmup_unit">?</button></span></span>
+                  <div class="tt-seg" role="group"><button type="button" data-seg="lr_warmup_unit" data-val="steps" aria-pressed="true">Steps</button><button type="button" data-seg="lr_warmup_unit" data-val="epochs" aria-pressed="false">Epochs</button></div>
+                </div>
+                <label class="tt-field" data-field="lr_warmup_steps" id="row-lr_warmup_steps">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>LR Warmup Steps</span></span>
+                  <input class="tt-control mono" id="f-lr_warmup_steps" type="number" min="0" step="1" value="100" />
+                </label>
+                <label class="tt-field" data-field="lr_warmup_epochs" id="row-lr_warmup_epochs" hidden>
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>LR Warmup Epochs</span></span>
+                  <input class="tt-control mono" id="f-lr_warmup_epochs" type="number" min="0" step="any" value="1" />
+                </label>
+                <label class="tt-field" data-field="weight_decay">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Weight Decay</span></span>
+                  <input class="tt-control mono" id="f-weight_decay" type="number" min="0" step="any" value="0" />
+                </label>
+                <label class="tt-field" data-field="seed">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Seed</span></span>
+                  <input class="tt-control mono" id="f-seed" type="number" step="1" value="42" />
+                </label>
+              </div>
+            </section>
+
+            <section class="tt-col" aria-labelledby="col-sched">
+              <div class="tt-col-head"><h2 id="col-sched">Training Schedule</h2><span class="tt-col-meta" id="meta-sched">20 epochs</span></div>
+              <div class="tt-fields">
+                <div class="tt-field" data-field="duration_unit">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Duration Unit<button type="button" class="tt-help" data-help="duration_unit">?</button></span></span>
+                  <div class="tt-seg" role="group"><button type="button" data-seg="duration_unit" data-val="epochs" aria-pressed="true">Epochs</button><button type="button" data-seg="duration_unit" data-val="steps" aria-pressed="false">Steps</button></div>
+                </div>
+                <label class="tt-field" data-field="max_train_epochs" id="row-max_train_epochs">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Max Epochs</span></span>
+                  <input class="tt-control mono" id="f-max_train_epochs" type="number" min="1" step="1" value="20" />
+                  <span class="tt-error" id="err-max_train_epochs" hidden></span>
+                </label>
+                <label class="tt-field" data-field="save_every_n_epochs" id="row-save_every_n_epochs">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Save Every N Epochs</span></span>
+                  <input class="tt-control mono" id="f-save_every_n_epochs" type="number" min="1" step="1" value="1" />
+                </label>
+                <label class="tt-field" data-field="max_train_steps" id="row-max_train_steps" hidden>
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Max Steps</span></span>
+                  <input class="tt-control mono" id="f-max_train_steps" type="number" min="1" step="1" value="1000" />
+                </label>
+                <label class="tt-field" data-field="save_every_n_steps" id="row-save_every_n_steps" hidden>
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Save Every N Steps</span></span>
+                  <input class="tt-control mono" id="f-save_every_n_steps" type="number" min="1" step="1" value="500" />
+                </label>
+                <label class="tt-field" data-field="output_name">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Output Name</span></span>
+                  <input class="tt-control mono" id="f-output_name" type="text" value="rin_style_v3" />
+                </label>
+                <label class="tt-field" data-field="save_model_as">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Save Format</span></span>
+                  <select class="tt-select mono" id="f-save_model_as"><option value="safetensors">safetensors</option><option value="ckpt">ckpt</option></select>
+                </label>
+              </div>
+            </section>
+
+            <section class="tt-col" aria-labelledby="col-perf">
+              <div class="tt-col-head"><h2 id="col-perf">Performance</h2><span class="tt-col-meta" id="meta-perf">bf16</span></div>
+              <div class="tt-fields">
+                <label class="tt-field" data-field="mixed_precision">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Mixed Precision</span></span>
+                  <select class="tt-select mono" id="f-mixed_precision"><option value="bf16">bf16</option><option value="fp16">fp16</option><option value="no">no</option></select>
+                </label>
+                <label class="tt-field" data-field="save_precision">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Save Precision</span></span>
+                  <select class="tt-select mono" id="f-save_precision"><option value="bf16">bf16</option><option value="fp16">fp16</option><option value="float">float</option></select>
+                </label>
+                <label class="tt-field" data-field="gradient_accumulation_steps">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Gradient Accumulation Steps</span></span>
+                  <input class="tt-control mono" id="f-gradient_accumulation_steps" type="number" min="1" step="1" value="1" />
+                </label>
+                <label class="tt-field" data-field="max_data_loader_n_workers">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>DataLoader Workers</span></span>
+                  <input class="tt-control mono" id="f-max_data_loader_n_workers" type="number" min="0" max="16" step="1" value="4" />
+                </label>
+                <div class="tt-field" data-field="persistent_data_loader_workers" id="row-persistent_data_loader_workers">
+                  <label class="tt-bool-row"><span class="tt-bool-label">Persistent DataLoader Workers</span><span class="tt-switch"><input type="checkbox" id="f-persistent_data_loader_workers" checked /><span class="tt-switch-track"></span></span></label>
+                  <span class="tt-dep-note" id="dep-persistent_data_loader_workers" hidden>Workers 为 0 时不可启用。</span>
+                </div>
+                <div class="tt-field" data-field="gradient_checkpointing">
+                  <label class="tt-bool-row"><span class="tt-bool-label">Gradient Checkpointing</span><span class="tt-switch"><input type="checkbox" id="f-gradient_checkpointing" checked /><span class="tt-switch-track"></span></span></label>
+                  <small class="tt-note">以计算换显存；关闭时一并关闭 activation offload。</small>
+                </div>
+                <label class="tt-field" data-field="activation_offload">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Activation Offload</span></span>
+                  <select class="tt-select" id="f-activation_offload"><option value="none">None</option><option value="cpu">CPU Offload</option><option value="unsloth">Unsloth Offload</option></select>
+                </label>
+                <label class="tt-field" data-field="blocks_to_swap" id="row-blocks_to_swap">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Blocks to Swap</span></span>
+                  <input class="tt-control mono" id="f-blocks_to_swap" type="number" min="0" max="26" step="1" value="0" />
+                  <span class="tt-dep-note" id="dep-blocks_to_swap" hidden>已启用 Activation Offload，Block Swap 已归零并禁用。</span>
+                </label>
+              </div>
+            </section>
+
+            <section class="tt-col" aria-labelledby="col-cache">
+              <div class="tt-col-head"><h2 id="col-cache">Caching &amp; Timesteps</h2><span class="tt-col-meta" id="meta-cache">shift 3</span></div>
+              <div class="tt-fields">
+                <div class="tt-field" data-field="cache_latents_to_disk">
+                  <label class="tt-bool-row"><span class="tt-bool-label">Cache Latents to Disk</span><span class="tt-switch"><input type="checkbox" id="f-cache_latents_to_disk" checked /><span class="tt-switch-track"></span></span></label>
+                </div>
+                <label class="tt-field" data-field="vae_batch_size">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>VAE Cache Batch Size</span></span>
+                  <input class="tt-control mono" id="f-vae_batch_size" type="number" min="1" max="32" step="1" value="1" />
+                </label>
+                <div class="tt-field" data-field="cache_text_encoder_outputs_to_disk">
+                  <label class="tt-bool-row"><span class="tt-bool-label">Cache Text Encoder Outputs to Disk</span><span class="tt-switch"><input type="checkbox" id="f-cache_text_encoder_outputs_to_disk" checked /><span class="tt-switch-track"></span></span></label>
+                  <span class="tt-dep-note" id="dep-cache_te" hidden>已因文本变体缓存自动开启。</span>
+                </div>
+                <div class="tt-field" data-field="cache_text_encoder_variants">
+                  <label class="tt-bool-row"><span class="tt-bool-label">按图片 / 轮次 / 重复次数缓存文本变体</span><span class="tt-switch"><input type="checkbox" id="f-cache_text_encoder_variants" /><span class="tt-switch-track"></span></span></label>
+                </div>
+                <label class="tt-field" data-field="timestep_sample_method">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Timestep Sample Method</span></span>
+                  <select class="tt-select mono" id="f-timestep_sample_method"><option value="logit_normal">logit_normal</option><option value="uniform">uniform</option></select>
+                </label>
+                <label class="tt-field" data-field="discrete_flow_shift">
+                  <span class="tt-label-row"><span class="tt-label-left"><span class="tt-mod-dot"></span>Flow Shift</span></span>
+                  <input class="tt-control mono" id="f-discrete_flow_shift" type="number" min="0" step="0.1" value="3" />
+                </label>
+                <div class="tt-mini-figure">
+                  <div class="tt-mini-head"><strong>时间步抽样密度</strong><span id="tt-ts-label">偏向高噪声</span></div>
+                  <svg class="tt-mini-svg" id="tt-timestep-svg" viewBox="0 0 240 46" preserveAspectRatio="none"></svg>
+                  <div class="tt-mini-axis"><span>0 (低噪)</span><span>1 (高噪)</span></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="tt-tooltip" id="tt-tooltip" role="tooltip" aria-hidden="true"></div>
+
+<div class="demo-dock" role="group" aria-label="原型演示控制">
+  <div class="demo-dock-group" aria-label="队列状态预览">
+    <button type="button" data-qmode="busy" aria-pressed="true">运行+排队</button>
+    <button type="button" data-qmode="idle" aria-pressed="false">空闲</button>
+    <button type="button" data-qmode="fail" aria-pressed="false">失败</button>
+  </div>
+  <span class="demo-dock-sep" aria-hidden="true"></span>
+  <div class="demo-dock-group" aria-label="主题预览">
+    <button type="button" data-theme="github-dark" aria-pressed="true">Dark</button>
+    <button type="button" data-theme="github-light" aria-pressed="false">Light</button>
+    <button type="button" data-theme="midnight-blue" aria-pressed="false">Midnight</button>
+    <button type="button" data-theme="cherry-pink" aria-pressed="false">Cherry</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const ARCH_SHORT = { anima: 'anima', krea2: 'krea2', moss_image: 'moss' };
+  const JOBS = [
+    { name: 'rin_style_v3', arch: 'anima' },
+    { name: 'kurosawa_char', arch: 'anima' },
+    { name: '@art_kimishima ao', arch: 'anima' },
+    { name: '@art_kimishima ao_+old', arch: 'anima' },
+    { name: '@art_machi', arch: 'anima' },
+    { name: '@style_neco', arch: 'anima' },
+    { name: 'white parabellum_v5', arch: 'anima' },
+    { name: 'white parabellum_v3_lokr', arch: 'anima' },
+    { name: 'krea_lighting_v2', arch: 'krea2' },
+    { name: 'krea_portrait_raw', arch: 'krea2' },
+    { name: 'loong-22166830', arch: 'krea2' },
+    { name: 'moss_product_sft', arch: 'moss_image' },
+    { name: 'moss_anime_base', arch: 'moss_image' }
+  ];
+
+  const QUEUE_MODES = {
+    busy: { active: 'kurosawa_char', pending: ['krea_lighting_v2', 'moss_product_sft'], lastFailure: null },
+    idle: { active: null, pending: [], lastFailure: null },
+    fail: { active: null, pending: ['moss_product_sft'], lastFailure: { name: 'krea_lighting_v2', message: 'CUDA out of memory (exit 1)' } }
+  };
+
+  let selectedJob = 'rin_style_v3';
+  let filterArch = 'all';
+  let newArch = 'anima';
+  let queueMode = 'busy';
+  let queueExpanded = false;
+  let settingsActive = false;
+
+  const $ = id => document.getElementById(id);
+
+  function applyTheme(t) {
+    const valid = ['github-dark', 'github-light', 'midnight-blue', 'cherry-pink'];
+    const next = valid.includes(t) ? t : 'github-dark';
+    document.documentElement.dataset.theme = next;
+    document.documentElement.classList.toggle('dark', next !== 'github-light');
+    document.querySelectorAll('.demo-dock [data-theme]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.theme === next)));
+  }
+
+  function renderJobs() {
+    const q = $('sb-search').value.trim().toLowerCase();
+    $('sb-search-clear').hidden = !q;
+    const items = JOBS.filter(j => (filterArch === 'all' || j.arch === filterArch) && j.name.toLowerCase().includes(q));
+    $('sb-count').textContent = String(items.length);
+
+    const queue = QUEUE_MODES[queueMode];
+    const listEl = $('sb-job-list');
+    if (!items.length) {
+      listEl.innerHTML = '<div class="sb1-empty">未找到匹配任务</div>';
+      return;
+    }
+    listEl.innerHTML = items.map(j => {
+      const isSel = !settingsActive && selectedJob === j.name;
+      const isRun = queue.active === j.name;
+      const isPend = queue.pending.includes(j.name);
+      const dotCls = isRun ? 'sb1-dot running' : isPend ? 'sb1-dot queued' : 'sb1-dot';
+      const titleTip = `${j.name} (${ARCH_SHORT[j.arch] || j.arch})${isRun ? ' · 运行中' : isPend ? ' · 排队中' : ''}`;
+      return `<button type="button" class="sb1-job${isSel ? ' selected' : ''}" data-job="${j.name.replace(/"/g, '&quot;')}" title="${titleTip.replace(/"/g, '&quot;')}">
+        <span class="${dotCls}"></span>
+        <span class="sb1-job-name">${j.name}</span>
+        <span class="sb1-arch" data-arch="${j.arch}">${ARCH_SHORT[j.arch] || j.arch}</span>
+      </button>`;
+    }).join('');
+  }
+
+  function renderQueue() {
+    const queue = QUEUE_MODES[queueMode];
+    const sumEl = $('sb-queue-summary');
+    const bodyEl = $('sb1-queue-body');
+
+    if (queue.lastFailure) {
+      sumEl.innerHTML = `<span class="sb1-dot" style="background:var(--destructive)"></span><span style="color:var(--destructive)">上次训练失败 · 排队 ${queue.pending.length}</span>`;
+    } else if (queue.active) {
+      sumEl.innerHTML = `<span class="sb1-dot running"></span><span>${queue.active} · 等待 ${queue.pending.length}</span>`;
+    } else {
+      sumEl.innerHTML = `<span class="sb1-dot"></span><span class="muted">队列空闲 · 0 运行</span>`;
+    }
+
+    const parts = [];
+    if (queue.active) {
+      parts.push(`<button type="button" class="sb1-qitem" data-job="${queue.active}"><span class="sb1-dot running"></span><span class="sb1-job-name">${queue.active}</span><span class="sb1-queue-meta">训练中</span></button>`);
+    }
+    queue.pending.forEach((name, idx) => {
+      parts.push(`<button type="button" class="sb1-qitem" data-job="${name}"><span class="sb1-qidx">#${idx + 1}</span><span class="sb1-job-name">${name}</span><span class="sb1-queue-meta">排队</span></button>`);
+    });
+    if (!queue.active && !queue.pending.length) {
+      parts.push(`<div class="muted" style="font-size:12px;padding:3px 0">没有等待中的任务</div>`);
+    }
+    if (queue.lastFailure) {
+      parts.push(`<p class="sb1-qerr">${queue.lastFailure.name} 失败 · ${queue.lastFailure.message}</p>`);
+    }
+    bodyEl.innerHTML = parts.join('');
+    bodyEl.hidden = !queueExpanded;
+    $('sb-queue-toggle').setAttribute('aria-expanded', String(queueExpanded));
+    $('sb-queue-chev').textContent = queueExpanded ? '▴' : '▾';
+  }
+
+  function selectJob(name) {
+    const job = JOBS.find(j => j.name === name);
+    if (!job) return;
+    selectedJob = job.name;
+    settingsActive = false;
+    $('sb-settings-btn').classList.remove('active');
+    $('tb-job-name').textContent = job.name;
+    const queue = QUEUE_MODES[queueMode];
+    const statusText = queue.active === job.name ? '运行中' : queue.pending.includes(job.name) ? '排队中' : '就绪';
+    $('tb-job-meta').textContent = `${job.arch} · ${statusText}`;
+    if ($('f-output_name')) {
+      $('f-output_name').value = job.name;
+      $('f-output_name').dispatchEvent(new Event('input'));
+    }
+    document.querySelectorAll('#main-tabs button').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === 'training');
+    });
+    renderJobs();
+  }
+
+  // Events
+  $('sb-search').addEventListener('input', renderJobs);
+  $('sb-search-clear').addEventListener('click', () => { $('sb-search').value = ''; renderJobs(); $('sb-search').focus(); });
+
+  document.querySelectorAll('.sb1-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterArch = btn.dataset.filter;
+      document.querySelectorAll('.sb1-filter-btn').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+      renderJobs();
+    });
+  });
+
+  $('sb-job-list').addEventListener('click', e => {
+    const btn = e.target.closest('[data-job]');
+    if (btn) selectJob(btn.dataset.job);
+  });
+  $('sb1-queue-body').addEventListener('click', e => {
+    const btn = e.target.closest('[data-job]');
+    if (btn) selectJob(btn.dataset.job);
+  });
+
+  $('sb-queue-toggle').addEventListener('click', () => {
+    queueExpanded = !queueExpanded;
+    renderQueue();
+  });
+
+  $('sb-refresh').addEventListener('click', () => {
+    const btn = $('sb-refresh');
+    btn.classList.remove('spinning');
+    void btn.offsetWidth;
+    btn.classList.add('spinning');
+    renderJobs();
+  });
+
+  // New Job drawer
+  const drawer = $('sb1-create-drawer');
+  const toggleBtn = $('sb-new-toggle');
+  function setCreateOpen(open) {
+    drawer.hidden = !open;
+    toggleBtn.setAttribute('aria-expanded', String(open));
+    if (open) setTimeout(() => $('sb-new-name').focus(), 20);
+  }
+  toggleBtn.addEventListener('click', () => setCreateOpen(drawer.hidden));
+  $('sb-new-close').addEventListener('click', () => setCreateOpen(false));
+  $('sb-new-name').addEventListener('input', () => {
+    $('sb-new-submit').disabled = !$('sb-new-name').value.trim();
+  });
+  document.querySelectorAll('[data-new-arch]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      newArch = btn.dataset.newArch;
+      document.querySelectorAll('[data-new-arch]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    });
+  });
+  drawer.addEventListener('submit', e => {
+    e.preventDefault();
+    const raw = $('sb-new-name').value.trim();
+    if (!raw) return;
+    if (!JOBS.some(j => j.name === raw)) JOBS.unshift({ name: raw, arch: newArch });
+    $('sb-new-name').value = '';
+    $('sb-new-submit').disabled = true;
+    setCreateOpen(false);
+    filterArch = 'all';
+    document.querySelectorAll('.sb1-filter-btn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filter === 'all')));
+    selectJob(raw);
+  });
+
+  $('sb-settings-btn').addEventListener('click', () => {
+    settingsActive = true;
+    $('sb-settings-btn').classList.add('active');
+    $('tb-job-name').textContent = '全局设置';
+    $('tb-job-meta').textContent = 'model_paths · environment';
+    document.querySelectorAll('#main-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === 'settings'));
+    renderJobs();
+  });
+
+  document.querySelectorAll('.demo-dock [data-theme]').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme)));
+  document.querySelectorAll('.demo-dock [data-qmode]').forEach(b => {
+    b.addEventListener('click', () => {
+      queueMode = b.dataset.qmode;
+      document.querySelectorAll('.demo-dock [data-qmode]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      if (queueMode === 'fail') queueExpanded = true;
+      renderJobs();
+      renderQueue();
+    });
+  });
+
+  const qs = new URLSearchParams(location.search);
+  if (qs.get('theme')) applyTheme(qs.get('theme'));
+  if (qs.get('qmode') && QUEUE_MODES[qs.get('qmode')]) queueMode = qs.get('qmode');
+  if (qs.get('openCreate') === '1') setCreateOpen(true);
+  if (qs.get('openQueue') === '1') queueExpanded = true;
+
+  renderJobs();
+  renderQueue();
+})();
+</script>
+
+<script>
+// ===== Right-side Training Tab interactive charts & controls =====
+(function () {
+  const HELP = {
+    learning_rate: ['学习率', '每次优化器更新的基础步幅。', '调节模型学习新概念的速度；过大可能不稳定，过小可能学不充分。', '与 Batch Size、梯度累积及训练步数共同影响训练。'],
+    text_encoder_lr: ['文本编码器学习率', '为实际参与训练的文本编码器参数指定学习率。', '与图像主干学习率分开控制文本侧的更新。'],
+    optimizer_type: ['优化器', '根据梯度更新可训练参数的算法。', '影响显存占用、收敛方式及可接受的附加参数。'],
+    lr_scheduler: ['学习率调度器', '控制学习率随训练进度的变化曲线。', '例如 cosine 后期降低学习率，constant 保持基础水平。'],
+    lr_warmup_unit: ['学习率预热单位', '选择 Steps 或 Epochs 设置预热时长。', '切换时保留两种单位各自的值。'],
+    duration_unit: ['训练时长单位', '选择按 Epochs（轮）还是 Steps（更新步）控制训练。', '切换训练终点以及保存、采样间隔所使用的单位。']
+  };
+  const INITIAL = {
+    learning_rate: 0.00005, text_encoder_lr: 0.00005, optimizer_type: 'AdamW8bit', lr_scheduler: 'cosine',
+    lr_warmup_unit: 'steps', lr_warmup_steps: 100, lr_warmup_epochs: 1, weight_decay: 0, seed: 42,
+    lr_scheduler_num_cycles: 1, lr_scheduler_min_lr_ratio: 0, duration_unit: 'epochs',
+    max_train_epochs: 20, save_every_n_epochs: 1, max_train_steps: 1000, save_every_n_steps: 500,
+    output_name: 'rin_style_v3', save_model_as: 'safetensors', mixed_precision: 'bf16', save_precision: 'bf16',
+    max_data_loader_n_workers: 4, gradient_accumulation_steps: 1, persistent_data_loader_workers: true,
+    gradient_checkpointing: true, blocks_to_swap: 0, activation_offload: 'none',
+    cache_latents_to_disk: true, vae_batch_size: 1, cache_text_encoder_outputs_to_disk: true,
+    cache_text_encoder_variants: false, timestep_sample_method: 'logit_normal', discrete_flow_shift: 3
+  };
+  const state = { ...INITIAL };
+  const errors = {};
+  let locked = false, errorDemoActive = false;
+  const $ = id => document.getElementById(id);
+
+  function fmtLR(v) {
+    if (!Number.isFinite(v) || v < 0) return '—';
+    if (v === 0) return '0';
+    if (v < 0.001 || v >= 1000) return v.toExponential(2).replace(/\.?0+e/, 'e').replace('e+', 'e');
+    return String(Number(v.toPrecision(4)));
+  }
+  function schedulerValue(kind, u, cycles, minRatio) {
+    const t = Math.max(0, Math.min(1, u));
+    if (kind === 'constant') return 1;
+    if (kind === 'linear') return 1 - t;
+    if (kind === 'polynomial') return Math.pow(1 - t, 1.8);
+    if (kind === 'cosine_with_restarts') {
+      const c = Math.max(1, Math.round(cycles || 1));
+      const p = (t * c) % 1;
+      return t === 1 ? 0 : 0.5 * (1 + Math.cos(Math.PI * p));
+    }
+    if (kind === 'cosine_with_min_lr') {
+      const f = Math.max(0, Math.min(1, Number(minRatio) || 0));
+      return f + (1 - f) * 0.5 * (1 + Math.cos(Math.PI * t));
+    }
+    return 0.5 * (1 + Math.cos(Math.PI * t));
+  }
+  function renderRecipe() {
+    const isEp = state.duration_unit === 'epochs';
+    const total = isEp ? state.max_train_epochs : state.max_train_steps;
+    const saveN = isEp ? state.save_every_n_epochs : state.save_every_n_steps;
+    const wVal = state.lr_warmup_unit === 'epochs' ? state.lr_warmup_epochs : state.lr_warmup_steps;
+    const parts = [
+      { field: 'optimizer_type', text: state.optimizer_type, mono: true },
+      { field: 'learning_rate', text: `LR ${fmtLR(state.learning_rate)}`, mono: true },
+      { field: 'lr_scheduler', text: `${state.lr_scheduler} · warmup ${wVal} ${state.lr_warmup_unit === 'epochs' ? 'ep' : 'steps'}`, mono: true },
+      { field: isEp ? 'max_train_epochs' : 'max_train_steps', text: `${total} ${isEp ? 'epochs' : 'steps'}`, mono: true },
+      { field: isEp ? 'save_every_n_epochs' : 'save_every_n_steps', text: `每 ${saveN} ${isEp ? '轮' : '步'}保存`, mono: false },
+      { field: 'mixed_precision', text: state.mixed_precision, mono: true }
+    ];
+    $('tt-recipe').innerHTML = parts.map((p, i) => `${i ? '<span class="tt-recipe-sep">·</span>' : ''}<span class="tt-recipe-item${p.mono ? ' tt-recipe-mono' : ''}" data-focus="${p.field}">${p.text}</span>`).join('');
+    $('meta-opt').textContent = state.optimizer_type;
+    $('meta-sched').textContent = `${total} ${isEp ? 'epochs' : 'steps'}`;
+    $('meta-perf').textContent = state.mixed_precision;
+    $('meta-cache').textContent = `shift ${state.discrete_flow_shift}`;
+  }
+  function renderTimeline() {
+    const svg = $('tt-timeline-svg');
+    const stageW = svg.parentElement ? svg.parentElement.clientWidth : 1120;
+    const W = Math.max(520, Math.round(stageW || 1120)), H = 204;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const padL = 56, padR = 158, padT = 32, padB = 38;
+    const plotW = Math.max(240, W - padL - padR), plotH = H - padT - padB;
+    const isEp = state.duration_unit === 'epochs';
+    const total = Math.max(1, Number(isEp ? state.max_train_epochs : state.max_train_steps) || 1);
+    const saveN = Math.max(1, Number(isEp ? state.save_every_n_epochs : state.save_every_n_steps) || 1);
+    const peakLR = Math.max(1e-9, Number(state.learning_rate) || 0.00005);
+    const wSame = state.lr_warmup_unit === state.duration_unit;
+    const wRaw = Math.max(0, Number(state.lr_warmup_unit === 'epochs' ? state.lr_warmup_epochs : state.lr_warmup_steps) || 0);
+    const wFrac = wRaw > 0 ? (wSame ? Math.min(0.95, wRaw / total) : 0.10) : 0;
+    const xOf = f => padL + f * plotW;
+    const yOf = v => padT + plotH * (1 - Math.max(0, Math.min(1, v / peakLR)));
+    const pts = [];
+    if (wFrac > 0) { pts.push([xOf(0), yOf(0)], [xOf(wFrac), yOf(peakLR)]); }
+    const span = Math.max(1e-6, 1 - wFrac);
+    for (let i = 0; i <= 140; i++) {
+      const u = i / 140, f = wFrac + span * u;
+      pts.push([xOf(f), yOf(peakLR * schedulerValue(state.lr_scheduler, u, state.lr_scheduler_num_cycles, state.lr_scheduler_min_lr_ratio))]);
+    }
+    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const wx = xOf(wFrac), endX = xOf(1), endY = pts[pts.length - 1][1];
+    const saveCount = Math.floor(total / saveN), stepStride = saveCount > 44 ? Math.ceil(saveCount / 44) : 1;
+    let ticks = '';
+    for (let k = 1; k <= saveCount; k += stepStride) {
+      const tx = xOf((k * saveN) / total);
+      ticks += `<line x1="${tx.toFixed(1)}" y1="${padT + plotH}" x2="${tx.toFixed(1)}" y2="${padT + plotH + 6}" stroke="var(--foreground)" stroke-opacity=".55" stroke-width="1.2" />`;
+    }
+    const nameLine = (state.output_name || 'output').slice(0, 18);
+    svg.innerHTML = `
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="var(--border)" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="var(--border)" />
+      <line x1="${padL}" y1="${yOf(peakLR).toFixed(1)}" x2="${padL + plotW}" y2="${yOf(peakLR).toFixed(1)}" stroke="var(--border)" stroke-opacity=".42" stroke-dasharray="2 5" />
+      <text x="${padL - 10}" y="${(yOf(peakLR) + 4).toFixed(1)}" text-anchor="end" class="mono ink">${fmtLR(peakLR)}</text>
+      <text x="${padL - 10}" y="${padT + plotH + 4}" text-anchor="end" class="mono">0</text>
+      ${wRaw > 0 ? `<rect x="${padL}" y="${padT}" width="${(wx - padL).toFixed(1)}" height="${plotH}" fill="var(--primary)" opacity=".08" /><line x1="${wx.toFixed(1)}" y1="${padT - 5}" x2="${wx.toFixed(1)}" y2="${padT + plotH}" stroke="var(--primary)" stroke-opacity=".42" stroke-dasharray="2 3" /><text x="${(wx + 4).toFixed(1)}" y="${padT - 10}">预热 ${wRaw} ${state.lr_warmup_unit === 'epochs' ? 'ep' : 'steps'}${wSame ? '' : '（示意）'}</text>` : ''}
+      <path d="${d}" fill="none" stroke="var(--primary)" stroke-width="2" />
+      <text x="${(padL + plotW * 0.48).toFixed(1)}" y="${(padT + plotH * 0.34).toFixed(1)}" class="mono primary-ink">${state.lr_scheduler}</text>
+      ${ticks}
+      <text x="${(padL + plotW / 2).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="middle">每 ${saveN} ${isEp ? 'epoch' : 'step'} 保存 · 共 ${saveCount} 次</text>
+      <text x="${padL}" y="${padT + plotH + 26}" class="mono">0</text>
+      <text x="${(padL + plotW * 0.25).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="middle" class="mono" opacity=".6">${Math.round(total * 0.25)}</text>
+      <text x="${(padL + plotW * 0.75).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="middle" class="mono" opacity=".6">${Math.round(total * 0.75)}</text>
+      <text x="${(padL + plotW).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="end" class="mono ink">${total} ${isEp ? 'epochs' : 'steps'}</text>
+      <line x1="${endX.toFixed(1)}" y1="${padT}" x2="${endX.toFixed(1)}" y2="${padT + plotH}" stroke="var(--border)" />
+      <circle cx="${endX.toFixed(1)}" cy="${endY.toFixed(1)}" r="3.5" fill="var(--primary)" />
+      <text x="${(endX + 12).toFixed(1)}" y="${(padT + plotH / 2 - 4).toFixed(1)}" class="mono ink">${nameLine}</text>
+      <text x="${(endX + 12).toFixed(1)}" y="${(padT + plotH / 2 + 13).toFixed(1)}" class="mono">.${state.save_model_as} · ${state.save_precision}</text>
+    `;
+  }
+  function renderTimestepMini() {
+    const svg = $('tt-timestep-svg'), shift = Math.max(0.05, Number(state.discrete_flow_shift) || 1);
+    const W = 240, H = 46, padT = 6, padB = 2, plotH = H - padT - padB, samples = 60, ys = [];
+    for (let i = 1; i < samples; i++) {
+      const tp = i / samples, denom = shift - (shift - 1) * tp, t = tp / denom, jac = shift / (denom * denom);
+      let baseP = 1;
+      if (state.timestep_sample_method === 'logit_normal') {
+        const logit = Math.log(t / (1 - t));
+        baseP = Math.exp(-0.5 * logit * logit) / (t * (1 - t) * Math.sqrt(2 * Math.PI));
+      }
+      ys.push([tp, baseP * jac]);
+    }
+    const maxP = Math.max(...ys.map(p => p[1]), 1e-6);
+    const pts = ys.map(([tp, p]) => `${(tp * W).toFixed(1)},${(padT + plotH * (1 - p / maxP)).toFixed(1)}`);
+    const lineD = `M0,${padT + plotH} L${pts.join(' L')} L${W},${padT + plotH}`;
+    $('tt-ts-label').textContent = shift > 1.05 ? `偏向高噪声 · ${shift}` : shift < 0.95 ? `偏向低噪声 · ${shift}` : '无偏移 · 1.0';
+    svg.innerHTML = `<line x1="0" y1="${padT + plotH}" x2="${W}" y2="${padT + plotH}" stroke="var(--border)" /><path d="${lineD} Z" fill="var(--primary)" opacity=".12" /><path d="${lineD}" fill="none" stroke="var(--primary)" stroke-width="1.5" />`;
+  }
+  const SCHEDULER_LIST = ['cosine', 'constant', 'linear', 'cosine_with_restarts', 'cosine_with_min_lr', 'polynomial'];
+  let highlightedSched = state.lr_scheduler;
+  function renderSchedulerPopover() {
+    $('tt-sched-value').textContent = state.lr_scheduler;
+    $('tt-sched-options').innerHTML = SCHEDULER_LIST.map(n => `<button type="button" class="scheduler-option" data-sched="${n}" role="option" aria-selected="${state.lr_scheduler === n}" data-highlighted="${highlightedSched === n}"><span>${n}</span>${state.lr_scheduler === n ? '<span class="scheduler-selected">✓</span>' : ''}</button>`).join('');
+    $('tt-sched-curve').innerHTML = `<div class="scheduler-preview-eyebrow">LR SCHEDULE</div><div class="scheduler-preview-title">${highlightedSched}</div><code>${highlightedSched}</code>`;
+  }
+  function renderLrGauge() {
+    const v = state.learning_rate;
+    const ratio = !Number.isFinite(v) || v <= 0 ? 0 : Math.max(0, Math.min(1, (Math.log10(v) + 6) / 3));
+    $('tt-lr-gauge-fill').style.width = `${(ratio * 100).toFixed(1)}%`;
+  }
+  function syncUI() {
+    $('row-lr_scheduler_num_cycles').hidden = state.lr_scheduler !== 'cosine_with_restarts';
+    $('row-lr_scheduler_min_lr_ratio').hidden = state.lr_scheduler !== 'cosine_with_min_lr';
+    $('row-lr_warmup_steps').hidden = state.lr_warmup_unit !== 'steps';
+    $('row-lr_warmup_epochs').hidden = state.lr_warmup_unit !== 'epochs';
+    const isEp = state.duration_unit === 'epochs';
+    $('row-max_train_epochs').hidden = !isEp; $('row-save_every_n_epochs').hidden = !isEp;
+    $('row-max_train_steps').hidden = isEp; $('row-save_every_n_steps').hidden = isEp;
+    document.querySelectorAll('[data-seg]').forEach(btn => btn.setAttribute('aria-pressed', String(state[btn.dataset.seg] === btn.dataset.val)));
+    renderLrGauge(); renderRecipe(); renderTimeline(); renderTimestepMini(); renderSchedulerPopover();
+  }
+  $('f-output_name').addEventListener('input', e => { state.output_name = e.target.value; syncUI(); });
+  $('f-learning_rate').addEventListener('input', e => { state.learning_rate = Number(e.target.value); syncUI(); });
+  $('tt-lr-dec').addEventListener('click', () => { state.learning_rate = Math.max(1e-6, Number((state.learning_rate * 0.5).toPrecision(3))); $('f-learning_rate').value = fmtLR(state.learning_rate); syncUI(); });
+  $('tt-lr-inc').addEventListener('click', () => { state.learning_rate = Math.min(1e-3, Number((state.learning_rate * 2).toPrecision(3))); $('f-learning_rate').value = fmtLR(state.learning_rate); syncUI(); });
+  document.querySelectorAll('[data-seg]').forEach(b => b.addEventListener('click', () => { state[b.dataset.seg] = b.dataset.val; syncUI(); }));
+  $('tt-toggle-lock').addEventListener('click', () => { locked = !locked; $('tt-fieldset').disabled = locked; $('tt-toggle-lock').setAttribute('aria-pressed', String(locked)); $('tt-lock-banner').classList.toggle('is-visible', locked); });
+  $('tt-toggle-error').addEventListener('click', () => {
+    errorDemoActive = !errorDemoActive;
+    $('tt-toggle-error').setAttribute('aria-pressed', String(errorDemoActive));
+    $('err-max_train_epochs').textContent = errorDemoActive ? '最小值为 1' : '';
+    $('err-max_train_epochs').hidden = !errorDemoActive;
+  });
+  $('f-lr_scheduler').addEventListener('click', () => { const p = $('tt-sched-pop'); p.hidden = !p.hidden; });
+  $('tt-sched-options').addEventListener('click', e => { const o = e.target.closest('[data-sched]'); if (!o) return; state.lr_scheduler = o.dataset.sched; $('tt-sched-pop').hidden = true; syncUI(); });
+  syncUI();
+  if (typeof ResizeObserver !== 'undefined') { new ResizeObserver(() => renderTimeline()).observe($('tt-timeline-svg').parentElement); }
+})();
+</script>
+</body>
+</html>

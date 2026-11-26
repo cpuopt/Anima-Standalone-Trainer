@@ -21,12 +21,14 @@ export const schedulerPreviews: Record<string, SchedulerPreview> = {
     example: '单次从峰值降至零；此示意不包含 Warmup。', segments:[cosine],
   },
   cosine_with_restarts: {
-    title: '余弦周期重启', description: '每个周期平滑衰减后，学习率回到较高水平，再开始下一轮衰减。',
-    example: '仅以 3 个周期举例；实际周期数由 Restart / Scheduler Cycles 决定。', segments:[cosine, cosine, cosine],
+    title: '余弦周期重启',
+    description: '每个周期沿余弦曲线降至零，边界处单步跳回峰值重新衰减（无平滑爬升段）。',
+    example: '仅以 3 个周期（中途硬重启 2 次）举例；实际由 Restart / Scheduler Cycles 决定，此示意不包含 Warmup。',
+    segments: [cosine, cosine, cosine],
   },
   cosine_with_min_lr: {
     title: '带下限的余弦衰减', description: '沿余弦曲线下降，但保留最低学习率，不一定降到零。',
-    example: '虚线以最低学习率比例 20% 举例；实际由 Min LR Ratio 决定。', segments:[t => 0.2 + 0.8 * cosine(t)], floor:0.2,
+    example: '虚线以最低学习率比例 20%、1 个周期举例；实际由 Min LR Ratio 与 Restart / Scheduler Cycles 共同决定。', segments:[t => 0.2 + 0.8 * cosine(t)], floor:0.2,
   },
   polynomial: {
     title: '多项式衰减', description: '按多项式曲线降低学习率；指数不同，弯曲程度和衰减速度也不同。',

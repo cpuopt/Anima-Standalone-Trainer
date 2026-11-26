@@ -91,3 +91,84 @@ test('new artifact list, preview and download require the global LAN session',as
         }); assert.equal(status,401);
     }
 });
+
+function parseSafetensorsBuffer(buf) {
+    const len = Number(buf.readBigUInt64LE(0));
+    const header = JSON.parse(buf.subarray(8, 8 + len).toString('utf8'));
+    const payload = buf.subarray(8 + len);
+    return { headerLen: len, header, payload };
+}
+
+test('strips selected safetensors metadata fields on download without modifying disk file or tensor bytes', async t => {
+    const { write, base, fetch, job } = await fixture(t);
+    const tensorBytes = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
+    const rawHeader = Buffer.from(JSON.stringify({
+        __metadata__: {
+            ss_epoch: '3',
+            ss_tag_frequency: JSON.stringify({ dir1: { '1girl': 10 } }),
+            ss_datasets: JSON.stringify([
+                {
+                    subsets: [{ image_dir: 'dir1', class_tokens: 'trig' }],
+                    bucket_info: { buckets: { '1024,1024': 10 } },
+                    tag_frequency: { dir1: { '1girl': 10 } }
+                },
+                {
+                    subsets: [{ image_dir: 'dir2', class_tokens: null }],
+                    bucket_info: { buckets: { '512,512': 4 } },
+                    tag_frequency: { dir2: { 'solo': 4 } }
+                }
+            ])
+        },
+        weight: { dtype: 'F32', shape: [2], data_offsets: [0, 8] }
+    }));
+    const prefix = Buffer.alloc(8);
+    prefix.writeBigUInt64LE(BigInt(rawHeader.length));
+    const fullModel = Buffer.concat([prefix, rawHeader, tensorBytes]);
+    await write('output/lora-000003.safetensors', fullModel);
+
+    const listing = await (await fetch(base)).json();
+    const item = listing.items[0];
+    const baseQuery = new URLSearchParams({ path: item.path, version: item.version, download: 'true' });
+
+    // Unstripped download returns original bytes
+    const rawRes = await fetch(base + '/file?' + baseQuery);
+    assert.equal(rawRes.status, 200);
+    assert.deepEqual(Buffer.from(await rawRes.arrayBuffer()), fullModel);
+
+    // Strip ss_datasets[*].bucket_info and ss_tag_frequency
+    const partialQuery = new URLSearchParams(baseQuery);
+    partialQuery.set('strip_metadata', 'ss_datasets[*].bucket_info,ss_tag_frequency');
+    const partialRes = await fetch(base + '/file?' + partialQuery);
+    assert.equal(partialRes.status, 200);
+    const partialBuf = Buffer.from(await partialRes.arrayBuffer());
+    assert.equal(Number(partialRes.headers.get('content-length')), partialBuf.length);
+    const partialParsed = parseSafetensorsBuffer(partialBuf);
+    assert.equal(partialParsed.headerLen % 8, 0);
+    assert.equal(partialParsed.header.__metadata__.ss_epoch, '3');
+    assert.equal('ss_tag_frequency' in partialParsed.header.__metadata__, false);
+    const partialDatasets = JSON.parse(partialParsed.header.__metadata__.ss_datasets);
+    assert.equal(partialDatasets.length, 2);
+    assert.equal('bucket_info' in partialDatasets[0], false);
+    assert.equal('bucket_info' in partialDatasets[1], false);
+    assert.deepEqual(partialDatasets[0].tag_frequency, { dir1: { '1girl': 10 } });
+    assert.deepEqual(partialDatasets[0].subsets, [{ image_dir: 'dir1', class_tokens: 'trig' }]);
+    assert.deepEqual(partialParsed.payload, tensorBytes);
+
+    // Strip all 3 fields
+    const allQuery = new URLSearchParams(baseQuery);
+    allQuery.set('strip_metadata', 'ss_datasets[*].bucket_info,ss_datasets[*].tag_frequency,ss_tag_frequency');
+    const allRes = await fetch(base + '/file?' + allQuery);
+    assert.equal(allRes.status, 200);
+    const allParsed = parseSafetensorsBuffer(Buffer.from(await allRes.arrayBuffer()));
+    assert.equal('ss_tag_frequency' in allParsed.header.__metadata__, false);
+    const allDatasets = JSON.parse(allParsed.header.__metadata__.ss_datasets);
+    assert.equal('bucket_info' in allDatasets[0], false);
+    assert.equal('tag_frequency' in allDatasets[0], false);
+    assert.equal('tag_frequency' in allDatasets[1], false);
+    assert.deepEqual(allDatasets[0].subsets, [{ image_dir: 'dir1', class_tokens: 'trig' }]);
+    assert.deepEqual(allParsed.payload, tensorBytes);
+
+    // Original file on disk remains untouched
+    const diskBytes = await fs.readFile(path.join(job, 'output', 'lora-000003.safetensors'));
+    assert.deepEqual(diskBytes, fullModel);
+});

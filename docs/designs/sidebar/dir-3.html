@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="zh-CN" class="dark" data-theme="github-dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sidebar Redesign · Dir 3 · 双轨速切栏 Dual-Rail Sidebar</title>
+<style>
+:root {
+  --background:#f5f7fa; --foreground:#202b40; --card:#fff; --primary:#326cd4; --primary-foreground:#fff;
+  --secondary:#e9edf4; --muted:#edf0f5; --muted-foreground:#5c677d; --accent:#e0e9fc; --destructive:#bc364a; --border:#dbe1eb;
+  --sb-ok-dot:#1d9d68; --sb-ok-text:#147a50; --sb-warn:#9a6310;
+  --arch-anm:#2459b8; --arch-kr2:#8f5b08; --arch-mos:#7043b8;
+  font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif; color-scheme:light;
+}
+.dark {
+  --background:#10151f; --foreground:#e0e7f2; --card:#171e2b; --primary:#86aafa; --primary-foreground:#111b32;
+  --secondary:#222d40; --muted:#1b2434; --muted-foreground:#94a3bb; --accent:#253650; --destructive:#db4e67; --border:#2b374c;
+  --sb-ok-dot:#5ace9d; --sb-ok-text:#70be9d; --sb-warn:#e3b76a;
+  --arch-anm:#86aafa; --arch-kr2:#e3b76a; --arch-mos:#c19cf7;
+  color-scheme:dark;
+}
+[data-theme="midnight-blue"] { --background:#0c172b; --card:#10213b; --border:#263f61; --primary:#6ec1eb; --arch-anm:#6ec1eb; }
+[data-theme="cherry-pink"] { --background:#241622; --card:#2d1e2c; --border:#513347; --primary:#e8a0c1; --arch-anm:#e8a0c1; }
+
+* { box-sizing:border-box; border-color:var(--border); }
+body { margin:0; background:var(--background); color:var(--foreground); font-size:14px; line-height:1.55; }
+button { cursor:pointer; font:inherit; color:inherit; background:none; border:0; }
+button:disabled { cursor:not-allowed; opacity:.45; }
+input,select,textarea { max-width:100%; font:inherit; }
+:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+a { color:var(--primary); text-decoration:none; }
+h1,h2,h3,p { margin-top:0; }
+small { display:block; }
+
+.studio-shell { display:grid; grid-template-columns:240px minmax(0,1fr); min-height:100dvh; }
+main { min-width:0; }
+.toolbar { min-height:115px; padding:25px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:color-mix(in srgb,var(--background) 90%,transparent); }
+.eyebrow { font-size:9px; font-weight:650; letter-spacing:.18em; color:var(--muted-foreground); }
+h1 { font-size:22px; font-weight:650; margin:2px 0; }
+.toolbar-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.sbtn { display:inline-flex; align-items:center; height:36px; padding:0 16px; border-radius:6px; font-size:14px; font-weight:500; background:var(--primary); color:var(--primary-foreground); }
+.sbtn.outline { background:color-mix(in srgb,var(--border) 30%,transparent); border:1px solid var(--border); color:var(--foreground); }
+.sbtn.train { background:#599e7d; color:#071e15; font-weight:600; }
+.tabs { display:flex; gap:3px; padding:0 25px; border-bottom:1px solid var(--border); overflow:auto; }
+.tabs button { white-space:nowrap; padding:15px 13px; border-bottom:2px solid transparent; color:var(--muted-foreground); font-size:12px; }
+.tabs button.active { color:var(--primary); border-bottom-color:var(--primary); }
+.tabs button:hover { color:var(--foreground); }
+.workspace { padding:26px 32px 60px; margin:auto; }
+.muted { color:var(--muted-foreground); }
+
+/* ===== Direction 3 Sidebar · 双轨速切栏 Dual-Rail (38px rail + 196px list = 234px) ===== */
+.sb3 {
+  --sb-mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 96%, var(--background));
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
+  user-select: none;
+}
+.sb3 [hidden] { display: none !important; }
+
+/* Far-left 38px primary rail */
+.sb3-rail {
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 60%, var(--card));
+  padding: 10px 0 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+.sb3-rail-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.sb3-rail-sep {
+  width: 18px;
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+.sb3-rbtn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  display: grid;
+  place-items: center;
+  font-family: var(--sb-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  transition: background .12s, color .12s, border-color .12s;
+}
+.sb3-rbtn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.sb3-rbtn[data-filter="anima"]::after,
+.sb3-rbtn[data-filter="krea2"]::after,
+.sb3-rbtn[data-filter="moss_image"]::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  width: 10px;
+  height: 2px;
+  border-radius: 2px;
+  opacity: .8;
+}
+.sb3-rbtn[data-filter="anima"]::after { background: var(--arch-anm); }
+.sb3-rbtn[data-filter="krea2"]::after { background: var(--arch-kr2); }
+.sb3-rbtn[data-filter="moss_image"]::after { background: var(--arch-mos); }
+.sb3-rbtn:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+.sb3-rbtn[aria-pressed="true"],
+.sb3-rbtn.active {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+  color: var(--primary);
+}
+.sb3-rbtn.home {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+.sb3-rbadge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 99px;
+  background: var(--sb-ok-dot);
+  color: #062115;
+  font-size: 9px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+.sb3-rbadge.error {
+  background: var(--destructive);
+  color: #fff;
+}
+.sb3-conn-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sb-ok-dot);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--sb-ok-dot) 70%, transparent);
+  margin-top: 2px;
+}
+
+/* Right 196px job index column */
+.sb3-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+}
+.sb3-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 11px 10px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+.sb3-col-title {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb3-col-title span {
+  font-family: var(--sb-mono);
+  font-weight: 500;
+  color: var(--muted-foreground);
+  margin-left: 4px;
+}
+.sb3-head-btns {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.sb3-micro-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--muted-foreground);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+}
+.sb3-micro-btn:hover { background: var(--muted); color: var(--foreground); }
+.sb3-micro-btn[aria-expanded="true"] { background: var(--accent); color: var(--primary); }
+
+/* Slide-down New Job Panel */
+.sb3-create-panel {
+  padding: 8px 10px 9px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--muted) 65%, var(--card));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sb3-create-panel input {
+  width: 100%;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 7px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 12.5px;
+}
+.sb3-create-panel select {
+  width: 100%;
+  height: 27px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 6px;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--sb-mono);
+  font-size: 11.5px;
+}
+.sb3-create-panel button[type="submit"] {
+  height: 26px;
+  border-radius: 4px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Search Bar */
+.sb3-search-box {
+  padding: 7px 10px 5px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.sb3-search {
+  width: 100%;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0 22px 0 8px;
+  background: color-mix(in srgb, var(--background) 70%, var(--card));
+  color: var(--foreground);
+  font-size: 12.5px;
+}
+.sb3-search:focus { outline: none; border-color: var(--primary); }
+.sb3-search-clear {
+  position: absolute;
+  right: 15px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Full-height dense job list */
+.sb3-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 3px 4px 8px;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sb3-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  text-align: left;
+  transition: background .1s;
+}
+.sb3-row:hover { background: color-mix(in srgb, var(--foreground) 5%, transparent); }
+.sb3-row.selected {
+  background: var(--accent);
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+.sb3-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+  flex-shrink: 0;
+}
+.sb3-dot.running {
+  background: var(--sb-ok-dot);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--sb-ok-dot) 65%, transparent);
+}
+.sb3-dot.queued { background: var(--sb-warn); }
+.sb3-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb3-row.selected .sb3-name { font-weight: 600; }
+.sb3-arch {
+  font-family: var(--sb-mono);
+  font-size: 10.5px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.sb3-arch[data-arch="anima"] { color: var(--arch-anm); }
+.sb3-arch[data-arch="krea2"] { color: var(--arch-kr2); }
+.sb3-arch[data-arch="moss_image"] { color: var(--arch-mos); }
+
+/* Docked Queue Drawer / Status Strip at bottom of 196px col */
+.sb3-queue-drawer {
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--muted) 72%, var(--card));
+  padding: 7px 10px 8px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.sb3-qhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--muted-foreground);
+}
+.sb3-qitem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 12px;
+  text-align: left;
+}
+.sb3-qitem:hover { color: var(--primary); }
+.sb3-qmini-bar {
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  width: 100%;
+  text-align: left;
+}
+.sb3-qmini-bar:hover { background: color-mix(in srgb, var(--foreground) 4%, transparent); color: var(--foreground); }
+.sb3-qerr {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--destructive);
+  margin: 0;
+}
+
+/* ===== Demo dock & Right-side Training Tab ===== */
+.demo-dock { position: fixed; right: 14px; bottom: 14px; z-index: 999; display: flex; align-items: center; gap: 8px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); box-shadow: 0 6px 20px #0005; font-size: 11px; }
+.demo-dock-group { display: flex; gap: 3px; }
+.demo-dock-sep { width: 1px; height: 16px; background: var(--border); }
+.demo-dock button { padding: 4px 7px; border-radius: 5px; color: var(--muted-foreground); }
+.demo-dock button[aria-pressed="true"] { background: var(--accent); color: var(--foreground); font-weight: 600; }
+
+.tt-wrap { --tt-mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace; --tt-hairline: color-mix(in srgb, var(--border) 75%, transparent); --tt-hairline-soft: color-mix(in srgb, var(--border) 45%, transparent); --tt-ink-faint: var(--muted-foreground); --tt-warn: #d49b4b; max-width: 1560px; margin: 0 auto; }
+.tt-topbar { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--tt-hairline); }
+.tt-recipe { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; }
+.tt-recipe-mono { font-family: var(--tt-mono); font-weight: 500; }
+.tt-recipe-sep { color: var(--tt-ink-faint); }
+.tt-demo-bar { display: flex; gap: 10px; }
+.tt-demo-btn { padding: 3px 9px; border: 1px solid var(--tt-hairline); border-radius: 4px; font-size: 12px; color: var(--muted-foreground); }
+.tt-hero { padding: 18px 0 20px; border-bottom: 1px solid var(--tt-hairline); }
+.tt-hero-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.tt-hero-title { font-size: 14px; font-weight: 600; margin: 0; }
+.tt-hero-caption { font-size: 12px; color: var(--muted-foreground); }
+.tt-chart-svg { display: block; width: 100%; height: 204px; overflow: visible; }
+.tt-chart-svg text { font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; fill: var(--muted-foreground); font-size: 12px; }
+.tt-chart-svg text.mono { font-family: var(--tt-mono); }
+.tt-chart-svg text.ink { fill: var(--foreground); font-weight: 500; }
+.tt-chart-svg text.primary-ink { fill: var(--primary); font-weight: 500; }
+.tt-columns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; padding-top: 22px; }
+.tt-col { min-width: 0; padding: 0 22px; border-right: 1px solid var(--tt-hairline-soft); }
+.tt-col:first-child { padding-left: 0; }
+.tt-col:last-child { padding-right: 0; border-right: 0; }
+.tt-col-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 10px; margin-bottom: 6px; border-bottom: 1px solid var(--tt-hairline); }
+.tt-col-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.tt-col-meta { font-size: 12px; color: var(--muted-foreground); font-family: var(--tt-mono); }
+.tt-fields { display: flex; flex-direction: column; }
+.tt-field { display: block; padding: 9px 0 8px; border-bottom: 1px solid var(--tt-hairline-soft); }
+.tt-field:last-child { border-bottom: 0; }
+.tt-label-left { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+.tt-help { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--muted-foreground) 42%, transparent); color: var(--muted-foreground); font-size: 10px; }
+.tt-control,.tt-select { width: 100%; background: transparent; color: var(--foreground); border: 0; padding: 2px 2px 2px 0; font-size: 14px; font-family: var(--tt-mono); }
+.tt-select option { background: var(--card); color: var(--foreground); }
+.tt-seg { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; margin-top: 2px; }
+.tt-seg button { padding: 3px 8px 5px; font-size: 14px; color: var(--muted-foreground); border-bottom: 2px solid transparent; margin-bottom: -9px; }
+.tt-seg button[aria-pressed="true"] { color: var(--foreground); font-weight: 600; border-bottom-color: var(--primary); }
+.tt-lr-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tt-lr-row .tt-control { flex: 1; font-size: 18px; font-weight: 600; }
+.tt-stepper { display: inline-flex; border: 1px solid var(--tt-hairline); border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--muted) 65%, transparent); }
+.tt-stepper button { width: 26px; height: 24px; display: grid; place-items: center; font-family: var(--tt-mono); font-size: 14px; font-weight: 600; }
+.tt-stepper button + button { border-left: 1px solid var(--tt-hairline); }
+.tt-gauge { position: relative; height: 8px; margin-top: 6px; background: color-mix(in srgb, var(--muted) 80%, transparent); border: 1px solid var(--tt-hairline); border-radius: 2px; overflow: hidden; }
+.tt-gauge-fill { position: absolute; inset: 0 auto 0 0; width: 56.6%; background: color-mix(in srgb, var(--primary) 78%, transparent); }
+.tt-gauge-ticks { position: absolute; inset: 0; background-image: repeating-linear-gradient(90deg, transparent, transparent 11px, color-mix(in srgb, var(--background) 65%, transparent) 11px, color-mix(in srgb, var(--background) 65%, transparent) 12px); }
+.tt-scale-marks { display: flex; justify-content: space-between; font-family: var(--tt-mono); font-size: 10px; color: color-mix(in srgb, var(--muted-foreground) 80%, transparent); margin-top: 3px; }
+.tt-sched-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 2px 2px 2px 0; font-family: var(--tt-mono); font-size: 14px; }
+.tt-bool-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.tt-bool-label { font-size: 14px; line-height: 1.4; }
+.tt-switch { position: relative; width: 34px; height: 19px; flex-shrink: 0; }
+.tt-switch input { position: absolute; inset: 0; opacity: 0; margin: 0; }
+.tt-switch-track { position: absolute; inset: 0; border-radius: 99px; border: 1px solid var(--border); background: color-mix(in srgb, var(--border) 45%, transparent); }
+.tt-switch-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--muted-foreground); }
+.tt-switch input:checked + .tt-switch-track { background: color-mix(in srgb, var(--primary) 24%, transparent); border-color: var(--primary); }
+.tt-switch input:checked + .tt-switch-track::after { transform: translateX(15px); background: var(--primary); }
+.tt-note { margin-top: 5px; font-size: 12px; color: var(--muted-foreground); }
+.tt-mini-figure { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--tt-hairline-soft); }
+.tt-mini-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted-foreground); margin-bottom: 6px; }
+.tt-mini-head strong { color: var(--foreground); font-weight: 500; }
+.tt-mini-svg { display: block; width: 100%; height: 46px; }
+.tt-mini-axis { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; font-family: var(--tt-mono); color: var(--muted-foreground); }
+
+@media (max-width: 1220px) { .tt-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 28px; } .tt-col:nth-child(even) { border-right: 0; } }
+@media (max-width: 680px) { .studio-shell { display: block; } .sb3 { position: relative; height: auto; border-right: 0; border-bottom: 1px solid var(--border); } .sb3-list { max-height: 240px; } }
+</style>
+</head>
+<body>
+<div class="studio-shell">
+  <!-- ===== Direction 3 Sidebar: 双轨速切栏 Dual-Rail (38px rail + 196px list = 234px) ===== -->
+  <aside class="sb3" aria-label="任务导航栏">
+    <!-- Far-left 38px persistent tool rail -->
+    <div class="sb3-rail" aria-label="快捷工具轨">
+      <div class="sb3-rail-group">
+        <a class="sb3-rbtn home" href="#home" title="Training Studio 工作台首页">A</a>
+        <span class="sb3-rail-sep" aria-hidden="true"></span>
+        <button type="button" class="sb3-rbtn" data-filter="all" aria-pressed="true" title="全部模型架构">ALL</button>
+        <button type="button" class="sb3-rbtn" data-filter="anima" aria-pressed="false" title="仅显示 Anima">ANM</button>
+        <button type="button" class="sb3-rbtn" data-filter="krea2" aria-pressed="false" title="仅显示 Krea 2">KR2</button>
+        <button type="button" class="sb3-rbtn" data-filter="moss_image" aria-pressed="false" title="仅显示 MOSS-Image">MOS</button>
+      </div>
+      <div class="sb3-rail-group">
+        <button type="button" class="sb3-rbtn" id="sb-rail-queue" aria-expanded="false" title="展开/收起训练队列">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h6"/></svg>
+          <span class="sb3-rbadge" id="sb-rail-qbadge">2</span>
+        </button>
+        <button type="button" class="sb3-rbtn" id="sb-rail-new" aria-expanded="false" title="新建训练任务">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.2v9.6M3.2 8h9.6"/></svg>
+        </button>
+        <button type="button" class="sb3-rbtn" id="sb-settings-btn" title="全局设置">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.5M8 12.7v1.5M1.8 8h1.5M12.7 8h1.5M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1"/></svg>
+        </button>
+        <span class="sb3-conn-led" title="实时连接正常" aria-label="实时连接正常"></span>
+      </div>
+    </div>
+
+    <!-- Right 196px full-height job list drawer -->
+    <div class="sb3-col">
+      <div class="sb3-col-head">
+        <div class="sb3-col-title" id="sb3-col-title">全部任务<span>13</span></div>
+        <div class="sb3-head-btns">
+          <button type="button" class="sb3-micro-btn" id="sb-refresh" title="刷新任务">↻</button>
+          <button type="button" class="sb3-micro-btn" id="sb-head-new" aria-expanded="false" title="新建任务">+</button>
+        </div>
+      </div>
+
+      <form class="sb3-create-panel" id="sb3-create-panel" hidden>
+        <input id="sb-new-name" placeholder="任务名称…" aria-label="任务名称" />
+        <select id="sb-new-arch" aria-label="模型架构">
+          <option value="anima">Anima (anima)</option>
+          <option value="krea2">Krea 2 (krea2)</option>
+          <option value="moss_image">MOSS-Image (moss)</option>
+        </select>
+        <button type="submit" id="sb-new-submit" disabled>创建任务</button>
+      </form>
+
+      <div class="sb3-search-box">
+        <input class="sb3-search" id="sb-search" placeholder="搜索任务…" aria-label="搜索任务" />
+        <button type="button" class="sb3-search-clear" id="sb-search-clear" aria-label="清空搜索" hidden>×</button>
+      </div>
+
+      <nav class="sb3-list" id="sb-job-list" aria-label="任务列表"></nav>
+
+      <!-- Always-compact live queue summary strip (click to expand drawer) -->
+      <button type="button" class="sb3-qmini-bar" id="sb-qmini-bar" aria-expanded="false">
+        <span id="sb-qmini-text" style="display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        <span style="font-family:var(--sb-mono);font-size:10px;flex-shrink:0;" id="sb-qmini-chev">▴</span>
+      </button>
+
+      <!-- Expandable Queue Drawer -->
+      <section class="sb3-queue-drawer" id="sb3-queue-drawer" hidden aria-label="训练队列详情">
+        <div class="sb3-qhead"><span>训练队列</span><button type="button" id="sb-qclose" style="font-size:12px;color:var(--muted-foreground)">×</button></div>
+        <div id="sb3-queue-items"></div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- ===== Unchanged Right-Side Content ===== -->
+  <main>
+    <header class="toolbar">
+      <div class="title">
+        <span class="eyebrow">TRAINING WORKSPACE</span>
+        <h1><span id="tb-job-name">rin_style_v3</span></h1>
+        <span class="muted" id="tb-job-meta">anima · 就绪</span>
+      </div>
+      <div class="toolbar-actions">
+        <button class="sbtn outline">复制</button>
+        <button class="sbtn outline">删除</button>
+        <button class="sbtn">保存</button>
+        <button class="sbtn train">开始训练</button>
+      </div>
+    </header>
+    <nav class="tabs" id="main-tabs" aria-label="配置页面">
+      <button class="active" data-tab="training">训练</button>
+      <button data-tab="dataset">数据集</button>
+      <button data-tab="network">网络</button>
+      <button data-tab="multi-gpu">多 GPU</button>
+      <button data-tab="prompts">提示词与生成</button>
+      <button data-tab="samples">样例</button>
+      <button data-tab="console">控制台</button>
+      <button data-tab="tensorboard">TensorBoard</button>
+      <button data-tab="artifacts">训练产出</button>
+      <button data-tab="client-portal">客户交付</button>
+      <button data-tab="settings">设置</button>
+    </nav>
+    <div class="workspace">
+      <div class="tt-wrap">
+        <div class="tt-topbar">
+          <div class="tt-recipe">
+            <span class="tt-recipe-mono">AdamW8bit</span><span class="tt-recipe-sep">·</span>
+            <span class="tt-recipe-mono">LR 5e-5</span><span class="tt-recipe-sep">·</span>
+            <span class="tt-recipe-mono">cosine · warmup 100 steps</span><span class="tt-recipe-sep">·</span>
+            <span class="tt-recipe-mono">20 epochs</span><span class="tt-recipe-sep">·</span>
+            <span>每 1 轮保存</span><span class="tt-recipe-sep">·</span>
+            <span class="tt-recipe-mono">bf16</span>
+          </div>
+          <div class="tt-demo-bar">
+            <button type="button" class="tt-demo-btn">预览锁定状态</button>
+            <button type="button" class="tt-demo-btn">预览校验错误</button>
+          </div>
+        </div>
+        <section class="tt-hero">
+          <div class="tt-hero-head">
+            <h2 class="tt-hero-title">训练时间线 · 学习率曲线与检查点节奏</h2>
+            <span class="tt-hero-caption">点击曲线、预热区间、保存刻度或终点名称可定位对应参数</span>
+          </div>
+          <svg class="tt-chart-svg" id="tt-timeline-svg" viewBox="0 0 1120 204"></svg>
+        </section>
+        <div class="tt-columns">
+          <section class="tt-col">
+            <div class="tt-col-head"><h2>Optimization</h2><span class="tt-col-meta">AdamW8bit</span></div>
+            <div class="tt-fields">
+              <div class="tt-field"><span class="tt-label-left">Learning Rate<button type="button" class="tt-help">?</button></span><div class="tt-lr-row"><input class="tt-control" value="5e-5" readonly /><div class="tt-stepper"><button type="button">−</button><button type="button">+</button></div></div><div class="tt-gauge"><div class="tt-gauge-fill"></div><div class="tt-gauge-ticks"></div></div><div class="tt-scale-marks"><span>1e-6</span><span>1e-5</span><span>5e-5</span><span>1e-4</span><span>1e-3</span></div></div>
+              <div class="tt-field"><span class="tt-label-left">Text Encoder LR<button type="button" class="tt-help">?</button></span><input class="tt-control" value="5e-5" readonly /></div>
+              <div class="tt-field"><span class="tt-label-left">Optimizer<button type="button" class="tt-help">?</button></span><select class="tt-select"><option>AdamW8bit</option></select></div>
+              <div class="tt-field"><span class="tt-label-left">LR Scheduler<button type="button" class="tt-help">?</button></span><button type="button" class="tt-sched-trigger"><span>cosine</span><span>⌄</span></button></div>
+              <div class="tt-field"><span class="tt-label-left">LR Warmup Unit<button type="button" class="tt-help">?</button></span><div class="tt-seg"><button type="button" aria-pressed="true">Steps</button><button type="button">Epochs</button></div></div>
+              <div class="tt-field"><span class="tt-label-left">LR Warmup Steps</span><input class="tt-control" value="100" readonly /></div>
+            </div>
+          </section>
+          <section class="tt-col">
+            <div class="tt-col-head"><h2>Training Schedule</h2><span class="tt-col-meta">20 epochs</span></div>
+            <div class="tt-fields">
+              <div class="tt-field"><span class="tt-label-left">Duration Unit<button type="button" class="tt-help">?</button></span><div class="tt-seg"><button type="button" aria-pressed="true">Epochs</button><button type="button">Steps</button></div></div>
+              <div class="tt-field"><span class="tt-label-left">Max Epochs</span><input class="tt-control" value="20" readonly /></div>
+              <div class="tt-field"><span class="tt-label-left">Save Every N Epochs</span><input class="tt-control" value="1" readonly /></div>
+              <div class="tt-field"><span class="tt-label-left">Output Name</span><input class="tt-control" id="f-output_name" value="rin_style_v3" readonly /></div>
+              <div class="tt-field"><span class="tt-label-left">Save Format</span><select class="tt-select"><option>safetensors</option></select></div>
+            </div>
+          </section>
+          <section class="tt-col">
+            <div class="tt-col-head"><h2>Performance</h2><span class="tt-col-meta">bf16</span></div>
+            <div class="tt-fields">
+              <div class="tt-field"><span class="tt-label-left">Mixed Precision</span><select class="tt-select"><option>bf16</option></select></div>
+              <div class="tt-field"><span class="tt-label-left">Save Precision</span><select class="tt-select"><option>bf16</option></select></div>
+              <div class="tt-field"><span class="tt-label-left">Gradient Accumulation Steps</span><input class="tt-control" value="1" readonly /></div>
+              <div class="tt-field"><span class="tt-label-left">DataLoader Workers</span><input class="tt-control" value="4" readonly /></div>
+              <div class="tt-field"><label class="tt-bool-row"><span class="tt-bool-label">Persistent DataLoader Workers</span><span class="tt-switch"><input type="checkbox" checked /><span class="tt-switch-track"></span></span></label></div>
+              <div class="tt-field"><label class="tt-bool-row"><span class="tt-bool-label">Gradient Checkpointing</span><span class="tt-switch"><input type="checkbox" checked /><span class="tt-switch-track"></span></span></label><small class="tt-note">以计算换显存；关闭时一并关闭 activation offload。</small></div>
+            </div>
+          </section>
+          <section class="tt-col">
+            <div class="tt-col-head"><h2>Caching &amp; Timesteps</h2><span class="tt-col-meta">shift 3</span></div>
+            <div class="tt-fields">
+              <div class="tt-field"><label class="tt-bool-row"><span class="tt-bool-label">Cache Latents to Disk</span><span class="tt-switch"><input type="checkbox" checked /><span class="tt-switch-track"></span></span></label></div>
+              <div class="tt-field"><span class="tt-label-left">VAE Cache Batch Size</span><input class="tt-control" value="1" readonly /></div>
+              <div class="tt-field"><label class="tt-bool-row"><span class="tt-bool-label">Cache Text Encoder Outputs to Disk</span><span class="tt-switch"><input type="checkbox" checked /><span class="tt-switch-track"></span></span></label></div>
+              <div class="tt-field"><span class="tt-label-left">Timestep Sample Method</span><select class="tt-select"><option>logit_normal</option></select></div>
+              <div class="tt-field"><span class="tt-label-left">Flow Shift</span><input class="tt-control" value="3" readonly /></div>
+              <div class="tt-mini-figure">
+                <div class="tt-mini-head"><strong>时间步抽样密度</strong><span>偏向高噪声 · 3</span></div>
+                <svg class="tt-mini-svg" viewBox="0 0 240 46"><line x1="0" y1="44" x2="240" y2="44" stroke="var(--border)"/><path d="M0,44 Q130,42 175,8 Q210,10 240,44 Z" fill="var(--primary)" opacity=".14"/><path d="M0,44 Q130,42 175,8 Q210,10 240,44" fill="none" stroke="var(--primary)" stroke-width="1.5"/></svg>
+                <div class="tt-mini-axis"><span>0 (低噪)</span><span>1 (高噪)</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="demo-dock" role="group" aria-label="原型演示控制">
+  <div class="demo-dock-group">
+    <button type="button" data-qmode="busy" aria-pressed="true">运行+排队</button>
+    <button type="button" data-qmode="idle" aria-pressed="false">空闲</button>
+    <button type="button" data-qmode="fail" aria-pressed="false">失败</button>
+  </div>
+  <span class="demo-dock-sep"></span>
+  <div class="demo-dock-group">
+    <button type="button" data-theme="github-dark" aria-pressed="true">Dark</button>
+    <button type="button" data-theme="github-light" aria-pressed="false">Light</button>
+    <button type="button" data-theme="midnight-blue" aria-pressed="false">Midnight</button>
+    <button type="button" data-theme="cherry-pink" aria-pressed="false">Cherry</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const ARCH_SHORT = { anima: 'anima', krea2: 'krea2', moss_image: 'moss' };
+  const ARCH_TITLES = { all: '全部任务', anima: 'Anima 任务', krea2: 'Krea 2 任务', moss_image: 'MOSS 任务' };
+  const JOBS = [
+    { name: 'rin_style_v3', arch: 'anima' },
+    { name: 'kurosawa_char', arch: 'anima' },
+    { name: '@art_kimishima ao', arch: 'anima' },
+    { name: '@art_kimishima ao_+old', arch: 'anima' },
+    { name: '@art_machi', arch: 'anima' },
+    { name: '@style_neco', arch: 'anima' },
+    { name: 'white parabellum_v5', arch: 'anima' },
+    { name: 'white parabellum_v3_lokr', arch: 'anima' },
+    { name: 'krea_lighting_v2', arch: 'krea2' },
+    { name: 'krea_portrait_raw', arch: 'krea2' },
+    { name: 'loong-22166830', arch: 'krea2' },
+    { name: 'moss_product_sft', arch: 'moss_image' },
+    { name: 'moss_anime_base', arch: 'moss_image' }
+  ];
+  const QUEUE_MODES = {
+    busy: { active: 'kurosawa_char', pending: ['krea_lighting_v2', 'moss_product_sft'], lastFailure: null },
+    idle: { active: null, pending: [], lastFailure: null },
+    fail: { active: null, pending: ['moss_product_sft'], lastFailure: { name: 'krea_lighting_v2', message: 'CUDA out of memory (exit 1)' } }
+  };
+
+  let selectedJob = 'rin_style_v3';
+  let filterArch = 'all';
+  let queueMode = 'busy';
+  let queueExpanded = false;
+  let settingsActive = false;
+  const $ = id => document.getElementById(id);
+
+  function applyTheme(t) {
+    const valid = ['github-dark', 'github-light', 'midnight-blue', 'cherry-pink'];
+    const next = valid.includes(t) ? t : 'github-dark';
+    document.documentElement.dataset.theme = next;
+    document.documentElement.classList.toggle('dark', next !== 'github-light');
+    document.querySelectorAll('.demo-dock [data-theme]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.theme === next)));
+  }
+
+  function renderJobs() {
+    const q = $('sb-search').value.trim().toLowerCase();
+    $('sb-search-clear').hidden = !q;
+    const items = JOBS.filter(j => (filterArch === 'all' || j.arch === filterArch) && j.name.toLowerCase().includes(q));
+    $('sb3-col-title').innerHTML = `${ARCH_TITLES[filterArch]}<span>${items.length}</span>`;
+    const queue = QUEUE_MODES[queueMode];
+    $('sb-job-list').innerHTML = items.length ? items.map(j => {
+      const isSel = !settingsActive && selectedJob === j.name;
+      const isRun = queue.active === j.name;
+      const isPend = queue.pending.includes(j.name);
+      const dotCls = isRun ? 'sb3-dot running' : isPend ? 'sb3-dot queued' : 'sb3-dot';
+      return `<button type="button" class="sb3-row${isSel ? ' selected' : ''}" data-job="${j.name.replace(/"/g, '&quot;')}" title="${j.name} (${ARCH_SHORT[j.arch]})">
+        <span class="${dotCls}"></span>
+        <span class="sb3-name">${j.name}</span>
+        <span class="sb3-arch" data-arch="${j.arch}">${ARCH_SHORT[j.arch]}</span>
+      </button>`;
+    }).join('') : '<div class="muted" style="text-align:center;padding:18px 8px;font-size:12px">未找到匹配任务</div>';
+  }
+
+  function renderQueue() {
+    const q = QUEUE_MODES[queueMode];
+    const badge = $('sb-rail-qbadge');
+    const count = (q.active ? 1 : 0) + q.pending.length;
+    if (q.lastFailure) {
+      badge.hidden = false; badge.textContent = '!'; badge.classList.add('error');
+      $('sb-qmini-text').innerHTML = `<span class="sb3-dot" style="background:var(--destructive)"></span><span style="color:var(--destructive)">${q.lastFailure.name} 失败</span>`;
+    } else if (q.active) {
+      badge.hidden = false; badge.textContent = String(count); badge.classList.remove('error');
+      $('sb-qmini-text').innerHTML = `<span class="sb3-dot running"></span><span>${q.active} · +${q.pending.length}</span>`;
+    } else {
+      badge.hidden = true; badge.classList.remove('error');
+      $('sb-qmini-text').innerHTML = `<span class="sb3-dot"></span><span>队列空闲</span>`;
+    }
+
+    const parts = [];
+    if (q.active) parts.push(`<button type="button" class="sb3-qitem" data-job="${q.active}"><span class="sb3-dot running"></span><span class="sb3-name">${q.active}</span><span style="font-family:var(--sb-mono);font-size:10.5px;color:var(--sb-ok-text)">RUN</span></button>`);
+    q.pending.forEach((n, i) => parts.push(`<button type="button" class="sb3-qitem" data-job="${n}"><span style="font-family:var(--sb-mono);font-size:10.5px;color:var(--muted-foreground)">#${i + 1}</span><span class="sb3-name">${n}</span></button>`));
+    if (!q.active && !q.pending.length) parts.push(`<span class="muted" style="font-size:11.5px">没有等待中的任务</span>`);
+    if (q.lastFailure) parts.push(`<p class="sb3-qerr">${q.lastFailure.name} · ${q.lastFailure.message}</p>`);
+    $('sb3-queue-items').innerHTML = parts.join('');
+    $('sb3-queue-drawer').hidden = !queueExpanded;
+    $('sb-rail-queue').setAttribute('aria-expanded', String(queueExpanded));
+    $('sb-rail-queue').classList.toggle('active', queueExpanded);
+    $('sb-qmini-bar').setAttribute('aria-expanded', String(queueExpanded));
+    $('sb-qmini-chev').textContent = queueExpanded ? '▾' : '▴';
+  }
+
+  function renderRightChart(name) {
+    const svg = $('tt-timeline-svg');
+    const stageW = svg.parentElement ? svg.parentElement.clientWidth : 1120;
+    const W = Math.max(520, Math.round(stageW || 1120)), H = 204;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const padL = 56, padR = 158, padT = 32, padB = 38, plotW = W - padL - padR, plotH = H - padT - padB;
+    const total = 20, saveN = 1, wFrac = 100 / 1000;
+    const xOf = f => padL + f * plotW, yOf = v => padT + plotH * (1 - v);
+    const pts = [[xOf(0), yOf(0)], [xOf(wFrac), yOf(1)]];
+    const span = 1 - wFrac;
+    for (let i = 0; i <= 140; i++) {
+      const u = i / 140, f = wFrac + span * u;
+      pts.push([xOf(f), yOf(0.5 * (1 + Math.cos(Math.PI * u)))]);
+    }
+    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const wx = xOf(wFrac), endX = xOf(1), endY = pts[pts.length - 1][1];
+    let ticks = '';
+    for (let k = 1; k <= total; k++) {
+      const tx = xOf((k * saveN) / total);
+      ticks += `<line x1="${tx.toFixed(1)}" y1="${padT + plotH}" x2="${tx.toFixed(1)}" y2="${padT + plotH + 6}" stroke="var(--foreground)" stroke-opacity=".55" stroke-width="1.2" />`;
+    }
+    svg.innerHTML = `
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="var(--border)" />
+      <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="var(--border)" />
+      <line x1="${padL}" y1="${padT}" x2="${padL + plotW}" y2="${padT}" stroke="var(--border)" stroke-opacity=".42" stroke-dasharray="2 5" />
+      <text x="${padL - 10}" y="${padT + 4}" text-anchor="end" class="mono ink">5e-5</text>
+      <text x="${padL - 10}" y="${padT + plotH + 4}" text-anchor="end" class="mono">0</text>
+      <rect x="${padL}" y="${padT}" width="${(wx - padL).toFixed(1)}" height="${plotH}" fill="var(--primary)" opacity=".08" />
+      <line x1="${wx.toFixed(1)}" y1="${padT - 5}" x2="${wx.toFixed(1)}" y2="${padT + plotH}" stroke="var(--primary)" stroke-opacity=".42" stroke-dasharray="2 3" />
+      <text x="${(wx + 4).toFixed(1)}" y="${padT - 10}">预热 100 steps（示意）</text>
+      <path d="${d}" fill="none" stroke="var(--primary)" stroke-width="2" />
+      <text x="${(padL + plotW * 0.48).toFixed(1)}" y="${(padT + plotH * 0.34).toFixed(1)}" class="mono primary-ink">cosine</text>
+      ${ticks}
+      <text x="${(padL + plotW / 2).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="middle">每 1 epoch 保存 · 共 20 次</text>
+      <text x="${padL}" y="${padT + plotH + 26}" class="mono">0</text>
+      <text x="${(padL + plotW * 0.25).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="middle" class="mono" opacity=".6">5</text>
+      <text x="${(padL + plotW * 0.75).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="middle" class="mono" opacity=".6">15</text>
+      <text x="${(padL + plotW).toFixed(1)}" y="${padT + plotH + 26}" text-anchor="end" class="mono ink">20 epochs</text>
+      <line x1="${endX.toFixed(1)}" y1="${padT}" x2="${endX.toFixed(1)}" y2="${padT + plotH}" stroke="var(--border)" />
+      <circle cx="${endX.toFixed(1)}" cy="${endY.toFixed(1)}" r="3.5" fill="var(--primary)" />
+      <text x="${(endX + 12).toFixed(1)}" y="${(padT + plotH / 2 - 4).toFixed(1)}" class="mono ink">${(name || 'output').slice(0, 18)}</text>
+      <text x="${(endX + 12).toFixed(1)}" y="${(padT + plotH / 2 + 13).toFixed(1)}" class="mono">.safetensors · bf16</text>
+    `;
+  }
+
+  function selectJob(name) {
+    const job = JOBS.find(j => j.name === name);
+    if (!job) return;
+    selectedJob = job.name; settingsActive = false;
+    $('sb-settings-btn').classList.remove('active');
+    $('tb-job-name').textContent = job.name;
+    const q = QUEUE_MODES[queueMode];
+    $('tb-job-meta').textContent = `${job.arch} · ${q.active === job.name ? '运行中' : q.pending.includes(job.name) ? '排队中' : '就绪'}`;
+    $('f-output_name').value = job.name;
+    document.querySelectorAll('#main-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === 'training'));
+    renderRightChart(job.name);
+    renderJobs();
+  }
+
+  document.querySelectorAll('.sb3-rail [data-filter]').forEach(btn => btn.addEventListener('click', () => {
+    filterArch = btn.dataset.filter;
+    document.querySelectorAll('.sb3-rail [data-filter]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    renderJobs();
+  }));
+  $('sb-search').addEventListener('input', renderJobs);
+  $('sb-search-clear').addEventListener('click', () => { $('sb-search').value = ''; renderJobs(); });
+  $('sb-job-list').addEventListener('click', e => { const r = e.target.closest('[data-job]'); if (r) selectJob(r.dataset.job); });
+  $('sb3-queue-items').addEventListener('click', e => { const r = e.target.closest('[data-job]'); if (r) selectJob(r.dataset.job); });
+
+  const toggleQ = () => { queueExpanded = !queueExpanded; renderQueue(); };
+  $('sb-rail-queue').addEventListener('click', toggleQ);
+  $('sb-qmini-bar').addEventListener('click', toggleQ);
+  $('sb-qclose').addEventListener('click', () => { queueExpanded = false; renderQueue(); });
+
+  const createPanel = $('sb3-create-panel');
+  function setCreateOpen(open) {
+    createPanel.hidden = !open;
+    $('sb-rail-new').setAttribute('aria-expanded', String(open));
+    $('sb-rail-new').classList.toggle('active', open);
+    $('sb-head-new').setAttribute('aria-expanded', String(open));
+    if (open) setTimeout(() => $('sb-new-name').focus(), 20);
+  }
+  $('sb-rail-new').addEventListener('click', () => setCreateOpen(createPanel.hidden));
+  $('sb-head-new').addEventListener('click', () => setCreateOpen(createPanel.hidden));
+  $('sb-new-name').addEventListener('input', () => { $('sb-new-submit').disabled = !$('sb-new-name').value.trim(); });
+  createPanel.addEventListener('submit', e => {
+    e.preventDefault();
+    const n = $('sb-new-name').value.trim(); if (!n) return;
+    const arch = $('sb-new-arch').value;
+    if (!JOBS.some(j => j.name === n)) JOBS.unshift({ name: n, arch });
+    $('sb-new-name').value = ''; $('sb-new-submit').disabled = true; setCreateOpen(false);
+    filterArch = 'all';
+    document.querySelectorAll('.sb3-rail [data-filter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filter === 'all')));
+    selectJob(n);
+  });
+
+  $('sb-settings-btn').addEventListener('click', () => {
+    settingsActive = true; $('sb-settings-btn').classList.add('active');
+    $('tb-job-name').textContent = '全局设置'; $('tb-job-meta').textContent = 'model_paths · environment';
+    document.querySelectorAll('#main-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === 'settings'));
+    renderJobs();
+  });
+
+  document.querySelectorAll('.demo-dock [data-theme]').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme)));
+  document.querySelectorAll('.demo-dock [data-qmode]').forEach(b => b.addEventListener('click', () => {
+    queueMode = b.dataset.qmode;
+    document.querySelectorAll('.demo-dock [data-qmode]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    if (queueMode === 'fail') queueExpanded = true;
+    renderJobs(); renderQueue();
+  }));
+
+  const qs = new URLSearchParams(location.search);
+  if (qs.get('theme')) applyTheme(qs.get('theme'));
+  if (qs.get('qmode') && QUEUE_MODES[qs.get('qmode')]) queueMode = qs.get('qmode');
+  if (qs.get('openCreate') === '1') setCreateOpen(true);
+  if (qs.get('openQueue') === '1') queueExpanded = true;
+
+  renderRightChart(selectedJob);
+  renderJobs();
+  renderQueue();
+})();
+</script>
+</body>
+</html>

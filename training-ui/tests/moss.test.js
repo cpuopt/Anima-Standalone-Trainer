@@ -7,7 +7,7 @@ const vm = require('vm');
 const { EventEmitter } = require('events');
 const { spawnSync } = require('child_process');
 const TOML = require('@iarna/toml');
-const M = require('../public/js/moss');
+const M = require('../shared/moss');
 const B = require('../lib/moss-backend');
 function fixture(t) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'moss-test-'));
@@ -104,15 +104,6 @@ test('generation uses selected SFT, adapter type/factor, zero strength and snaps
   assert.equal(spec.dit,f.models.sft);assert.equal(spec.multiplier,0);assert.equal(spec.network_args.factor,'3');assert.equal(spec.prompts[0].seed,0);assert.equal(spec.prompts[0].negative_prompt,'');
   assert.throws(()=>B.prepareGeneration(c,f.root,f.global,{gen_gpu_ids:'0,1'}));
 });
-test('legacy MOSS prompt round-trip preserves zero seed, zero CFG and empty negative',()=>{
-  const source=fs.readFileSync(path.join(__dirname,'../public/js/app.js'),'utf8');
-  const start=source.indexOf('function parsePromptLine('),end=source.indexOf('async function savePrompts',start);
-  const ctx={currentArchitecture:'moss_image',lastSavedNegativePrompt:'', $:()=>({value:''})};
-  vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);
-  const p=ctx.parsePromptLine('fox --w 512 --h 768 --s 3 --l 0 --d 0 --n');
-  assert.equal(p.text,'fox');assert.equal(p.d,0);assert.equal(p.l,0);assert.equal(p.sourceNegative,'');
-  const line=ctx.serializePrompt(p);assert.match(line,/--d 0/);assert.match(line,/--l 0/);assert.doesNotMatch(line,/--ss|--n/);
-});
 for(const fail of ['preflight','training'])test(`MOSS pipeline ${fail} failure never reports completed`,async()=>{
   const seen=[];let environment;
   const prepared={rt:{python:'python',cwd:B.VENDOR},gpuIds:'0',label:'MOSS',stages:[{phase:'preflight',args:[]},{phase:'training',args:[]}]};
@@ -129,7 +120,7 @@ test('MOSS create, save, lock and reset routes keep architecture and avoid Anima
   const f=fixture(t),source=fs.readFileSync(path.join(__dirname,'../server.js'),'utf8');
   const runningJobs=new Map();let handler;
   const helpers=source.slice(source.indexOf('function getArchForJob('),source.indexOf('// Build model_arguments'));
-  const context={Moss:M,Krea2:require('../public/js/krea2'),TOML,fs,path,JOBS_DIR:f.root,TEMPLATES_DIR:f.root,runningJobs,
+  const context={Moss:M,Krea2:require('../shared/krea2'),TOML,fs,path,JOBS_DIR:f.root,TEMPLATES_DIR:f.root,runningJobs,
     memoryTraceUpdateError:require('../lib/memory-trace-settings').memoryTraceUpdateError,
     ARCH_REGISTRY:require('../architectures.json'),sanitizeName:n=>n,getJobPath:n=>path.join(f.root,n),stripQuotes:s=>s,
     getGlobalConfig:()=>({}),validateLayerArgs:()=>{throw Error('Must not call Anima validator')},
@@ -149,19 +140,48 @@ test('MOSS route dispatch and GPU ownership are symmetric across training and ge
   const f=fixture(t),source=fs.readFileSync(path.join(__dirname,'../server.js'),'utf8');
   fs.writeFileSync(path.join(f.root,'config.toml'),TOML.stringify(M.defaults()));fs.writeFileSync(path.join(f.root,'dataset.toml'),TOML.stringify(f.dataset));
   const runningJobs=new Map();const calls=[];let handler;
-  const context={fs,path,TOML,runningJobs,persistentGenProcess:null,sanitizeName:x=>x,getJobPath:()=>f.root,getArchForJob:c=>({id:c.architecture}),getGlobalConfig:()=>f.global,toNativePath:x=>x,
+  const trainingQueue=[];
+  const context={fs,path,TOML,runningJobs,trainingQueue,lastTrainingFailure:null,persistentGenProcess:null,
+    console:{error:()=>{}},wss:{clients:[]},broadcastStatus:()=>{},broadcastLog:()=>{},
+    sanitizeName:x=>x,getJobPath:()=>f.root,getArchForJob:c=>({id:c.architecture}),getGlobalConfig:()=>f.global,toNativePath:x=>x,
     mossBackend:{prepareTraining:()=>{calls.push('training');return {}},prepareGeneration:()=>{calls.push('generation');return {}}},
     startMossPipeline:(name,root,prepared,type)=>runningJobs.set(name,{moss:true,type}),app:{post:(url,fn)=>handler=fn}};
   vm.createContext(context);
+  vm.runInContext(source.slice(source.indexOf('function activeTraining('),source.indexOf('// Find the most recently modified state')),context);
+  vm.runInContext(source.slice(source.indexOf('function startTrainingJob('),source.indexOf("app.get('/api/jobs/:name/train/status'")),context);
   const res=()=>({code:200,body:null,status(code){this.code=code;return this},json(body){this.body=body;return this}});
   for(const route of ['train/start','generate']) {
     const start=source.indexOf(`app.post('/api/jobs/:name/${route}'`),end=source.indexOf('\n});',start)+5;vm.runInContext(source.slice(start,end),context);
     runningJobs.clear();let response=res();await handler({params:{name:'moss'},body:{}},response);assert.equal(response.code,200,JSON.stringify(response.body));assert.equal(runningJobs.get('moss').moss,true);
-    runningJobs.clear();runningJobs.set('another',{type:'training'});response=res();await handler({params:{name:'moss'},body:{}},response);assert.equal(response.code,400);assert.match(response.body.error,/GPU busy/);
+    runningJobs.clear();runningJobs.set('another',{type:'generation'});response=res();await handler({params:{name:'moss'},body:{}},response);assert.equal(response.code,400);assert.match(response.body.error,/GPU busy/);
     runningJobs.clear();runningJobs.set('moss-owner',{moss:true});fs.writeFileSync(path.join(f.root,'config.toml'),TOML.stringify({architecture:'anima'}));response=res();await handler({params:{name:'anima'},body:{}},response);assert.equal(response.code,400);assert.match(response.body.error,/MOSS operation/);
     fs.writeFileSync(path.join(f.root,'config.toml'),TOML.stringify(M.defaults()));
   }
   assert.deepEqual(calls,['training','generation']);
+
+  const start=source.indexOf("app.post('/api/jobs/:name/train/start'");
+  vm.runInContext(source.slice(start,source.indexOf('\n});',start)+5),context);
+  const submit = name => {
+    const response=res();
+    handler({params:{name}},response);
+    return response;
+  };
+  const finish = vm.runInContext('finishTrainingJob',context);
+  runningJobs.clear();
+  assert.equal(submit('first').code,200);
+  for (const name of ['second','bad-config','last','second']) assert.equal(submit(name).body.queued,true);
+  assert.deepEqual(trainingQueue,['second','bad-config','last']);
+  await finish('first',runningJobs.get('first'));
+  assert.ok(runningJobs.has('second'));
+  assert.deepEqual(trainingQueue,['bad-config','last']);
+  context.getJobPath = name => name === 'bad-config' ? path.join(f.root,'missing') : f.root;
+  await finish('second',runningJobs.get('second'),'process exit 1');
+  assert.equal(context.lastTrainingFailure.name,'bad-config');
+  assert.ok(runningJobs.has('last'));
+  assert.deepEqual(trainingQueue,[]);
+  await finish('last',runningJobs.get('last'),'spawn error');
+  assert.equal(context.lastTrainingFailure.message,'spawn error');
+  assert.equal(runningJobs.size,0);
 });
 test('generated config keys are accepted by the real pinned parser and dataset sanitizer',t=>{
   const python=process.env.MOSS_TEST_PYTHON||path.resolve(__dirname,'../../venv-moss',process.platform==='win32'?'Scripts/python.exe':'bin/python');

@@ -7,7 +7,7 @@ import FieldHelp from '@/components/forms/FieldHelp.vue'
 import { provideFieldHelp } from '@/components/forms/help-context'
 import { fieldHelpCatalog, getFieldHelp } from '@/components/forms/field-help'
 import { useEditorStore } from '@/stores/editor'
-import { Krea2, Moss } from '@/domain/legacy'
+import { Krea2, Moss } from '@/domain/training'
 import TrainingPanel from '@/features/training/TrainingPanel.vue'
 import DatasetPanel from '@/features/dataset/DatasetPanel.vue'
 import NetworkPanel from '@/features/network/NetworkPanel.vue'
@@ -88,6 +88,7 @@ describe('Chinese parameter help', () => {
     const store = fixture()
     store.config.training_arguments.lr_scheduler = 'cosine_with_min_lr'
     const training = render(TrainingPanel)
+    expect(training.find('[data-field-help="lr_scheduler_num_cycles"]').exists()).toBe(true)
     expect(training.find('[data-field-help="lr_scheduler_min_lr_ratio"]').exists()).toBe(true)
     delete store.config.network_arguments.network_module
     const network = render(NetworkPanel)
@@ -145,5 +146,12 @@ describe('Chinese parameter help', () => {
     const w = render(Host)
     await w.get('[role="button"]').trigger('click'); await flushPromises()
     expect(tooltipContent().textContent).toContain('额外限制说明')
+  })
+  it('documents class_tokens as metadata-only without caption concatenation', () => {
+    const help = getFieldHelp('dataset', 'class_tokens')!
+    expect(help).toBeDefined()
+    const fullText = [help.title, help.meaning, help.effect, ...help.notes].join(' ')
+    expect(fullText).toContain('元数据')
+    expect(fullText).toContain('不会拼接到训练标注')
   })
 })

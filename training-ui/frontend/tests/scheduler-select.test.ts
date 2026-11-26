@@ -5,7 +5,7 @@ import { reactive } from 'vue'
 import ConfigField from '@/components/forms/ConfigField.vue'
 import TrainingPanel from '@/features/training/TrainingPanel.vue'
 import { useEditorStore } from '@/stores/editor'
-import { Krea2, Moss } from '@/domain/legacy'
+import { Krea2, Moss } from '@/domain/training'
 import { curvePaths, schedulerPreviews } from '@/components/forms/scheduler-curves'
 
 const wrappers: VueWrapper[] = []
@@ -40,7 +40,12 @@ describe('LR Scheduler illustration dropdown', () => {
     expect(paths.join('')).not.toMatch(/NaN|Infinity/)
     expect(curvePaths('constant')[0]).toContain('L285.00,17.00')
     expect(curvePaths('cosine')[0]).toContain('L285.00,136.00')
-    expect(curvePaths('cosine_with_restarts')).toHaveLength(3)
+    const restartPaths = curvePaths('cosine_with_restarts')
+    expect(restartPaths).toHaveLength(3)
+    for (const seg of restartPaths) {
+      expect(seg).toMatch(/^M[\d.]+,17\.00 /)
+      expect(seg).toMatch(/L[\d.]+,136\.00$/)
+    }
     expect(curvePaths('custom')).toEqual([])
     expect(curvePaths('constructor')).toEqual([])
   })

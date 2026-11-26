@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="zh-CN" class="dark" data-theme="github-dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sidebar Redesign · 6-Candidate Thumbnail Board</title>
+<style>
+  :root {
+    --background: #10151f;
+    --foreground: #e0e7f2;
+    --card: #171e2b;
+    --primary: #86aafa;
+    --primary-foreground: #111b32;
+    --secondary: #222d40;
+    --muted: #1b2434;
+    --muted-foreground: #94a3bb;
+    --accent: #253650;
+    --destructive: #db4e67;
+    --border: #2b374c;
+    --ok: #5ace9d;
+    --warn: #e3b76a;
+    --mono: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+    font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 24px 28px;
+    background: #0b0f17;
+    color: var(--foreground);
+  }
+  .board-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .board-head h1 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: -.01em;
+  }
+  .board-head p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted-foreground);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .tile {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .tile.picked {
+    border-color: color-mix(in srgb, var(--primary) 65%, var(--border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+  .tile-meta {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: color-mix(in srgb, var(--muted) 65%, var(--card));
+  }
+  .tile-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tile-sub {
+    font-size: 11px;
+    color: var(--muted-foreground);
+    margin-top: 1px;
+  }
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    color: var(--muted-foreground);
+  }
+  .badge.picked {
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+
+  /* Mini viewport frame inside each tile (~450x310) */
+  .frame {
+    height: 318px;
+    display: grid;
+    grid-template-columns: 204px minmax(0, 1fr);
+    background: var(--background);
+    overflow: hidden;
+    font-size: 11px;
+  }
+  .frame.wide-rail {
+    grid-template-columns: 212px minmax(0, 1fr);
+  }
+
+  /* Right-side unchanged workspace peek */
+  .peek-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--background);
+    overflow: hidden;
+  }
+  .peek-toolbar {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .peek-eyebrow {
+    font-size: 8px;
+    letter-spacing: .16em;
+    color: var(--muted-foreground);
+  }
+  .peek-title {
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.2;
+  }
+  .peek-sub {
+    font-size: 10px;
+    color: var(--muted-foreground);
+  }
+  .peek-btns {
+    display: flex;
+    gap: 4px;
+  }
+  .peek-btn {
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    background: var(--secondary);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+  }
+  .peek-btn.train {
+    background: #599e7d;
+    border-color: #599e7d;
+    color: #071e15;
+    font-weight: 600;
+  }
+  .peek-tabs {
+    display: flex;
+    gap: 10px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+  .peek-tabs span {
+    padding: 7px 0;
+    border-bottom: 2px solid transparent;
+  }
+  .peek-tabs span.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+  .peek-ws {
+    padding: 10px 14px;
+    flex: 1;
+    min-height: 0;
+  }
+  .peek-recipe {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    white-space: nowrap;
+    overflow: hidden;
+    color: var(--foreground);
+  }
+  .peek-chart {
+    padding: 8px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  }
+  .peek-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding-top: 8px;
+  }
+  .peek-col {
+    border-right: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+    padding-right: 10px;
+  }
+  .peek-col-h {
+    font-size: 11px;
+    font-weight: 600;
+    padding-bottom: 4px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    margin-bottom: 4px;
+  }
+  .peek-row {
+    padding: 4px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--muted-foreground);
+  }
+  .peek-row strong {
+    font-family: var(--mono);
+    color: var(--foreground);
+    font-weight: 500;
+  }
+
+  /* Shared sidebar micro primitives */
+  .sb {
+    border-right: 1px solid var(--border);
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted-foreground);
+    flex-shrink: 0;
+  }
+  .dot.run {
+    background: var(--ok);
+    box-shadow: 0 0 6px #5ace9d88;
+  }
+  .arch {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: var(--muted-foreground);
+    flex-shrink: 0;
+  }
+  .arch.anm { color: #86aafa; }
+  .arch.kr2 { color: #e3b76a; }
+  .arch.mos { color: #c09af5; }
+  .jname {
+    min-width: 0;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* === 1. Hairline Ledger (Dir A) === */
+  .sb-1 { padding: 10px 10px 8px; gap: 6px; }
+  .sb1-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .sb1-title { font-size: 12px; font-weight: 650; letter-spacing: -.01em; display: flex; align-items: center; gap: 6px; }
+  .sb1-actions { display: flex; gap: 4px; }
+  .sb1-ico { padding: 2px 6px; font-size: 10px; border: 1px solid var(--border); border-radius: 3px; color: var(--foreground); background: var(--secondary); }
+  .sb1-search { border-bottom: 1px solid var(--border); padding: 4px 2px; font-size: 11px; color: var(--muted-foreground); display: flex; justify-content: space-between; }
+  .sb1-filters { display: flex; gap: 8px; border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent); font-size: 10px; font-family: var(--mono); color: var(--muted-foreground); }
+  .sb1-filters span { padding: 3px 0 4px; border-bottom: 2px solid transparent; }
+  .sb1-filters span.on { color: var(--primary); border-bottom-color: var(--primary); }
+  .sb1-list { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .sb1-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 6px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
+    border-left: 2px solid transparent;
+    font-size: 11.5px;
+  }
+  .sb1-row.sel {
+    border-left-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 11%, transparent);
+    font-weight: 550;
+  }
+  .sb1-q {
+    border-top: 1px solid var(--border);
+    padding: 5px 4px 4px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 10.5px;
+  }
+  .sb1-foot {
+    border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    padding-top: 5px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 10px; color: var(--muted-foreground);
+  }
+
+  /* === 2. Grouped Workspace Tree (Dir B) === */
+  .sb-2 { padding: 10px 9px 8px; gap: 6px; }
+  .sb2-head { display: flex; align-items: center; justify-content: space-between; }
+  .sb2-brand { font-size: 12px; font-weight: 650; display: flex; align-items: center; gap: 6px; }
+  .sb2-mark { width: 18px; height: 18px; border-radius: 4px; background: color-mix(in srgb, var(--primary) 20%, transparent); border: 1px solid color-mix(in srgb, var(--primary) 50%, transparent); color: var(--primary); display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 700; }
+  .sb2-newbtn { font-size: 10px; padding: 2px 7px; border-radius: 5px; background: var(--primary); color: var(--primary-foreground); font-weight: 600; }
+  .sb2-search { background: var(--background); border: 1px solid var(--border); border-radius: 5px; padding: 4px 8px; font-size: 10.5px; color: var(--muted-foreground); }
+  .sb2-tree { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 3px; }
+  .sb2-grp { display: flex; align-items: center; justify-content: space-between; padding: 3px 4px 1px; font-size: 10px; font-weight: 600; color: var(--muted-foreground); letter-spacing: .04em; }
+  .sb2-row { display: flex; align-items: center; gap: 6px; padding: 3.5px 7px; border-radius: 5px; font-size: 11px; }
+  .sb2-row.sel { background: var(--accent); border: 1px solid var(--border); font-weight: 550; }
+  .sb2-pill { font-family: var(--mono); font-size: 9px; padding: 1px 4px; border-radius: 3px; background: color-mix(in srgb, var(--border) 45%, transparent); color: var(--muted-foreground); }
+  .sb2-qcard { background: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 5px 7px; font-size: 10px; display: flex; justify-content: space-between; align-items: center; }
+
+  /* === 3. Dual-Rail Sidebar (Dir C) === */
+  .sb-3 { display: grid; grid-template-columns: 36px minmax(0, 1fr); padding: 0; }
+  .sb3-rail {
+    border-right: 1px solid var(--border);
+    background: color-mix(in srgb, var(--background) 65%, var(--card));
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 8px 0;
+  }
+  .sb3-rail-top, .sb3-rail-bot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .sb3-rbtn {
+    width: 26px; height: 24px; border-radius: 5px;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-size: 9px; font-weight: 600;
+    color: var(--muted-foreground); border: 1px solid transparent;
+    position: relative;
+  }
+  .sb3-rbtn.on { background: var(--accent); border-color: var(--border); color: var(--primary); }
+  .sb3-badge { position: absolute; top: -2px; right: -2px; font-size: 8px; padding: 0 3px; border-radius: 99px; background: var(--ok); color: #071e15; font-weight: 700; }
+  .sb3-col { display: flex; flex-direction: column; padding: 8px 8px 6px; gap: 5px; min-width: 0; }
+  .sb3-colhead { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 600; }
+  .sb3-list { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 1px; }
+  .sb3-row { display: flex; align-items: center; gap: 5px; padding: 4px 5px; border-radius: 4px; font-size: 11px; }
+  .sb3-row.sel { background: var(--accent); color: var(--foreground); font-weight: 550; }
+
+  /* === 4. Instrument Index Strip (Backup 4) === */
+  .sb-4 { padding: 8px; gap: 6px; background: color-mix(in srgb, var(--background) 45%, var(--card)); }
+  .sb4-mon { background: #0a0e16; border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; font-family: var(--mono); font-size: 10px; }
+  .sb4-mon-row { display: flex; justify-content: space-between; align-items: center; }
+  .sb4-rocker { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; font-family: var(--mono); font-size: 9px; text-align: center; }
+  .sb4-rocker span { padding: 3px 0; border-right: 1px solid var(--border); color: var(--muted-foreground); }
+  .sb4-rocker span:last-child { border-right: 0; }
+  .sb4-rocker span.on { background: var(--primary); color: var(--primary-foreground); font-weight: 700; }
+  .sb4-tag { font-family: var(--mono); font-size: 9px; padding: 1px 4px; border: 1px solid var(--border); border-radius: 2px; }
+
+  /* === 5. Functional Brutalism Table (Backup 5) === */
+  .sb-5 { padding: 0; gap: 0; }
+  .sb5-bar { display: grid; grid-template-columns: 1fr auto auto; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 10.5px; }
+  .sb5-bar > span { padding: 7px 8px; border-right: 1px solid var(--border); }
+  .sb5-bar > span:last-child { border-right: 0; }
+  .sb5-thead { display: grid; grid-template-columns: 20px 1fr 44px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 9.5px; color: var(--muted-foreground); background: var(--muted); }
+  .sb5-thead span { padding: 4px 6px; border-right: 1px solid var(--border); }
+  .sb5-thead span:last-child { border-right: 0; }
+  .sb5-tr { display: grid; grid-template-columns: 20px 1fr 44px; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); font-size: 11px; align-items: center; }
+  .sb5-tr > span { padding: 4px 6px; border-right: 1px solid color-mix(in srgb, var(--border) 45%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb5-tr > span:last-child { border-right: 0; font-family: var(--mono); font-size: 9.5px; color: var(--muted-foreground); text-align: right; }
+  .sb5-tr.sel { background: var(--accent); font-weight: 600; }
+
+  /* === 6. East Editorial Index (Backup 6) === */
+  .sb-6 { padding: 12px 12px 9px; gap: 7px; }
+  .sb6-head { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .sb6-title { font-size: 13px; font-weight: 650; letter-spacing: .04em; }
+  .sb6-seal { display: inline-block; padding: 0 4px; border: 1px solid #d45d4c; color: #eb7a69; font-size: 9px; border-radius: 2px; }
+  .sb6-row { display: flex; align-items: center; gap: 7px; padding: 4.5px 2px; border-bottom: 1px dotted color-mix(in srgb, var(--border) 65%, transparent); font-size: 11.5px; }
+  .sb6-row.sel { color: var(--primary); font-weight: 600; }
+  .sb6-stamp { font-family: var(--mono); font-size: 9px; color: var(--muted-foreground); letter-spacing: .03em; }
+</style>
+</head>
+<body>
+  <header class="board-head">
+    <div>
+      <h1>左侧栏重构 · 6 候选缩略图总览（右侧 Tab 内容保持不变）</h1>
+      <p>三套设计逻辑各出 2 个候选（Tufte 细线 / 现代工作台参考 / 秒数轮盘 S=48），均显式标注 anima · krea2 · moss，并已挑选 3 个最差异化方案进入完整原型。</p>
+    </div>
+    <span class="badge picked">1440×900 · 统一暗色主题对比</span>
+  </header>
+
+  <main class="grid">
+    <!-- 1. Hairline Ledger (Picked Dir A) -->
+    <article class="tile picked" data-thumb="1">
+      <div class="tile-meta">
+        <div>
+          <div class="tile-title">1 · 细线台账 Hairline Ledger（224px）</div>
+          <div class="tile-sub">最佳设计师 · Tufte × Müller-Brockmann</div>
+        </div>
+        <span class="badge picked">方向 A · dir-1</span>
+      </div>
+      <div class="frame">
+        <aside class="sb sb-1">
+          <div class="sb1-head">
+            <span class="sb1-title"><span class="dot run"></span>Training Studio</span>
+            <span class="sb1-actions"><span class="sb1-ico">↻</span><span class="sb1-ico">+ 新建</span></span>
+          </div>
+          <div class="sb1-search"><span>搜索任务…</span><span class="arch">13</span></div>
+          <div class="sb1-filters"><span class="on">全部</span><span>anima</span><span>krea2</span><span>moss</span></div>
+          <div class="sb1-list">
+            <div class="sb1-row sel"><span class="dot"></span><span class="jname">rin_style_v3</span><span class="arch anm">anima</span></div>
+            <div class="sb1-row"><span class="dot run"></span><span class="jname">kurosawa_char</span><span class="arch anm">anima</span></div>
+            <div class="sb1-row"><span class="dot"></span><span class="jname">@art_kimishima ao</span><span class="arch anm">anima</span></div>
+            <div class="sb1-row"><span class="dot"></span><span class="jname">@art_kimishima ao_+old</span><span class="arch anm">anima</span></div>
+            <div class="sb1-row"><span class="dot"></span><span class="jname">@art_machi</span><span class="arch anm">anima</span></div>
+            <div class="sb1-row"><span class="dot"></span><span class="jname">white parabellum_v5</span><span class="arch anm">anima</span></div>
+            <div class="sb1-row"><span class="dot"></span><span class="jname">krea_lighting_v2</span><span class="arch kr2">krea2</span></div>
+            <div class="sb1-row"><span class="dot"></span><span class="jname">krea_portrait_raw</span><span class="arch kr2">krea2</span></div>
+            <div class="sb1-row"><span class="dot"></span><span class="jname">moss_product_sft</span><span class="arch mos">moss</span></div>
+          </div>
+          <div class="sb1-q"><span><span class="dot run" style="display:inline-block;margin-right:4px"></span>队列 · 1 运行 / 2 等待</span><span class="arch">▾</span></div>
+          <div class="sb1-foot"><span>全局设置</span><span style="color:var(--ok)">● 已连接</span></div>
+        </aside>
+        <section class="peek-main" data-peek></section>
+      </div>
+    </article>
+
+    <!-- 2. Instrument Index Strip (Backup 4) -->
+    <article class="tile" data-thumb="2">
+      <div class="tile-meta">
+        <div>
+          <div class="tile-title">2 · 精密仪器索引条（230px）</div>
+          <div class="tile-sub">最佳设计师 · Rams / TE 硬件索引</div>
+        </div>
+        <span class="badge">备选 4</span>
+      </div>
+      <div class="frame">
+        <aside class="sb sb-4">
+          <div class="sb1-head" style="border-bottom:0;padding-bottom:0">
+            <span class="sb1-title" style="font-family:var(--mono);font-size:11px">STUDIO // INDEX</span>
+            <span class="sb1-ico">+ NEW</span>
+          </div>
+          <div class="sb4-mon">
+            <div class="sb4-mon-row"><span style="color:var(--ok)">RUN kurosawa_char</span><span>Q:2</span></div>
+            <div style="color:var(--muted-foreground);font-size:9px;margin-top:2px">NEXT krea_lighting_v2 → moss</div>
+          </div>
+          <div class="sb4-rocker"><span class="on">ALL</span><span>ANM</span><span>KR2</span><span>MOS</span></div>
+          <div class="sb2-search">FILTER / 搜索…</div>
+          <div class="sb1-list" style="gap:2px">
+            <div class="sb1-row sel" style="border-left-color:var(--ok)"><span class="jname">rin_style_v3</span><span class="sb4-tag">anima</span></div>
+            <div class="sb1-row"><span class="jname">kurosawa_char</span><span class="sb4-tag" style="color:var(--ok)">anima</span></div>
+            <div class="sb1-row"><span class="jname">@art_kimishima ao</span><span class="sb4-tag">anima</span></div>
+            <div class="sb1-row"><span class="jname">white parabellum_v5</span><span class="sb4-tag">anima</span></div>
+            <div class="sb1-row"><span class="jname">krea_lighting_v2</span><span class="sb4-tag">krea2</span></div>
+            <div class="sb1-row"><span class="jname">loong-22166830</span><span class="sb4-tag">krea2</span></div>
+            <div class="sb1-row"><span class="jname">moss_product_sft</span><span class="sb4-tag">moss</span></div>
+          </div>
+          <div class="sb1-foot"><span>SETTINGS</span><span style="color:var(--ok)">WS OK</span></div>
+        </aside>
+        <section class="peek-main" data-peek></section>
+      </div>
+    </article>
+
+    <!-- 3. Grouped Workspace Tree (Picked Dir B) -->
+    <article class="tile picked" data-thumb="3">
+      <div class="tile-meta">
+        <div>
+          <div class="tile-title">3 · 架构分组树 Workspace Tree（232px）</div>
+          <div class="tile-sub">现实参照 · Linear / VS Code 资源树</div>
+        </div>
+        <span class="badge picked">方向 B · dir-2</span>
+      </div>
+      <div class="frame">
+        <aside class="sb sb-2">
+          <div class="sb2-head">
+            <span class="sb2-brand"><span class="sb2-mark">A</span>Training Studio</span>
+            <span class="sb2-newbtn">+ 新建</span>
+          </div>
+          <div class="sb2-search">搜索任务…</div>
+          <div class="sb2-tree">
+            <div class="sb2-grp"><span>▾ ANIMA</span><span>8</span></div>
+            <div class="sb2-row sel"><span class="dot"></span><span class="jname">rin_style_v3</span><span class="sb2-pill">anima</span></div>
+            <div class="sb2-row"><span class="dot run"></span><span class="jname">kurosawa_char</span><span class="sb2-pill">anima</span></div>
+            <div class="sb2-row"><span class="dot"></span><span class="jname">@art_kimishima ao</span><span class="sb2-pill">anima</span></div>
+            <div class="sb2-row"><span class="dot"></span><span class="jname">white parabellum_v3_lokr</span><span class="sb2-pill">anima</span></div>
+            <div class="sb2-grp"><span>▾ KREA 2</span><span>3</span></div>
+            <div class="sb2-row"><span class="dot"></span><span class="jname">krea_lighting_v2</span><span class="sb2-pill">krea2</span></div>
+            <div class="sb2-row"><span class="dot"></span><span class="jname">loong-22166830</span><span class="sb2-pill">krea2</span></div>
+            <div class="sb2-grp"><span>▾ MOSS-IMAGE</span><span>2</span></div>
+            <div class="sb2-row"><span class="dot"></span><span class="jname">moss_product_sft</span><span class="sb2-pill">moss</span></div>
+          </div>
+          <div class="sb2-qcard"><span><span class="dot run" style="display:inline-block;margin-right:4px"></span>kurosawa_char · 排队 2</span><span>▴</span></div>
+          <div class="sb1-foot" style="border-top:0;padding-top:2px"><span>全局设置</span><span style="color:var(--ok)">● 实时连接正常</span></div>
+        </aside>
+        <section class="peek-main" data-peek></section>
+      </div>
+    </article>
+
+    <!-- 4. Dual-Rail Sidebar (Picked Dir C) -->
+    <article class="tile picked" data-thumb="4">
+      <div class="tile-meta">
+        <div>
+          <div class="tile-title">4 · 双轨速切栏 Dual-Rail（38+196px）</div>
+          <div class="tile-sub">现实参照 · Zed / Arc 分体导航轨</div>
+        </div>
+        <span class="badge picked">方向 C · dir-3</span>
+      </div>
+      <div class="frame wide-rail">
+        <aside class="sb sb-3">
+          <div class="sb3-rail">
+            <div class="sb3-rail-top">
+              <span class="sb3-rbtn" style="background:var(--primary);color:var(--primary-foreground)">A</span>
+              <span class="sb3-rbtn on">ALL</span>
+              <span class="sb3-rbtn">ANM</span>
+              <span class="sb3-rbtn">KR2</span>
+              <span class="sb3-rbtn">MOS</span>
+            </div>
+            <div class="sb3-rail-bot">
+              <span class="sb3-rbtn" title="队列">≡<span class="sb3-badge">2</span></span>
+              <span class="sb3-rbtn">+</span>
+              <span class="sb3-rbtn">⚙</span>
+              <span class="dot run" style="margin-top:2px"></span>
+            </div>
+          </div>
+          <div class="sb3-col">
+            <div class="sb3-colhead"><span>全部任务 · 13</span><span style="color:var(--muted-foreground)">↻</span></div>
+            <div class="sb2-search" style="padding:3px 6px">搜索…</div>
+            <div class="sb3-list">
+              <div class="sb3-row sel"><span class="dot"></span><span class="jname">rin_style_v3</span><span class="arch anm">anima</span></div>
+              <div class="sb3-row"><span class="dot run"></span><span class="jname">kurosawa_char</span><span class="arch anm">anima</span></div>
+              <div class="sb3-row"><span class="dot"></span><span class="jname">@art_kimishima ao</span><span class="arch anm">anima</span></div>
+              <div class="sb3-row"><span class="dot"></span><span class="jname">@art_machi</span><span class="arch anm">anima</span></div>
+              <div class="sb3-row"><span class="dot"></span><span class="jname">@style_neco</span><span class="arch anm">anima</span></div>
+              <div class="sb3-row"><span class="dot"></span><span class="jname">white parabellum_v5</span><span class="arch anm">anima</span></div>
+              <div class="sb3-row"><span class="dot"></span><span class="jname">krea_lighting_v2</span><span class="arch kr2">krea2</span></div>
+              <div class="sb3-row"><span class="dot"></span><span class="jname">krea_portrait_raw</span><span class="arch kr2">krea2</span></div>
+              <div class="sb3-row"><span class="dot"></span><span class="jname">moss_product_sft</span><span class="arch mos">moss</span></div>
+              <div class="sb3-row"><span class="dot"></span><span class="jname">moss_anime_base</span><span class="arch mos">moss</span></div>
+            </div>
+          </div>
+        </aside>
+        <section class="peek-main" data-peek></section>
+      </div>
+    </article>
+
+    <!-- 5. Functional Brutalism Table (Backup 5) -->
+    <article class="tile" data-thumb="5">
+      <div class="tile-meta">
+        <div>
+          <div class="tile-title">5 · 功能主义三列表格（228px）</div>
+          <div class="tile-sub">秒数轮盘 S=48 · Web #17 Functional Brutalism</div>
+        </div>
+        <span class="badge">备选 5</span>
+      </div>
+      <div class="frame">
+        <aside class="sb sb-5">
+          <div class="sb5-bar"><span>TRAINING STUDIO</span><span>↻</span><span>+ 新建</span></div>
+          <div class="sb5-bar"><span style="color:var(--muted-foreground)">搜索任务…</span><span>ALL</span></div>
+          <div class="sb5-thead"><span></span><span>JOB</span><span>TYPE</span></div>
+          <div style="flex:1;overflow:hidden">
+            <div class="sb5-tr sel"><span>●</span><span>rin_style_v3</span><span>anima</span></div>
+            <div class="sb5-tr"><span style="color:var(--ok)">▶</span><span>kurosawa_char</span><span>anima</span></div>
+            <div class="sb5-tr"><span>·</span><span>@art_kimishima ao</span><span>anima</span></div>
+            <div class="sb5-tr"><span>·</span><span>@art_machi</span><span>anima</span></div>
+            <div class="sb5-tr"><span>·</span><span>white parabellum_v5</span><span>anima</span></div>
+            <div class="sb5-tr"><span>1</span><span>krea_lighting_v2</span><span>krea2</span></div>
+            <div class="sb5-tr"><span>·</span><span>loong-22166830</span><span>krea2</span></div>
+            <div class="sb5-tr"><span>2</span><span>moss_product_sft</span><span>moss</span></div>
+            <div class="sb5-tr"><span>·</span><span>moss_anime_base</span><span>moss</span></div>
+          </div>
+          <div class="sb5-bar" style="border-top:1px solid var(--border);border-bottom:0"><span>Q: 1 RUN / 2 WAIT</span><span>设置</span></div>
+        </aside>
+        <section class="peek-main" data-peek></section>
+      </div>
+    </article>
+
+    <!-- 6. East Editorial Index (Backup 6) -->
+    <article class="tile" data-thumb="6">
+      <div class="tile-meta">
+        <div>
+          <div class="tile-title">6 · 东亚编目索引栏（226px）</div>
+          <div class="tile-sub">秒数轮盘 S=48 · East #01 吕敬人书目索引</div>
+        </div>
+        <span class="badge">备选 6</span>
+      </div>
+      <div class="frame">
+        <aside class="sb sb-6">
+          <div class="sb6-head">
+            <span class="sb6-title">任务簿 <span style="font-weight:400;color:var(--muted-foreground);font-size:10px">13</span></span>
+            <span class="sb6-seal">训 · 1</span>
+          </div>
+          <div class="sb1-search" style="border-bottom-style:dotted"><span>检索…</span><span>+ 新建</span></div>
+          <div style="flex:1;overflow:hidden">
+            <div class="sb6-row sel"><span class="jname">rin_style_v3</span><span class="sb6-stamp">ANIMA</span></div>
+            <div class="sb6-row"><span class="jname">kurosawa_char</span><span class="sb6-seal">训</span><span class="sb6-stamp">ANIMA</span></div>
+            <div class="sb6-row"><span class="jname">@art_kimishima ao</span><span class="sb6-stamp">ANIMA</span></div>
+            <div class="sb6-row"><span class="jname">@art_machi</span><span class="sb6-stamp">ANIMA</span></div>
+            <div class="sb6-row"><span class="jname">white parabellum_v5</span><span class="sb6-stamp">ANIMA</span></div>
+            <div class="sb6-row"><span class="jname">krea_lighting_v2</span><span class="sb6-stamp">KREA2</span></div>
+            <div class="sb6-row"><span class="jname">krea_portrait_raw</span><span class="sb6-stamp">KREA2</span></div>
+            <div class="sb6-row"><span class="jname">moss_product_sft</span><span class="sb6-stamp">MOSS</span></div>
+          </div>
+          <div class="sb1-foot"><span>设置 · 连接正常</span><span>队列 2</span></div>
+        </aside>
+        <section class="peek-main" data-peek></section>
+      </div>
+    </article>
+  </main>
+
+  <script>
+    const peekHTML = `
+      <div class="peek-toolbar">
+        <div>
+          <div class="peek-eyebrow">TRAINING WORKSPACE</div>
+          <div class="peek-title">rin_style_v3</div>
+          <div class="peek-sub">anima · 就绪</div>
+        </div>
+        <div class="peek-btns">
+          <span class="peek-btn">保存</span>
+          <span class="peek-btn train">开始训练</span>
+        </div>
+      </div>
+      <div class="peek-tabs">
+        <span class="active">训练</span><span>数据集</span><span>网络</span><span>多 GPU</span><span>提示词</span>
+      </div>
+      <div class="peek-ws">
+        <div class="peek-recipe">AdamW8bit · LR 5e-5 · cosine · 20 epochs · bf16</div>
+        <div class="peek-chart">
+          <svg viewBox="0 0 210 56" width="100%" height="52">
+            <line x1="16" y1="6" x2="16" y2="44" stroke="#2b374c" stroke-width="1"/>
+            <line x1="16" y1="44" x2="196" y2="44" stroke="#2b374c" stroke-width="1"/>
+            <path d="M16,44 L36,10 C96,10 130,44 196,44" fill="none" stroke="#86aafa" stroke-width="1.8"/>
+            <rect x="16" y="10" width="20" height="34" fill="#86aafa" opacity=".1"/>
+            <circle cx="196" cy="44" r="2.2" fill="#86aafa"/>
+          </svg>
+        </div>
+        <div class="peek-cols">
+          <div class="peek-col">
+            <div class="peek-col-h">Optimization</div>
+            <div class="peek-row"><span>LR</span><strong>5e-5</strong></div>
+            <div class="peek-row"><span>Opt</span><strong>AdamW8bit</strong></div>
+            <div class="peek-row"><span>Sched</span><strong>cosine</strong></div>
+          </div>
+          <div class="peek-col" style="border-right:0;padding-right:0">
+            <div class="peek-col-h">Schedule</div>
+            <div class="peek-row"><span>Unit</span><strong>Epochs</strong></div>
+            <div class="peek-row"><span>Max</span><strong>20</strong></div>
+            <div class="peek-row"><span>Save</span><strong>1</strong></div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.querySelectorAll('[data-peek]').forEach(el => { el.innerHTML = peekHTML; });
+  </script>
+</body>
+</html>

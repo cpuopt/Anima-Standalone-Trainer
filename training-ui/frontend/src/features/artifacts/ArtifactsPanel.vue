@@ -1,22 +1,51 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onDeactivated, reactive, ref, watch } from 'vue'
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose } from 'reka-ui'
 import { useEditorStore } from '@/stores/editor'
 import { api, jobUrl } from '@/services/api'
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 const store = useEditorStore()
+const alive = ref(true)
+const isActive = computed(() => props.active && alive.value)
+onActivated(() => { alive.value = true })
+onDeactivated(() => { alive.value = false })
 interface Artifact { name: string; path: string; kind: 'models'|'samples'; size: number; mtime: number; version: string; ready: boolean; source: string; label: string }
 interface Listing { items: Artifact[]; total: number; pageSize: number; models: number; samples: number; running: boolean; truncated: boolean }
+const METADATA_FIELDS = [
+  'ss_datasets[*].bucket_info',
+  'ss_datasets[*].tag_frequency',
+  'ss_tag_frequency',
+] as const
+type MetadataField = (typeof METADATA_FIELDS)[number]
 const listing = ref<Listing|null>(null), kind = ref('models'), query = ref(''), source = ref('all'), page = ref(0)
 const loading = ref(false), error = ref(''), autoRefresh = ref(true), updated = ref('')
 const selected = ref<Artifact|null>(null), details = ref<any>(null), detailError = ref(''), detailLoading = ref(false), imageError = ref(false)
 const broken = ref(new Set<string>())
+const strippedByPath = reactive<Record<string, Partial<Record<MetadataField, boolean>>>>({})
 let version = 0, requestId = 0, detailId = 0, controller: AbortController | undefined, detailController: AbortController | undefined
 let debounce: ReturnType<typeof setTimeout> | undefined
+function isSafetensors(item: Artifact) { return item.name.toLowerCase().endsWith('.safetensors') }
+function isMetadataKept(itemPath: string, field: MetadataField) { return !strippedByPath[itemPath]?.[field] }
+function setMetadataKept(itemPath: string, field: MetadataField, kept: boolean) {
+  if (!strippedByPath[itemPath]) strippedByPath[itemPath] = {}
+  if (kept) delete strippedByPath[itemPath][field]
+  else strippedByPath[itemPath][field] = true
+}
+function strippedFields(itemPath: string): MetadataField[] {
+  const map = strippedByPath[itemPath]
+  return map ? METADATA_FIELDS.filter(field => map[field]) : []
+}
 function size(bytes: number) { return bytes >= 1024 ** 3 ? `${(bytes/1024**3).toFixed(2)} GiB` : bytes >= 1024**2 ? `${(bytes/1024**2).toFixed(1)} MiB` : `${(bytes/1024).toFixed(1)} KiB` }
 function time(value: number) { return new Date(value).toLocaleString() }
 function url(item: Artifact, download = false, thumbnail = false) {
-  return jobUrl(store.name || '', '/artifacts/file') + '?' + new URLSearchParams({ path:item.path, version:item.version, ...(download ? {download:'true'} : {}), ...(thumbnail ? {thumbnail:'true'} : {}) })
+  const strip = download && item.kind === 'models' && isSafetensors(item) ? strippedFields(item.path) : []
+  return jobUrl(store.name || '', '/artifacts/file') + '?' + new URLSearchParams({
+    path: item.path,
+    version: item.version,
+    ...(download ? { download: 'true' } : {}),
+    ...(thumbnail ? { thumbnail: 'true' } : {}),
+    ...(strip.length ? { strip_metadata: strip.join(',') } : {}),
+  })
 }
 function close() { selected.value = null; details.value = null; detailError.value = ''; detailController?.abort(); ++detailId }
 async function refresh() {
@@ -48,12 +77,13 @@ async function preview(item: Artifact) {
 }
 watch(() => store.name, () => {
   ++version; controller?.abort(); clearTimeout(debounce); close(); listing.value = null; error.value = ''; query.value = ''; page.value = 0
-  if (props.active) void refresh()
+  for (const key of Object.keys(strippedByPath)) delete strippedByPath[key]
+  if (isActive.value) void refresh()
 }, {immediate:true})
-watch([kind, source, query], () => { controller?.abort(); close(); page.value = 0; clearTimeout(debounce); debounce = setTimeout(() => { if (props.active) void refresh() }, 250) })
-watch(() => props.active, active => { if (active) void refresh(); else {controller?.abort(); detailController?.abort(); close(); loading.value = false} })
-watch(() => store.running, () => { if (props.active) void refresh() })
-const timer = setInterval(() => { if (props.active && autoRefresh.value && !loading.value && document.visibilityState === 'visible') void refresh() }, 10000)
+watch([kind, source, query], () => { controller?.abort(); close(); page.value = 0; clearTimeout(debounce); debounce = setTimeout(() => { if (isActive.value) void refresh() }, 250) })
+watch(isActive, active => { if (active) void refresh(); else {controller?.abort(); detailController?.abort(); close(); loading.value = false} })
+watch(() => store.running, () => { if (isActive.value) void refresh() })
+const timer = setInterval(() => { if (isActive.value && autoRefresh.value && !loading.value && document.visibilityState === 'visible') void refresh() }, 10000)
 onBeforeUnmount(() => { ++version; controller?.abort(); close(); clearInterval(timer); clearTimeout(debounce) })
 </script>
 <template>
@@ -68,7 +98,7 @@ onBeforeUnmount(() => { ++version; controller?.abort(); close(); clearInterval(t
     <p v-if="listing?.running" class="muted" role="status">训练正在运行：近期变化的文件暂不可下载。大模型可能持续写入，请以训练日志中的保存完成提示为准。</p>
     </aside>
     <section class="layout-group space-y-4">
-    <div v-if="kind==='models' && listing?.items.length" class="artifact-table-scroll"><table class="artifact-table"><thead><tr><th>模型文件</th><th>轮次 / 步数</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody><tr v-for="item in listing.items" :key="item.path"><td><strong>{{item.name}}</strong><small>{{item.path}}</small></td><td>{{item.label}}<small v-if="!item.ready">保存中 / 等待文件稳定</small></td><td>{{size(item.size)}}</td><td>{{time(item.mtime)}}</td><td><div class="artifact-actions"><button class="button" :disabled="!item.ready" @click="preview(item)">预览信息</button><a v-if="item.ready" class="button" :href="url(item,true)" :download="item.name">下载模型</a><span v-else class="muted">暂不可下载</span></div></td></tr></tbody></table></div>
+    <div v-if="kind==='models' && listing?.items.length" class="artifact-table-scroll"><table class="artifact-table"><thead><tr><th>模型文件</th><th>轮次 / 步数</th><th>大小</th><th>修改时间</th><th>下载保留元数据</th><th>操作</th></tr></thead><tbody><tr v-for="item in listing.items" :key="item.path"><td><strong>{{item.name}}</strong><small>{{item.path}}</small></td><td>{{item.label}}<small v-if="!item.ready">保存中 / 等待文件稳定</small></td><td>{{size(item.size)}}</td><td>{{time(item.mtime)}}</td><td><div v-if="isSafetensors(item)" class="artifact-meta-checks" title="取消勾选后，下载的 LoRA 模型将去除元数据中的对应项目"><label v-for="field in METADATA_FIELDS" :key="field" class="artifact-meta-opt"><input type="checkbox" :checked="isMetadataKept(item.path, field)" @change="setMetadataKept(item.path, field, ($event.target as HTMLInputElement).checked)" /><span>{{field}}</span></label></div><span v-else class="muted">—</span></td><td><div class="artifact-actions"><button class="button" :disabled="!item.ready" @click="preview(item)">预览信息</button><a v-if="item.ready" class="button" :href="url(item,true)" :download="item.name">下载模型</a><span v-else class="muted">暂不可下载</span></div></td></tr></tbody></table></div>
     <div v-else-if="kind==='samples' && listing?.items.length" class="artifact-grid"><article v-for="item in listing.items" :key="item.path" class="artifact-image"><button class="artifact-image-button" :aria-label="`预览 ${item.name}`" :disabled="!item.ready" @click="preview(item)"><img v-if="item.ready && !broken.has(item.path)" :src="url(item,false,true)" :alt="item.name" loading="lazy" @error="broken.add(item.path)" /><span v-else>{{item.ready?'缩略图不可用，点击查看原图':'正在写入…'}}</span></button><strong>{{item.name}}</strong><small>{{item.source==='training'?'训练 Sample':'独立生成'}} · {{size(item.size)}}</small><small>{{time(item.mtime)}}</small><a v-if="item.ready" class="button" :href="url(item,true)" :download="item.name">下载图片</a></article></div>
     <p v-else-if="!loading" class="artifact-empty muted">{{query?'没有匹配的产出。':kind==='models'?'尚未发现已保存的模型文件。训练达到配置的保存间隔后会出现在这里。':'暂无 Sample 图片。请在提示词与生成页面配置训练采样，并启用采样间隔。'}}</p>
     <footer v-if="listing" class="artifact-pagination"><button class="button" :disabled="page===0 || loading" @click="page--;refresh()">上一页</button><span>第 {{page+1}} / {{Math.max(1,Math.ceil(listing.total/listing.pageSize))}} 页 · {{listing.total}} 项</span><button class="button" :disabled="(page+1)*listing.pageSize>=listing.total || loading" @click="page++;refresh()">下一页</button></footer>
@@ -80,5 +110,5 @@ onBeforeUnmount(() => { ++version; controller?.abort(); close(); clearInterval(t
   </section>
 </template>
 <style scoped>
-.artifact-controls,.artifact-actions,.artifact-pagination{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap}.artifact-controls button[aria-pressed=true]{background:var(--accent)}.artifact-search{flex:1;min-width:12rem}.artifact-controls input,.artifact-controls select{width:auto;padding:.5rem;border:1px solid var(--border);border-radius:6px;background:var(--background);color:inherit}.inline-control{display:flex;align-items:center;gap:.4rem}.inline-control input{width:auto}.artifact-table-scroll{overflow:auto}.artifact-table{width:100%;border-collapse:collapse;text-align:left;font-size:.85rem}.artifact-table th,.artifact-table td{border-bottom:1px solid var(--border);padding:.8rem .5rem}.artifact-table small{display:block;color:var(--muted-foreground);overflow-wrap:anywhere;max-width:28rem}.artifact-table td:first-child{min-width:14rem;overflow-wrap:anywhere}.artifact-pagination{justify-content:center}.artifact-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1rem}.artifact-image{border:1px solid var(--border);border-radius:9px;padding:.65rem;display:flex;flex-direction:column;gap:.4rem;min-width:0}.artifact-image strong{font-size:.8rem;overflow-wrap:anywhere}.artifact-image small{color:var(--muted-foreground)}.artifact-image-button{display:grid;place-items:center;width:100%;height:160px;background:var(--muted);border-radius:6px;cursor:pointer}.artifact-image-button img{width:100%;height:160px;object-fit:contain}.artifact-empty{border:1px dashed var(--border);border-radius:8px;padding:3rem 1rem;text-align:center}.artifact-overlay{position:fixed;inset:0;background:#0009;z-index:110}.artifact-dialog{position:fixed;inset:5vh 5vw;background:var(--background);color:var(--foreground);z-index:111;border:1px solid var(--border);border-radius:12px;padding:1.25rem;display:flex;flex-direction:column;gap:.75rem}.artifact-detail{min-height:0;overflow:auto;flex:1}.artifact-full-image{width:100%;height:100%;object-fit:contain}.artifact-metadata{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--muted);padding:1rem;border-radius:6px;font-size:.8rem}.artifact-dialog>a{align-self:flex-start;max-width:100%;overflow-wrap:anywhere}
+.artifact-controls,.artifact-actions,.artifact-pagination{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap}.artifact-controls button[aria-pressed=true]{background:var(--accent)}.artifact-search{flex:1;min-width:12rem}.artifact-controls input,.artifact-controls select{width:auto;padding:.5rem;border:1px solid var(--border);border-radius:6px;background:var(--background);color:inherit}.inline-control{display:flex;align-items:center;gap:.4rem}.inline-control input{width:auto}.artifact-table-scroll{overflow:auto}.artifact-table{width:100%;border-collapse:collapse;text-align:left;font-size:.85rem}.artifact-table th,.artifact-table td{border-bottom:1px solid var(--border);padding:.8rem .5rem}.artifact-table small{display:block;color:var(--muted-foreground);overflow-wrap:anywhere;max-width:28rem}.artifact-table td:first-child{min-width:14rem;overflow-wrap:anywhere}.artifact-pagination{justify-content:center}.artifact-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1rem}.artifact-image{border:1px solid var(--border);border-radius:9px;padding:.65rem;display:flex;flex-direction:column;gap:.4rem;min-width:0}.artifact-image strong{font-size:.8rem;overflow-wrap:anywhere}.artifact-image small{color:var(--muted-foreground)}.artifact-image-button{display:grid;place-items:center;width:100%;height:160px;background:var(--muted);border-radius:6px;cursor:pointer}.artifact-image-button img{width:100%;height:160px;object-fit:contain}.artifact-empty{border:1px dashed var(--border);border-radius:8px;padding:3rem 1rem;text-align:center}.artifact-overlay{position:fixed;inset:0;background:#0009;z-index:110}.artifact-dialog{position:fixed;inset:5vh 5vw;background:var(--background);color:var(--foreground);z-index:111;border:1px solid var(--border);border-radius:12px;padding:1.25rem;display:flex;flex-direction:column;gap:.75rem}.artifact-detail{min-height:0;overflow:auto;flex:1}.artifact-full-image{width:100%;height:100%;object-fit:contain}.artifact-metadata{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--muted);padding:1rem;border-radius:6px;font-size:.8rem}.artifact-dialog>a{align-self:flex-start;max-width:100%;overflow-wrap:anywhere}.artifact-meta-checks{display:flex;flex-direction:column;gap:.25rem}.artifact-meta-opt{display:inline-flex;align-items:center;gap:.35rem;font-size:.75rem;font-family:Consolas,monospace;cursor:pointer;white-space:nowrap}.artifact-meta-opt input{width:auto;margin:0}
 </style>

@@ -63,7 +63,7 @@ Linux 使用 `venv-moss/bin/hf`。SFT 可另外下载 `OpenMOSS-Team/MOSS-Image-
 
 ## 使用流程
 
-1. 新建任务，选择 **MOSS-Image**。Vue 与 `/legacy/` 均可配置训练和数据集。
+1. 新建任务，选择 **MOSS-Image**，然后配置训练和数据集。
 2. 在训练页选 Base/SFT；在适配器页选 LoRA、LoHa 或 LoKr。LoKr 的 factor/full matrix 独立保存；切换模块会清理不兼容参数。
 3. 数据集填写服务器图片目录；每张图片需要同名 caption 文件，空 caption 允许。支持 PNG/JPG/JPEG/WEBP/BMP，不支持同目录重复文件主名。自然语言 caption 可保留多行。
 4. 默认 512、batch 1、rank/alpha 16、BF16、AdamW8bit、梯度检查点和磁盘缓存。这是起点，不是质量或 16GB 显存保证。长 caption、采样、LoKr full matrix 都可能增加占用。
@@ -83,7 +83,7 @@ MOSS 独立出图（非训练内采样）在 GPU 上编码整批正负提示词�
 
 ### torch.compile 与 CUDA 加速
 
-Vue 与 `/legacy/` 的 MOSS 训练页提供「编译与 CUDA 加速」。默认关闭编译，不改变旧任务行为；旧配置缺少这些字段时继续采用上游默认值。设置保存在 `training_arguments`，启动时传入 `_moss_config.toml`，不是生成/推理参数。
+MOSS 训练页提供「编译与 CUDA 加速」。默认关闭编译，旧配置缺少这些字段时继续采用上游默认值。设置保存在 `training_arguments`，启动时传入 `_moss_config.toml`，用于训练。
 
 - `compile`：按 DiT Block 启用 `torch.compile`；推荐 `compile_backend = "inductor"`、`compile_mode = "default"`、`compile_dynamic = "auto"`、`compile_cache_size_limit = 32`。
 - Mode 可选 `default`、`reduce-overhead`、`max-autotune`、`max-autotune-no-cudagraphs`；Dynamic 为字符串 `auto` / `true` / `false`，不是布尔值。

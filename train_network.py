@@ -2123,7 +2123,8 @@ class NetworkTrainer:
             memory_trace.mark("save_state.final.after")
 
         if is_main_process or tp_collective_save:
-            ckpt_name = train_util.get_last_ckpt_name(args, "." + args.save_model_as)
+            # Keep completed runs outside the periodic epoch checkpoint rotation.
+            ckpt_name = train_util.get_epoch_ckpt_name(args, f"-final.{args.save_model_as}", num_train_epochs)
             save_model(ckpt_name, network, global_step, num_train_epochs, force_sync_upload=True)
 
             logger.info(tr("model_saved"))

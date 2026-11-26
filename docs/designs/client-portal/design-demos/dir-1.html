@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Anima Client · 精密暗房审片台（方向 1）</title>
+<style>
+  :root {
+    /* 色彩推导：无色偏中性炭黑暗房底，防止环境色干扰插画审片色准；仅以琥珀(预览锁定)与翡翠(已授权)作硬件状态灯 */
+    --bg: #0e1013;
+    --panel: #14171c;
+    --panel-2: #1a1e25;
+    --surface: #20252e;
+    --line: #262c36;
+    --line-strong: #343c4a;
+    --text: #eaedf2;
+    --text-2: #a8b0be;
+    --text-3: #788292;
+    --amber: #eab308;
+    --amber-bg: rgba(234, 179, 8, 0.11);
+    --amber-line: rgba(234, 179, 8, 0.34);
+    --emerald: #34d399;
+    --emerald-bg: rgba(52, 211, 153, 0.11);
+    --emerald-line: rgba(52, 211, 153, 0.34);
+    --accent: #e5e7eb;
+    --thumb-size: 255px;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+    --sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; background: none; border: 0; }
+  img { display: block; max-width: 100%; }
+
+  /* 整体双栏骨架：左 256px 固定暗房控制栏 + 右全幅工作区 */
+  .app {
+    display: grid;
+    grid-template-columns: 256px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  /* 左侧控制栏 */
+  .rail {
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .rail-brand {
+    padding: 18px 18px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .brand-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-2);
+    letter-spacing: 0.04em;
+  }
+  .brand-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--text);
+  }
+  .order-id {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  .project-name {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .project-meta {
+    font-size: 12px;
+    color: var(--text-2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* 阶段状态灯卡片 */
+  .stage-box {
+    margin: 14px 16px 0;
+    padding: 11px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--amber-line);
+    background: var(--amber-bg);
+    transition: all 0.2s ease;
+  }
+  .stage-box.unlocked {
+    border-color: var(--emerald-line);
+    background: var(--emerald-bg);
+  }
+  .stage-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--amber);
+    margin-bottom: 4px;
+  }
+  .stage-box.unlocked .stage-head { color: var(--emerald); }
+  .led {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+    flex-shrink: 0;
+  }
+  .stage-desc {
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.45;
+  }
+
+  /* 导航分区 */
+  .rail-section {
+    padding: 16px 12px 6px;
+  }
+  .rail-label {
+    font-size: 12px;
+    color: var(--text-3);
+    padding: 0 8px 8px;
+    font-weight: 500;
+  }
+  .nav-list { display: flex; flex-direction: column; gap: 2px; }
+  .nav-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 5px;
+    font-size: 13px;
+    color: var(--text-2);
+    text-align: left;
+    min-height: 36px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-btn:hover:not(:disabled) { background: var(--panel-2); color: var(--text); }
+  .nav-btn.active {
+    background: var(--surface);
+    color: #fff;
+    font-weight: 500;
+    box-shadow: inset 2px 0 0 #fff;
+  }
+  .nav-btn:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+  }
+  .nav-left { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+  .nav-left span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-count {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-3);
+    flex-shrink: 0;
+  }
+  .nav-btn.active .nav-count { color: var(--text-2); }
+  .lock-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--line-strong);
+    color: var(--text-3);
+  }
+  .open-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--emerald-line);
+    color: var(--emerald);
+    background: var(--emerald-bg);
+  }
+
+  /* 底部权限摘要矩阵 */
+  .rail-foot {
+    margin-top: auto;
+    padding: 14px 16px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  .perm-matrix {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 10px;
+    margin-top: 8px;
+  }
+  .perm-k { color: var(--text-2); }
+  .perm-v { font-family: var(--mono); font-size: 12px; }
+  .perm-v.on { color: var(--emerald); }
+  .perm-v.off { color: var(--text-3); }
+
+  /* 右侧主工作区 */
+  .workspace {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: rgba(14, 16, 19, 0.92);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .topbar-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-right: 4px;
+  }
+  .topbar-count {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-3);
+    margin-right: auto;
+  }
+  .ctrl-input, .ctrl-select {
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 13px;
+    min-height: 36px;
+    color: var(--text);
+  }
+  .ctrl-input { width: 210px; }
+  .ctrl-input:focus, .ctrl-select:focus { outline: 1px solid #fff; border-color: #fff; }
+  .density-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-2);
+    padding: 0 6px;
+  }
+  .density-wrap input[type=range] {
+    width: 84px;
+    accent-color: #e5e7eb;
+    cursor: pointer;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid var(--line-strong);
+    background: var(--panel-2);
+    color: var(--text);
+    transition: background 0.15s, border-color 0.15s;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .btn:hover:not(:disabled) { background: var(--surface); border-color: #525d70; }
+  .btn.active { background: #fff; color: #0e1013; border-color: #fff; }
+  .btn.primary { background: #eaedf2; color: #0e1013; border-color: #eaedf2; }
+  .btn.primary:hover { background: #ffffff; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* 移动端顶栏抽屉开关 */
+  .mobile-menu-btn { display: none; }
+
+  /* 多选操作条 */
+  .sel-bar {
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .sel-bar strong { font-family: var(--mono); color: #fff; }
+  .sel-spacer { flex: 1; }
+
+  /* 画廊主区域 */
+  .content {
+    padding: 20px 24px 64px;
+    flex: 1;
+  }
+  .group-block { margin-bottom: 28px; }
+  .group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .group-head h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .group-head span {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--thumb-size)), 1fr));
+    gap: 12px;
+    align-items: start;
+  }
+  .shot-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+    transition: border-color 0.15s, transform 0.15s;
+    cursor: pointer;
+  }
+  .shot-card:hover { border-color: #5b6578; }
+  .shot-card.selected { border-color: #fff; box-shadow: 0 0 0 1px #fff; }
+  .shot-media {
+    background: #090b0d;
+    position: relative;
+    overflow: hidden;
+  }
+  .shot-media img {
+    width: 100%;
+    height: auto;
+    display: block;
+    transition: transform 0.25s ease;
+  }
+  .shot-card:hover .shot-media img { transform: scale(1.015); }
+  .shot-check {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.55);
+    background: rgba(14,16,19,0.75);
+    color: #0e1013;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .selecting .shot-check, .shot-card.selected .shot-check, .shot-card:hover .shot-check { opacity: 1; }
+  .shot-card.selected .shot-check { background: #fff; border-color: #fff; }
+  .shot-dl {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    background: rgba(14,16,19,0.82);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+    text-decoration: none;
+  }
+  .shot-card:hover .shot-dl { opacity: 1; }
+  .shot-dl:hover { background: #fff; color: #0e1013; }
+  .shot-foot {
+    padding: 9px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .shot-name {
+    font-size: 13px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .shot-meta {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-3);
+    flex-shrink: 0;
+  }
+
+  /* 交付视图（LoRA / 参数 / 数据集） */
+  .deliver-wrap { max-width: 980px; }
+  .deliver-lead {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 18px 20px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .deliver-lead h2 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  .deliver-lead p { font-size: 13px; color: var(--text-2); }
+
+  .file-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .file-table th, .file-table td {
+    padding: 13px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .file-table th {
+    background: var(--panel-2);
+    color: var(--text-2);
+    font-weight: 500;
+    font-size: 12px;
+  }
+  .file-table tr:last-child td { border-bottom: 0; }
+  .mono { font-family: var(--mono); font-size: 12px; }
+  .hash-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-2);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .rec-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--emerald-bg);
+    color: var(--emerald);
+    border: 1px solid var(--emerald-line);
+    margin-left: 6px;
+  }
+
+  /* 参数双栏网格 */
+  .param-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .param-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 16px 18px;
+  }
+  .param-card h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .kv-list { display: grid; grid-template-columns: 128px 1fr; gap: 8px 12px; font-size: 13px; }
+  .kv-k { color: var(--text-3); }
+  .kv-v { font-family: var(--mono); color: var(--text); word-break: break-all; }
+
+  /* 数据集概要条 */
+  .ds-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .ds-stat {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .ds-stat span { display: block; font-size: 12px; color: var(--text-3); margin-bottom: 4px; }
+  .ds-stat strong { font-family: var(--mono); font-size: 18px; font-weight: 600; color: #fff; }
+
+  /* 专业灯箱看图器 */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: #090b0e;
+    display: grid;
+    grid-template-rows: 52px minmax(0, 1fr);
+  }
+  .lightbox.hidden { display: none; }
+  .lb-head {
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .lb-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: auto;
+  }
+  .lb-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 310px;
+    min-height: 0;
+  }
+  .lightbox.no-info .lb-body { grid-template-columns: minmax(0, 1fr); }
+  .lb-stage-wrap {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) 48px;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+  .lb-stage {
+    position: relative;
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+    background: radial-gradient(circle at center, #161a21 0%, #090b0e 78%);
+  }
+  .lb-stage.dragging { cursor: grabbing; }
+  .lb-stage img {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    max-width: none;
+    max-height: none;
+    transform-origin: 0 0;
+    user-select: none;
+    pointer-events: none;
+  }
+  .lb-hint {
+    position: absolute;
+    left: 14px;
+    bottom: 60px;
+    font-size: 12px;
+    color: var(--text-2);
+    background: rgba(14,16,19,0.85);
+    border: 1px solid var(--line-strong);
+    padding: 4px 9px;
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  .lb-zoom {
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .lb-zoom output {
+    min-width: 54px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .lb-info {
+    background: var(--panel);
+    border-left: 1px solid var(--line);
+    padding: 18px;
+    overflow-y: auto;
+  }
+  .lb-info h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+  .lb-field { margin-bottom: 14px; }
+  .lb-field label { display: block; font-size: 12px; color: var(--text-3); margin-bottom: 4px; }
+  .lb-field p { font-size: 13px; color: var(--text); word-break: break-word; }
+  .lb-locked-note {
+    padding: 12px;
+    border-radius: 5px;
+    border: 1px dashed var(--line-strong);
+    background: var(--panel-2);
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.55;
+  }
+  .lb-pre {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    color: var(--text-2);
+  }
+
+  /* Safetensors 元数据弹窗 */
+  .modal-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    background: rgba(0,0,0,0.72);
+    display: grid;
+    place-items: center;
+    padding: 20px;
+  }
+  .modal-mask.hidden { display: none; }
+  .modal-card {
+    width: min(640px, 100%);
+    max-height: 80vh;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-body { padding: 16px 18px; overflow: auto; }
+
+  /* 右下角浮动 Demo 权限模拟器（方便训练师切换阶段评审） */
+  .demo-dock {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 900;
+    background: rgba(20, 23, 28, 0.96);
+    border: 1px solid #475266;
+    border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+    width: 300px;
+    font-size: 12px;
+  }
+  .demo-dock.collapsed { width: auto; }
+  .demo-head {
+    padding: 9px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--line);
+  }
+  .demo-dock.collapsed .demo-head { border-bottom: 0; }
+  .demo-head strong { font-size: 12px; color: #fff; display: flex; align-items: center; gap: 6px; }
+  .demo-body { padding: 11px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .demo-dock.collapsed .demo-body { display: none; }
+  .demo-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .demo-presets button {
+    padding: 5px 4px;
+    border-radius: 4px;
+    border: 1px solid var(--line-strong);
+    background: var(--panel-2);
+    color: var(--text-2);
+    font-size: 11px;
+  }
+  .demo-presets button.on { background: #fff; color: #0e1013; border-color: #fff; font-weight: 600; }
+  .demo-checks { display: flex; flex-direction: column; gap: 6px; }
+  .demo-checks label { display: flex; align-items: center; gap: 8px; color: var(--text-2); cursor: pointer; }
+  .demo-checks input { accent-color: var(--emerald); width: 15px; height: 15px; }
+
+  /* Toast 提示 */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    background: #fff;
+    color: #0e1013;
+    padding: 9px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 1200;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 960px) {
+    .app { grid-template-columns: 1fr; }
+    .rail {
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 268px;
+      z-index: 600;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+    }
+    .rail.open { transform: translateX(0); box-shadow: 12px 0 36px rgba(0,0,0,0.65); }
+    .mobile-menu-btn { display: inline-flex; }
+    .param-grid { grid-template-columns: 1fr; }
+    .ds-metrics { grid-template-columns: repeat(2, 1fr); }
+    .lb-body { grid-template-columns: 1fr; }
+    .lb-info { display: none; }
+  }
+  @media (max-width: 600px) {
+    .topbar { padding: 10px 14px; }
+    .content { padding: 14px 14px 80px; }
+    .ctrl-input { width: 100%; order: 10; }
+    .density-wrap { display: none; }
+    .demo-dock { right: 10px; bottom: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 左侧暗房审片与权限控制栏 -->
+  <aside class="rail" id="rail" aria-label="项目与权限导航">
+    <div class="rail-brand">
+      <div class="brand-row">
+        <span class="brand-mark"><span class="brand-dot"></span>ANIMA CLIENT</span>
+        <span class="order-id">#ORD-1121</span>
+      </div>
+      <h1 class="project-name">星尘水彩 · Cel-Ink v2</h1>
+      <div class="project-meta"><span>客户：Atelier K</span><span>·</span><span>仅读隔离舱</span></div>
+    </div>
+
+    <div class="stage-box" id="stageBox">
+      <div class="stage-head"><span class="led"></span><span id="stageTitle">阶段一 · 成果预览期</span></div>
+      <p class="stage-desc" id="stageDesc">当前仅开放训练师精选预览图查看与下载。模型权重、训练参数与数据集均处于锁定隔离状态。</p>
+    </div>
+
+    <div class="rail-section">
+      <div class="rail-label">预览画廊分组</div>
+      <nav class="nav-list" id="groupNav"></nav>
+    </div>
+
+    <div class="rail-section">
+      <div class="rail-label">成果交付项</div>
+      <nav class="nav-list" id="deliverNav"></nav>
+    </div>
+
+    <div class="rail-foot">
+      <div>当前会话授权状态</div>
+      <div class="perm-matrix" id="permMatrix"></div>
+    </div>
+  </aside>
+
+  <!-- 右侧主工作区 -->
+  <main class="workspace">
+    <header class="topbar" id="topbar">
+      <button class="btn mobile-menu-btn" id="menuBtn" aria-label="打开菜单">菜单</button>
+      <h2 class="topbar-title" id="viewTitle">预览画廊</h2>
+      <span class="topbar-count" id="viewCount">6 张可见</span>
+
+      <input type="search" class="ctrl-input" id="searchInput" placeholder="搜索文件名、轮次或分组…" aria-label="搜索预览图" />
+      <select class="ctrl-select" id="sortSelect" aria-label="排序方式">
+        <option value="default">默认精选顺序</option>
+        <option value="newest">最新轮次优先</option>
+        <option value="oldest">最早轮次优先</option>
+      </select>
+      <label class="density-wrap" id="densityWrap">
+        密度
+        <input type="range" id="densityRange" min="150" max="340" value="230" aria-label="缩略图密度" />
+      </label>
+      <button class="btn" id="selectToggleBtn" aria-pressed="false">多选</button>
+    </header>
+
+    <div class="sel-bar" id="selBar" style="display:none">
+      <span>已选 <strong id="selCount">0</strong> 张预览图</span>
+      <button class="btn" id="selectAllBtn">全选可见</button>
+      <button class="btn" id="clearSelBtn">清除选择</button>
+      <span class="sel-spacer"></span>
+      <button class="btn primary" id="batchDlBtn">打包下载选中预览图</button>
+    </div>
+
+    <section class="content" id="mainContent"></section>
+  </main>
+</div>
+
+<!-- 专业灯箱看图器 -->
+<section class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true" aria-label="预览图详情">
+  <header class="lb-head">
+    <button class="btn" id="lbClose" aria-label="关闭">关闭</button>
+    <span class="lb-title" id="lbName"></span>
+    <button class="btn" id="lbPrev" aria-label="上一张">上一张</button>
+    <span class="mono" id="lbCounter">1 / 6</span>
+    <button class="btn" id="lbNext" aria-label="下一张">下一张</button>
+    <a class="btn primary" id="lbDl" download>下载原图</a>
+    <button class="btn" id="lbInfoToggle">信息栏</button>
+  </header>
+  <div class="lb-body">
+    <div class="lb-stage-wrap">
+      <div class="lb-stage" id="lbStage">
+        <img id="lbImg" alt="" draggable="false" />
+      </div>
+      <span class="lb-hint">滚轮缩放 · 拖拽平移 · 双击适应 · ←/→ 切图 · Esc 关闭</span>
+      <div class="lb-zoom">
+        <button class="btn" id="zoomOut">−</button>
+        <output id="zoomPct">100%</output>
+        <button class="btn" id="zoomIn">＋</button>
+        <button class="btn" id="zoomFit">适应窗口</button>
+        <button class="btn" id="zoomActual">1:1 原图</button>
+      </div>
+    </div>
+    <aside class="lb-info" id="lbInfo"></aside>
+  </div>
+</section>
+
+<!-- Safetensors 元数据预览弹窗 -->
+<div class="modal-mask hidden" id="metaModal" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <div class="modal-head">
+      <strong id="metaModalTitle" class="mono">Safetensors 元数据</strong>
+      <button class="btn" id="metaModalClose">关闭</button>
+    </div>
+    <div class="modal-body">
+      <pre class="lb-pre" id="metaModalBody"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- 权限状态模拟控制台（仅用于交互原型演示两阶段与三项精细权限） -->
+<aside class="demo-dock collapsed" id="demoDock" aria-label="原型权限模拟器">
+  <div class="demo-head" id="demoToggle">
+    <strong>原型权限模拟（评审用）</strong>
+    <span id="demoArrow">展开</span>
+  </div>
+  <div class="demo-body">
+    <div class="demo-presets">
+      <button data-preset="unpaid" class="on">未付费预览</button>
+      <button data-preset="lora">仅交付模型</button>
+      <button data-preset="full">全权限交付</button>
+    </div>
+    <div class="demo-checks">
+      <label><input type="checkbox" id="chkLora" /> 允许下载指定 LoRA 模型</label>
+      <label><input type="checkbox" id="chkParams" /> 允许可见训练参数</label>
+      <label><input type="checkbox" id="chkDataset" /> 允许下载数据集归档</label>
+    </div>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const SAMPLES = [
+  { id: 'cur-1', group: 'curated', groupName: '训练师精选上传', epoch: '精选', order: 1, mtime: 1795240626, name: 'cel_ink_showcase_observatory.jpg', src: '../assets/sample_curated_01.jpg', size: '1024 × 1360', weight: '0.85', prompt: 'rooftop observatory at dawn, brass telescope, sheer curtains, cel-ink watercolor style, misty lavender mountains', sampler: 'Euler a · 28 steps · CFG 5.5 · Seed 4092817' },
+  { id: 'p1-16', group: 'p1', groupName: 'Prompt 1 · 人物立绘', epoch: 'E16', order: 2, mtime: 1795240625, name: 'cel_ink_p1_e16_lantern.jpg', src: '../assets/sample_p1_e16.jpg', size: '1024 × 1360', weight: '0.85', prompt: 'young botanical illustrator in ivory linen coat, twilight greenhouse, brass lantern warm rim light, cel-ink wash', sampler: 'Euler a · 28 steps · CFG 5.5 · Seed 1184021' },
+  { id: 'p1-12', group: 'p1', groupName: 'Prompt 1 · 人物立绘', epoch: 'E12', order: 3, mtime: 1795240616, name: 'cel_ink_p1_e12_conservatory.jpg', src: '../assets/sample_p1_e12.jpg', size: '1024 × 1360', weight: '0.80', prompt: 'young botanical illustrator in ivory linen coat, sunlit glass conservatory, silver-blue ferns, delicate ink linework', sampler: 'Euler a · 28 steps · CFG 5.5 · Seed 1184021' },
+  { id: 'p2-16', group: 'p2', groupName: 'Prompt 2 · 场景光影', epoch: 'E16', order: 4, mtime: 1795240645, name: 'cel_ink_p2_e16_clocktower.jpg', src: '../assets/sample_p2_e16.jpg', size: '1360 × 1024', weight: '0.85', prompt: 'old stone clocktower cobblestone alley after rain, blue hour, glowing amber cafe windows, painterly ink architecture', sampler: 'Euler a · 28 steps · CFG 5.5 · Seed 7729304' },
+  { id: 'p2-12', group: 'p2', groupName: 'Prompt 2 · 场景光影', epoch: 'E12', order: 5, mtime: 1795240644, name: 'cel_ink_p2_e12_station.jpg', src: '../assets/sample_p2_e12.jpg', size: '1360 × 1024', weight: '0.80', prompt: 'quiet coastal train station golden hour, calm teal sea, wooden platform, billowing clouds, cel-ink watercolor', sampler: 'Euler a · 28 steps · CFG 5.5 · Seed 7729304' },
+  { id: 'p3-16', group: 'p3', groupName: 'Prompt 3 · 器物细节', epoch: 'E16', order: 6, mtime: 1795240621, name: 'cel_ink_p3_e16_desk.jpg', src: '../assets/sample_p3_e16.jpg', size: '1152 × 1152', weight: '0.85', prompt: 'antique wooden desk by rainy window, open floral sketchbook, glass ink bottle, brass pen, steaming teacup, dried hydrangeas', sampler: 'Euler a · 28 steps · CFG 5.5 · Seed 9031522' }
+];
+
+const LORA_FILES = [
+  { name: 'cel_ink_atelier_v2_e16_final.safetensors', label: 'Epoch 16 · 推荐终版', recommended: true, size: '148.2 MiB', precision: 'BF16', sha256: 'a94c8f12e0b7…4d91a2', updated: '2026-11-21 12:40', meta: { ss_network_module: 'networks.lora', ss_network_dim: 32, ss_network_alpha: 16, ss_epoch: 16, ss_steps: 2400, ss_base_model: 'Anima-v1.5-Preview', ss_resolution: '1024x1024 (bucketed)', ss_save_precision: 'bf16', trigger_words: 'cel_ink_atelier, translucent watercolor wash' } },
+  { name: 'cel_ink_atelier_v2_e12_soft.safetensors', label: 'Epoch 12 · 柔和泛化版', recommended: false, size: '148.2 MiB', precision: 'BF16', sha256: '71b0e4c9f82a…88c310', updated: '2026-11-21 11:18', meta: { ss_network_module: 'networks.lora', ss_network_dim: 32, ss_network_alpha: 16, ss_epoch: 12, ss_steps: 1800, ss_base_model: 'Anima-v1.5-Preview', ss_resolution: '1024x1024 (bucketed)', ss_save_precision: 'bf16', trigger_words: 'cel_ink_atelier, translucent watercolor wash' } }
+];
+
+const state = {
+  view: 'gallery', // gallery | lora | params | dataset
+  group: 'all',
+  query: '',
+  sort: 'default',
+  selecting: false,
+  selected: new Set(),
+  perms: { lora: false, params: false, dataset: false },
+  lbIndex: -1,
+  lbInfo: true,
+  zoom: 1, fitZoom: 1, panX: 0, panY: 0, imgW: 0, imgH: 0
+};
+
+const $ = id => document.getElementById(id);
+let toastTimer;
+function showToast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function getFilteredSamples() {
+  const q = state.query.trim().toLowerCase();
+  let list = SAMPLES.filter(s => {
+    if (state.group !== 'all' && s.group !== state.group) return false;
+    if (!q) return true;
+    return s.name.toLowerCase().includes(q) || s.epoch.toLowerCase().includes(q) || s.groupName.toLowerCase().includes(q);
+  });
+  if (state.sort === 'newest') list = [...list].sort((a, b) => b.mtime - a.mtime);
+  if (state.sort === 'oldest') list = [...list].sort((a, b) => a.mtime - b.mtime);
+  return list;
+}
+
+function renderSidebar() {
+  const anyPaid = state.perms.lora || state.perms.params || state.perms.dataset;
+  const stageBox = $('stageBox');
+  stageBox.classList.toggle('unlocked', anyPaid);
+  $('stageTitle').textContent = anyPaid ? '阶段二 · 已授权交付期' : '阶段一 · 成果预览期';
+  $('stageDesc').textContent = anyPaid
+    ? '训练师已为您开通对应资产下载与查阅权限，左侧已解锁相应交付项。'
+    : '当前仅开放训练师精选预览图查看与下载。模型权重、训练参数与数据集均处于锁定隔离状态。';
+
+  // 分组导航
+  const groups = [
+    { key: 'all', label: '全部预览图', count: SAMPLES.length },
+    { key: 'curated', label: '训练师精选上传', count: SAMPLES.filter(s => s.group === 'curated').length },
+    { key: 'p1', label: 'Prompt 1 · 人物立绘', count: SAMPLES.filter(s => s.group === 'p1').length },
+    { key: 'p2', label: 'Prompt 2 · 场景光影', count: SAMPLES.filter(s => s.group === 'p2').length },
+    { key: 'p3', label: 'Prompt 3 · 器物细节', count: SAMPLES.filter(s => s.group === 'p3').length }
+  ];
+  $('groupNav').innerHTML = groups.map(g => `
+    <button class="nav-btn ${state.view === 'gallery' && state.group === g.key ? 'active' : ''}" data-group="${g.key}">
+      <span class="nav-left"><span>${g.label}</span></span>
+      <span class="nav-count">${g.count}</span>
+    </button>
+  `).join('');
+
+  // 交付项导航
+  const delivers = [
+    { key: 'lora', label: '指定 LoRA 模型', enabled: state.perms.lora, badge: state.perms.lora ? `${LORA_FILES.length} 个` : '未授权' },
+    { key: 'params', label: '训练参数配置', enabled: state.perms.params, badge: state.perms.params ? '可读' : '已隐藏' },
+    { key: 'dataset', label: '数据集归档包', enabled: state.perms.dataset, badge: state.perms.dataset ? '可下载' : '未授权' }
+  ];
+  $('deliverNav').innerHTML = delivers.map(d => `
+    <button class="nav-btn ${state.view === d.key ? 'active' : ''}" data-view="${d.key}" ${d.enabled ? '' : 'disabled'}>
+      <span class="nav-left"><span>${d.label}</span></span>
+      <span class="${d.enabled ? 'open-tag' : 'lock-tag'}">${d.badge}</span>
+    </button>
+  `).join('');
+
+  // 权限矩阵
+  $('permMatrix').innerHTML = `
+    <span class="perm-k">预览图审片与下载</span><span class="perm-v on">OPEN</span>
+    <span class="perm-k">指定 LoRA 模型</span><span class="perm-v ${state.perms.lora ? 'on' : 'off'}">${state.perms.lora ? 'GRANTED' : 'LOCKED'}</span>
+    <span class="perm-k">训练参数只读</span><span class="perm-v ${state.perms.params ? 'on' : 'off'}">${state.perms.params ? 'GRANTED' : 'HIDDEN'}</span>
+    <span class="perm-k">数据集归档下载</span><span class="perm-v ${state.perms.dataset ? 'on' : 'off'}">${state.perms.dataset ? 'GRANTED' : 'LOCKED'}</span>
+  `;
+}
+
+function renderTopbarControls() {
+  const isGal = state.view === 'gallery';
+  $('searchInput').style.display = isGal ? '' : 'none';
+  $('sortSelect').style.display = isGal ? '' : 'none';
+  $('densityWrap').style.display = isGal ? '' : 'none';
+  $('selectToggleBtn').style.display = isGal ? '' : 'none';
+  $('selBar').style.display = (isGal && (state.selecting || state.selected.size > 0)) ? 'flex' : 'none';
+  $('selCount').textContent = state.selected.size;
+  $('selectToggleBtn').classList.toggle('active', state.selecting);
+  $('selectToggleBtn').setAttribute('aria-pressed', String(state.selecting));
+}
+
+function renderMain() {
+  if (state.view !== 'gallery') {
+    if (state.view === 'lora' && !state.perms.lora) state.view = 'gallery';
+    if (state.view === 'params' && !state.perms.params) state.view = 'gallery';
+    if (state.view === 'dataset' && !state.perms.dataset) state.view = 'gallery';
+  }
+  renderSidebar();
+  renderTopbarControls();
+
+  const root = $('mainContent');
+  if (state.view === 'gallery') {
+    const list = getFilteredSamples();
+    $('viewTitle').textContent = state.group === 'all' ? '全部可见预览图' : (list[0]?.groupName || '预览画廊');
+    $('viewCount').textContent = `${list.length} 张可见`;
+
+    // 按组聚合
+    const grouped = new Map();
+    list.forEach(item => {
+      if (!grouped.has(item.groupName)) grouped.set(item.groupName, []);
+      grouped.get(item.groupName).push(item);
+    });
+
+    if (!list.length) {
+      root.innerHTML = `<p style="color:var(--text-3);padding:48px 0;text-align:center;">没有匹配的预览图片。</p>`;
+      return;
+    }
+
+    const renderCards = items => items.map(img => `
+      <article class="shot-card ${state.selected.has(img.id) ? 'selected' : ''}" data-id="${img.id}" tabindex="0">
+        <div class="shot-media">
+          <img src="${img.src}" alt="${img.name}" loading="lazy" />
+          <button class="shot-check" data-check="${img.id}" aria-label="选中 ${img.name}">${state.selected.has(img.id) ? '✓' : ''}</button>
+          <a class="shot-dl" href="${img.src}" download="${img.name}" title="下载原图" onclick="event.stopPropagation()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+          </a>
+        </div>
+        <div class="shot-foot">
+          <span class="shot-name" title="${img.name}">${img.groupName} · ${img.name}</span>
+          <span class="shot-meta">${img.epoch}</span>
+        </div>
+      </article>
+    `).join('');
+
+    if (state.group === 'all') {
+      root.innerHTML = `<div class="gallery-grid ${state.selecting ? 'selecting' : ''}">${renderCards(list)}</div>`;
+    } else {
+      root.innerHTML = [...grouped.entries()].map(([gName, items]) => `
+        <section class="group-block">
+          <div class="group-head">
+            <h3>${gName}</h3>
+            <span>${items.length} 张</span>
+          </div>
+          <div class="gallery-grid ${state.selecting ? 'selecting' : ''}">${renderCards(items)}</div>
+        </section>
+      `).join('');
+    }
+  } else if (state.view === 'lora') {
+    $('viewTitle').textContent = '指定 LoRA 模型交付';
+    $('viewCount').textContent = `已授权 ${LORA_FILES.length} 个权重版本`;
+    root.innerHTML = `
+      <div class="deliver-wrap">
+        <div class="deliver-lead">
+          <div>
+            <h2>已授权下载的模型权重</h2>
+            <p>以下权重由训练师在后台为本订单指定开放。仅展示授权版本，其他中间检查点保持隔离。</p>
+          </div>
+          <span class="open-tag">BF16 · SAFETENSORS</span>
+        </div>
+        <table class="file-table">
+          <thead>
+            <tr><th>权重文件名</th><th>版本说明</th><th>体积 / 精度</th><th>SHA-256</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            ${LORA_FILES.map((f, i) => `
+              <tr>
+                <td><strong class="mono">${f.name}</strong>${f.recommended ? '<span class="rec-tag">推荐</span>' : ''}</td>
+                <td>${f.label}</td>
+                <td class="mono">${f.size} · ${f.precision}</td>
+                <td><button class="hash-pill" data-copy="${f.sha256}">${f.sha256}</button></td>
+                <td>
+                  <div style="display:flex;gap:8px;">
+                    <button class="btn" data-meta="${i}">元数据</button>
+                    <button class="btn primary" data-dl-lora="${f.name}">下载模型</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } else if (state.view === 'params') {
+    $('viewTitle').textContent = '训练参数配置（只读）';
+    $('viewCount').textContent = 'Anima-v1.5-Preview · LoRA';
+    root.innerHTML = `
+      <div class="deliver-wrap">
+        <div class="deliver-lead">
+          <div>
+            <h2>本任务训练参数归档</h2>
+            <p>已由训练师开放只读查阅权限，便于复现推理权重比例或后续迭代参考。</p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn" id="copyParamsBtn">复制参数摘要</button>
+            <button class="btn primary" id="exportTomlBtn">导出 TOML</button>
+          </div>
+        </div>
+        <div class="param-grid">
+          <div class="param-card">
+            <h3>基础架构与网络</h3>
+            <div class="kv-list">
+              <span class="kv-k">基础模型</span><span class="kv-v">Anima-v1.5-Preview</span>
+              <span class="kv-k">网络模块</span><span class="kv-v">networks.lora</span>
+              <span class="kv-k">Rank / Alpha</span><span class="kv-v">dim = 32 / alpha = 16</span>
+              <span class="kv-k">推荐权重区间</span><span class="kv-v">0.75 – 0.90</span>
+              <span class="kv-k">触发词</span><span class="kv-v">cel_ink_atelier</span>
+            </div>
+          </div>
+          <div class="param-card">
+            <h3>优化器与调度</h3>
+            <div class="kv-list">
+              <span class="kv-k">优化器</span><span class="kv-v">AdamW8bit</span>
+              <span class="kv-k">学习率 (UNet/TE)</span><span class="kv-v">1.0e-4 / 2.0e-5</span>
+              <span class="kv-k">调度策略</span><span class="kv-v">cosine_with_restarts (1)</span>
+              <span class="kv-k">训练轮次 / 步数</span><span class="kv-v">16 Epochs · 2,400 Steps</span>
+              <span class="kv-k">混合精度</span><span class="kv-v">bf16 (Save: bf16)</span>
+            </div>
+          </div>
+          <div class="param-card">
+            <h3>分辨率与数据增强</h3>
+            <div class="kv-list">
+              <span class="kv-k">目标分辨率</span><span class="kv-v">1024 × 1024 (ARB 分桶)</span>
+              <span class="kv-k">Batch Size</span><span class="kv-v">2 (Grad Accum 2)</span>
+              <span class="kv-k">Caption Dropout</span><span class="kv-v">0.05</span>
+              <span class="kv-k">Noise Offset</span><span class="kv-v">0.03</span>
+            </div>
+          </div>
+          <div class="param-card">
+            <h3>推荐出图基准</h3>
+            <div class="kv-list">
+              <span class="kv-k">采样器</span><span class="kv-v">Euler a / DPM++ 2M Karras</span>
+              <span class="kv-k">步数 / CFG</span><span class="kv-v">26–30 steps / CFG 5.0–6.0</span>
+              <span class="kv-k">Clip Skip</span><span class="kv-v">1</span>
+              <span class="kv-k">验证样本数</span><span class="kv-v">6 张客户可见样图</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (state.view === 'dataset') {
+    $('viewTitle').textContent = '数据集归档下载';
+    $('viewCount').textContent = '128 张素材 · 412.6 MiB';
+    root.innerHTML = `
+      <div class="deliver-wrap">
+        <div class="deliver-lead">
+          <div>
+            <h2>已授权数据集打包归档</h2>
+            <p>包含经过清洗、裁切与自然语言/标签双轨标注的完整训练素材目录。</p>
+          </div>
+          <button class="btn primary" id="dlDatasetBtn">下载数据集归档 (.zip)</button>
+        </div>
+        <div class="ds-metrics">
+          <div class="ds-stat"><span>精选图像总数</span><strong>128</strong></div>
+          <div class="ds-stat"><span>标注覆盖率</span><strong>100%</strong></div>
+          <div class="ds-stat"><span>平均长边像素</span><strong>1536 px</strong></div>
+          <div class="ds-stat"><span>归档包体积</span><strong>412.6 MiB</strong></div>
+        </div>
+        <table class="file-table">
+          <thead><tr><th>归档文件</th><th>内容结构</th><th>校验码 (SHA-256)</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono"><strong>cel_ink_atelier_dataset_v2.zip</strong></td>
+              <td>128 × PNG/JPG 原图 + 128 × .txt 标注文件 + manifest.json</td>
+              <td><button class="hash-pill" data-copy="f2e91a0c7b4d…91e402">f2e91a0c7b4d…91e402</button></td>
+              <td><button class="btn primary" id="dlDatasetRowBtn">下载归档</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+}
+
+/* 灯箱看图逻辑（支持滚轮指针缩放、拖拽平移、1:1、适应窗口、键盘导航） */
+function applyTransform() {
+  const img = $('lbImg');
+  img.style.width = state.imgW + 'px';
+  img.style.height = state.imgH + 'px';
+  img.style.transform = `translate(${state.panX - state.imgW * state.zoom / 2}px, ${state.panY - state.imgH * state.zoom / 2}px) scale(${state.zoom})`;
+  $('zoomPct').textContent = Math.round(state.zoom * 100) + '%';
+}
+function fitLightbox() {
+  const stage = $('lbStage');
+  if (!stage || !state.imgW || !state.imgH) return;
+  state.fitZoom = Math.min((stage.clientWidth - 28) / state.imgW, (stage.clientHeight - 28) / state.imgH);
+  state.zoom = state.fitZoom;
+  state.panX = 0;
+  state.panY = 0;
+  applyTransform();
+}
+function zoomBy(factor, cx, cy) {
+  const stage = $('lbStage');
+  const prev = state.zoom;
+  state.zoom = Math.max(state.fitZoom * 0.25, Math.min(Math.max(8, state.fitZoom), state.zoom * factor));
+  const x = (cx ?? stage.clientWidth / 2) - stage.clientWidth / 2;
+  const y = (cy ?? stage.clientHeight / 2) - stage.clientHeight / 2;
+  state.panX = x - (x - state.panX) * state.zoom / prev;
+  state.panY = y - (y - state.panY) * state.zoom / prev;
+  applyTransform();
+}
+function openLightbox(id) {
+  const list = getFilteredSamples();
+  const idx = list.findIndex(s => s.id === id);
+  if (idx < 0) return;
+  state.lbIndex = idx;
+  renderLightbox();
+  $('lightbox').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  $('lightbox').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+function renderLightbox() {
+  const list = getFilteredSamples();
+  const item = list[state.lbIndex];
+  if (!item) return;
+  $('lbName').textContent = item.name;
+  $('lbCounter').textContent = `${state.lbIndex + 1} / ${list.length}`;
+  $('lbPrev').disabled = state.lbIndex <= 0;
+  $('lbNext').disabled = state.lbIndex >= list.length - 1;
+  $('lbDl').href = item.src;
+  $('lbDl').download = item.name;
+
+  const img = $('lbImg');
+  img.onload = () => {
+    state.imgW = img.naturalWidth;
+    state.imgH = img.naturalHeight;
+    fitLightbox();
+  };
+  img.src = item.src;
+  if (img.complete && img.naturalWidth) {
+    state.imgW = img.naturalWidth;
+    state.imgH = img.naturalHeight;
+    fitLightbox();
+  }
+
+  $('lightbox').classList.toggle('no-info', !state.lbInfo);
+  $('lbInfo').innerHTML = `
+    <h3>样图信息</h3>
+    <div class="lb-field"><label>分组</label><p>${item.groupName}</p></div>
+    <div class="lb-field"><label>轮次标识</label><p class="mono">${item.epoch}</p></div>
+    <div class="lb-field"><label>画幅尺寸</label><p class="mono">${item.size}</p></div>
+    <div class="lb-field"><label>文件名</label><p class="mono">${item.name}</p></div>
+    <div class="lb-field">
+      <label>生成与训练参数</label>
+      ${state.perms.params
+        ? `<pre class="lb-pre">Prompt: ${item.prompt}\n\nSampler: ${item.sampler}\nLoRA Weight: ${item.weight}</pre>`
+        : `<div class="lb-locked-note">当前处于预览阶段，训练与生成参数处于保密隐藏状态。付款并由训练师开通「可见训练参数」权限后将自动显示。</div>`
+      }
+    </div>
+  `;
+}
+
+/* 事件绑定 */
+$('groupNav').addEventListener('click', e => {
+  const btn = e.target.closest('[data-group]');
+  if (!btn) return;
+  state.view = 'gallery';
+  state.group = btn.dataset.group;
+  $('rail').classList.remove('open');
+  renderMain();
+});
+$('deliverNav').addEventListener('click', e => {
+  const btn = e.target.closest('[data-view]');
+  if (!btn || btn.disabled) return;
+  state.view = btn.dataset.view;
+  $('rail').classList.remove('open');
+  renderMain();
+});
+$('searchInput').addEventListener('input', e => { state.query = e.target.value; renderMain(); });
+$('sortSelect').addEventListener('change', e => { state.sort = e.target.value; renderMain(); });
+$('densityRange').addEventListener('input', e => { document.documentElement.style.setProperty('--thumb-size', e.target.value + 'px'); });
+$('selectToggleBtn').addEventListener('click', () => { state.selecting = !state.selecting; renderMain(); });
+$('selectAllBtn').addEventListener('click', () => { getFilteredSamples().forEach(s => state.selected.add(s.id)); renderMain(); });
+$('clearSelBtn').addEventListener('click', () => { state.selected.clear(); renderMain(); });
+$('batchDlBtn').addEventListener('click', () => {
+  if (!state.selected.size) return;
+  showToast(`已打包触发 ${state.selected.size} 张预览原图下载`);
+});
+$('menuBtn').addEventListener('click', () => $('rail').classList.toggle('open'));
+
+$('mainContent').addEventListener('click', e => {
+  const chk = e.target.closest('[data-check]');
+  if (chk) {
+    e.stopPropagation();
+    const id = chk.dataset.check;
+    if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+    renderMain();
+    return;
+  }
+  const card = e.target.closest('.shot-card');
+  if (card) {
+    const id = card.dataset.id;
+    if (state.selecting || e.ctrlKey || e.metaKey) {
+      if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+      renderMain();
+    } else {
+      openLightbox(id);
+    }
+    return;
+  }
+  const copyBtn = e.target.closest('[data-copy]');
+  if (copyBtn) {
+    navigator.clipboard?.writeText(copyBtn.dataset.copy).catch(() => {});
+    showToast('校验码已复制到剪贴板');
+    return;
+  }
+  const metaBtn = e.target.closest('[data-meta]');
+  if (metaBtn) {
+    const file = LORA_FILES[Number(metaBtn.dataset.meta)];
+    $('metaModalTitle').textContent = file.name;
+    $('metaModalBody').textContent = JSON.stringify(file.meta, null, 2);
+    $('metaModal').classList.remove('hidden');
+    return;
+  }
+  const dlLora = e.target.closest('[data-dl-lora]');
+  if (dlLora) { showToast(`开始下载授权权重：${dlLora.dataset.dlLora}`); return; }
+  if (e.target.id === 'copyParamsBtn') { showToast('训练参数摘要已复制'); return; }
+  if (e.target.id === 'exportTomlBtn') { showToast('已导出 cel_ink_atelier_v2_config.toml'); return; }
+  if (e.target.id === 'dlDatasetBtn' || e.target.id === 'dlDatasetRowBtn') { showToast('开始下载数据集归档：cel_ink_atelier_dataset_v2.zip'); return; }
+});
+
+/* 灯箱交互 */
+$('lbClose').addEventListener('click', closeLightbox);
+$('lbPrev').addEventListener('click', () => { if (state.lbIndex > 0) { state.lbIndex--; renderLightbox(); } });
+$('lbNext').addEventListener('click', () => { const n = getFilteredSamples().length; if (state.lbIndex < n - 1) { state.lbIndex++; renderLightbox(); } });
+$('lbInfoToggle').addEventListener('click', () => { state.lbInfo = !state.lbInfo; renderLightbox(); setTimeout(fitLightbox, 20); });
+$('zoomIn').addEventListener('click', () => zoomBy(1.25));
+$('zoomOut').addEventListener('click', () => zoomBy(0.8));
+$('zoomFit').addEventListener('click', fitLightbox);
+$('zoomActual').addEventListener('click', () => { state.zoom = 1; state.panX = 0; state.panY = 0; applyTransform(); });
+
+const stage = $('lbStage');
+let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = stage.getBoundingClientRect();
+  zoomBy(Math.exp(-Math.max(-120, Math.min(120, e.deltaY)) * 0.002), e.clientX - rect.left, e.clientY - rect.top);
+}, { passive: false });
+stage.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  dragging = true; startX = e.clientX; startY = e.clientY; origX = state.panX; origY = state.panY;
+  stage.setPointerCapture(e.pointerId); stage.classList.add('dragging');
+});
+stage.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  state.panX = origX + (e.clientX - startX);
+  state.panY = origY + (e.clientY - startY);
+  applyTransform();
+});
+stage.addEventListener('pointerup', () => { dragging = false; stage.classList.remove('dragging'); });
+stage.addEventListener('dblclick', fitLightbox);
+
+document.addEventListener('keydown', e => {
+  if ($('lightbox').classList.contains('hidden')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft' && state.lbIndex > 0) { state.lbIndex--; renderLightbox(); }
+  if (e.key === 'ArrowRight' && state.lbIndex < getFilteredSamples().length - 1) { state.lbIndex++; renderLightbox(); }
+  if (e.key === '+' || e.key === '=') zoomBy(1.25);
+  if (e.key === '-') zoomBy(0.8);
+  if (e.key === '0') fitLightbox();
+});
+$('metaModalClose').addEventListener('click', () => $('metaModal').classList.add('hidden'));
+$('metaModal').addEventListener('click', e => { if (e.target === $('metaModal')) $('metaModal').classList.add('hidden'); });
+
+/* Demo 权限模拟控制台 */
+function syncDemoUI() {
+  $('chkLora').checked = state.perms.lora;
+  $('chkParams').checked = state.perms.params;
+  $('chkDataset').checked = state.perms.dataset;
+  document.querySelectorAll('.demo-presets button').forEach(b => b.classList.remove('on'));
+  if (!state.perms.lora && !state.perms.params && !state.perms.dataset) document.querySelector('[data-preset="unpaid"]').classList.add('on');
+  else if (state.perms.lora && !state.perms.params && !state.perms.dataset) document.querySelector('[data-preset="lora"]').classList.add('on');
+  else if (state.perms.lora && state.perms.params && state.perms.dataset) document.querySelector('[data-preset="full"]').classList.add('on');
+  renderMain();
+  if (!$('lightbox').classList.contains('hidden')) renderLightbox();
+}
+$('demoToggle').addEventListener('click', () => {
+  const dock = $('demoDock');
+  dock.classList.toggle('collapsed');
+  $('demoArrow').textContent = dock.classList.contains('collapsed') ? '展开' : '收起';
+});
+document.querySelectorAll('.demo-presets button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = btn.dataset.preset;
+    if (p === 'unpaid') state.perms = { lora: false, params: false, dataset: false };
+    if (p === 'lora') state.perms = { lora: true, params: false, dataset: false };
+    if (p === 'full') state.perms = { lora: true, params: true, dataset: true };
+    syncDemoUI();
+  });
+});
+$('chkLora').addEventListener('change', e => { state.perms.lora = e.target.checked; syncDemoUI(); });
+$('chkParams').addEventListener('change', e => { state.perms.params = e.target.checked; syncDemoUI(); });
+$('chkDataset').addEventListener('change', e => { state.perms.dataset = e.target.checked; syncDemoUI(); });
+
+renderMain();
+</script>
+</body>
+</html>

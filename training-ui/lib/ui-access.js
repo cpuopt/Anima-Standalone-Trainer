@@ -70,7 +70,7 @@ class UiAccess {
             for (const [socket, request] of this.sockets) if (id && this.sessionId(request) === id) socket.close(4001, 'Logged out');
             res.set('Set-Cookie', this.cookie(req, '')).json({ authenticated: false });
         });
-        // Must precede ALL API routes, proxies, parsers, and static/legacy mounts.
+        // Must precede ALL API routes, proxies, parsers, and static mounts.
         app.use((req, res, next) => {
             const identity = this.identity(req);
             if (!identity) {

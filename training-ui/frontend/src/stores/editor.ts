@@ -2,9 +2,15 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { api, jobUrl } from '@/services/api'
 import { canonical, clone, type Config, type JobDocument, type JobSummary } from '@/domain/types'
-import { Krea2, Moss } from '@/domain/legacy'
+import { Krea2, Moss } from '@/domain/training'
 import { parsePromptLine, serializePrompt, defaultNegativePrompt, applyGlobalNegative } from '@/features/prompts/model'
 import { validateConfig } from '@/features/training/rules'
+
+interface TrainingQueue {
+  active: string | null
+  pending: string[]
+  lastFailure: { name: string; message: string } | null
+}
 
 export const useEditorStore = defineStore('editor', () => {
   const name = ref<string | null>(null)
@@ -25,6 +31,8 @@ export const useEditorStore = defineStore('editor', () => {
   const running = ref(false)
   const phase = ref<string | null>(null)
   const operation = ref<string | null>(null)
+  const trainingQueue = ref<TrainingQueue>({ active: null, pending: [], lastFailure: null })
+  const queued = computed(() => name.value !== null && trainingQueue.value.pending.includes(name.value))
   const logs = ref('')
   const hardware = ref<any>(null)
   const connected = ref(false)
@@ -40,23 +48,37 @@ export const useEditorStore = defineStore('editor', () => {
   let requestVersion = 0, controller: AbortController | null = null
   let socket: WebSocket | null = null, reconnect: ReturnType<typeof setTimeout> | null = null
   let statusTimer: ReturnType<typeof setInterval> | null = null, disposed = false
+  let queueVersion = 0
 
   const touch = () => {} // Compatibility for feature components; dirty is derived from complete drafts.
   async function loadJobs() { jobs.value = await api('/api/jobs') }
-  async function initialize() {
+  async function initialize(options: { autoSelect?: boolean } = {}) {
     disposed = false
     const results = await Promise.allSettled([
       api('/api/architectures').then(v => { registry.value = v }),
       api('/api/global-config').then(v => { globalConfig.value = v; globalSnapshot.value = canonical(v) }),
       api('/api/system/gpus').then(v => { gpus.value = Array.isArray(v) ? v : (v.gpus || []) }),
       loadJobs(),
+      refreshTrainingQueue(),
     ])
     const failures = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
     if (failures.length) error.value = failures.map(r => String(r.reason.message || r.reason)).join('; ')
     connect()
-    statusTimer = setInterval(() => { void refreshStatus().catch(() => {}) }, 5000)
+    statusTimer = setInterval(() => {
+      void refreshStatus().catch(() => {})
+      if (!connected.value) void refreshTrainingQueue().catch(() => {})
+    }, 5000)
     const last = localStorage.getItem('lastJob')
-    if (last && jobs.value.some(j => j.name === last)) await selectJob(last)
+    if (options.autoSelect !== false && last && jobs.value.some(j => j.name === last)) await selectJob(last)
+  }
+  function clearJob() {
+    ++requestVersion; controller?.abort()
+    name.value = null; config.value = {}; dataset.value = {}; prompts.value = []
+    negativePrompt.value = defaultNegativePrompt; logs.value = ''
+    running.value = false; phase.value = null; operation.value = null
+    fieldErrors.value = {}; error.value = ''; notice.value = ''
+    configSnapshot.value = '{}'; datasetSnapshot.value = '{}'
+    promptSnapshot.value = '[]'; savedNegative.value = defaultNegativePrompt
   }
   async function selectJob(job: string) {
     if (saving.value) throw Error('请等待保存完成后切换任务')
@@ -159,7 +181,7 @@ export const useEditorStore = defineStore('editor', () => {
     await loadJobs(); await selectJob(result.name)
   }
   async function deleteJob() {
-    if (!name.value || running.value) throw Error('不能删除运行中的任务')
+    if (!name.value || running.value || queued.value) throw Error('不能删除运行中或排队中的任务')
     const target = name.value
     await api(jobUrl(target), { method: 'DELETE' })
     ++requestVersion; controller?.abort()
@@ -174,12 +196,28 @@ export const useEditorStore = defineStore('editor', () => {
     if (target !== name.value || version !== requestVersion) return
     running.value = s.running; phase.value = s.phase; operation.value = s.operation; runtimeTick.value++
   }
+  async function refreshTrainingQueue() {
+    const version = ++queueVersion
+    const result = await api<TrainingQueue>('/api/training-queue')
+    if (version === queueVersion && Array.isArray(result.pending)) applyTrainingQueue(result)
+  }
+  function applyTrainingQueue(result: TrainingQueue) {
+    const previous = trainingQueue.value.active
+    if (previous && previous !== result.active) {
+      const job = jobs.value.find(job => job.name === previous)
+      if (job) job.running = false
+    }
+    trainingQueue.value = result
+  }
   async function startTraining() {
-    if (!name.value || running.value) return
+    const target = name.value
+    if (!target || running.value || queued.value || trainingQueue.value.active === target) return
     await save()
-    logs.value = ''
-    await api(jobUrl(name.value, '/train/start'), { method: 'POST' })
-    await refreshStatus()
+    if (name.value === target) logs.value = ''
+    const result = await api<{ queued?: boolean }>(jobUrl(target, '/train/start'), { method: 'POST' })
+    if (name.value === target && result.queued) notice.value = '已加入训练队列'
+    await Promise.all([refreshTrainingQueue(), refreshStatus()])
+    return result
   }
   async function stopTraining() {
     if (!name.value) return
@@ -200,9 +238,17 @@ export const useEditorStore = defineStore('editor', () => {
       try {
         const msg = JSON.parse(event.data)
         if (msg.type === 'hw_stats') { hardware.value = msg.data; return }
+        if (msg.type === 'training_queue') {
+          ++queueVersion
+          applyTrainingQueue(msg.data)
+          return
+        }
         if (!name.value || msg.job !== name.value) return
         if (msg.type === 'log') logs.value = (logs.value + msg.data).slice(-500000)
-        if (msg.type === 'status') { running.value = msg.data === 'running'; void refreshStatus().catch(() => {}) }
+        if (msg.type === 'status') {
+          running.value = msg.data !== 'idle'
+          void refreshStatus().catch(() => {})
+        }
         runtimeTick.value++
       } catch { /* malformed events do not break the connection */ }
     }
@@ -214,13 +260,13 @@ export const useEditorStore = defineStore('editor', () => {
     current.onerror = () => current.close()
   }
   function dispose() {
-    disposed = true; ++requestVersion; controller?.abort()
+    disposed = true; ++requestVersion; ++queueVersion; controller?.abort()
     if (reconnect) clearTimeout(reconnect)
     if (statusTimer) clearInterval(statusTimer)
     socket?.close(); socket = null; connected.value = false
   }
   return { name, config, dataset, architecture, prompts, negativePrompt, jobs, registry, globalConfig, gpus, error, fieldErrors, notice,
-    loading, saving, running, phase, operation, logs, hardware, connected, runtimeTick, dirty, globalDirty, locked,
-    touch, initialize, loadJobs, selectJob, validate, save, discard, saveGlobal, createJob, cloneJob, deleteJob,
+    loading, saving, running, phase, operation, trainingQueue, queued, logs, hardware, connected, runtimeTick, dirty, globalDirty, locked,
+    touch, initialize, loadJobs, selectJob, clearJob, validate, save, discard, saveGlobal, createJob, cloneJob, deleteJob,
     refreshStatus, startTraining, stopTraining, dispose }
 })

@@ -24,12 +24,13 @@ async function fixture(t) {
     app.use(express.json()); datasets.mount(app);
     new EnvironmentManager({ root: temp, getConfig: () => ({}), isBusy: () => true }).mount(app);
     new TensorBenchmark({ root: temp, getConfig: () => ({}), isBusy: () => true }).mount(app);
-    const dist = path.join(temp, 'dist'), legacy = path.join(temp, 'legacy');
-    fs.mkdirSync(dist); fs.mkdirSync(legacy);
+    const dist = path.join(temp, 'dist'), uploads = path.join(temp, 'uploads');
+    fs.mkdirSync(dist); fs.mkdirSync(uploads);
     fs.writeFileSync(path.join(dist, 'index.html'), '<h1>private app</h1>');
     fs.writeFileSync(path.join(dist, 'app.js'), 'private-code');
-    fs.writeFileSync(path.join(legacy, 'private.txt'), 'private-file');
-    mountFrontend(app, dist, legacy);
+    fs.writeFileSync(path.join(uploads, 'private.txt'), 'private-file');
+    mountFrontend(app, dist);
+    app.use('/uploads', express.static(uploads));
     app.get('/api/private', (_req, res) => res.json({ private: true }));
     app.post('/api/private', (_req, res) => res.json({ saved: true }));
     const server = app.listen(0, '127.0.0.1'); await once(server, 'listening');
@@ -59,15 +60,15 @@ async function fixture(t) {
     return { temp, access, datasets, request, login, host, origin, port, file, password, advance: ms => { time += ms; access.sweep(); } };
 }
 
-test('all pages, APIs, static files, legacy and TensorBoard are gated before their handlers', async t => {
+test('all pages, APIs, static files, uploads and TensorBoard are gated before their handlers', async t => {
     const { request, login } = await fixture(t);
-    for (const url of ['/ui/', '/ui/app.js', '/legacy/private.txt', '/tensorboard/job/', '/api/private']) {
+    for (const url of ['/ui/', '/ui/app.js', '/uploads/private.txt', '/tensorboard/job/', '/api/private']) {
         const denied = await request(url); assert.equal(denied.status, url.startsWith('/api/') ? 401 : 302); assert.doesNotMatch(denied.text, /private-code|private-file|private app/);
     }
     const cookie = await login();
     assert.match((await request('/ui/', { cookie })).text, /private app/);
     const asset = await request('/ui/app.js', { cookie }); assert.equal(asset.text, 'private-code'); assert.equal(asset.headers['cache-control'], 'private, no-store');
-    assert.equal((await request('/legacy/private.txt', { cookie })).text, 'private-file');
+    assert.equal((await request('/uploads/private.txt', { cookie })).text, 'private-file');
     assert.notEqual((await request('/tensorboard/job/', { cookie })).status, 401);
     assert.equal((await request('/api/private', { cookie })).status, 200);
 });

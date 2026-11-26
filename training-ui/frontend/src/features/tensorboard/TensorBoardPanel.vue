@@ -60,7 +60,7 @@ onBeforeUnmount(()=>{generation++;controller?.abort()})
 <template>
   <section class="tb-page">
     <header class="tb-heading">
-      <div><h2>TensorBoard</h2><p>查看当前任务的训练指标。</p></div>
+      <h2>TensorBoard</h2>
       <button class="btn" :aria-expanded="!collapsed" aria-controls="tb-assistance" @click="collapsed = !collapsed">
         <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M8 4v12"/></svg>
         {{ collapsed ? '展开辅助栏' : '收起辅助栏' }}
@@ -127,17 +127,16 @@ onBeforeUnmount(()=>{generation++;controller?.abort()})
 </template>
 
 <style scoped>
-.tb-page { min-width:0; }
-.tb-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom:18px; margin-bottom:18px; border-bottom:1px solid var(--border); }
-.tb-heading h2 { margin:0 0 4px; font-size:19px; }
-.tb-heading p { margin:0; font-size:14px; color:var(--muted-foreground); }
+.tb-page { display:flex; flex:1; flex-direction:column; min-width:0; min-height:0; }
+.tb-heading { display:flex; flex:none; align-items:center; justify-content:space-between; gap:12px; padding:6px 12px; border-bottom:1px solid var(--border); }
+.tb-heading h2 { margin:0; font-size:19px; }
 .tb-page .btn { min-height:36px; font-size:12px; gap:7px; }
 .tb-heading>.btn { flex-shrink:0; }
 .tb-heading svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.5; }
-.tb-layout { display:grid; grid-template-columns:240px minmax(0,1fr); align-items:stretch; border:1px solid var(--border); border-radius:9px; overflow:hidden; background:var(--card); }
+.tb-layout { display:grid; flex:1; min-height:0; grid-template-columns:240px minmax(0,1fr); grid-template-rows:minmax(0,1fr); background:var(--card); }
 .tb-layout.tb-collapsed { grid-template-columns:minmax(0,1fr); }
-.tb-assistance { display:flex; flex-direction:column; min-width:0; border-right:1px solid var(--border); }
-.tb-section { padding:14px 16px; border-bottom:1px solid var(--border); }
+.tb-assistance { display:flex; flex-direction:column; min-width:0; min-height:0; overflow:auto; border-right:1px solid var(--border); }
+.tb-section { flex-shrink:0; padding:14px 16px; border-bottom:1px solid var(--border); }
 .tb-section:last-child { border-bottom:0; }
 .tb-page h3 { margin:0 0 10px; font-size:14px; font-weight:600; }
 .tb-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px; }
@@ -164,32 +163,29 @@ onBeforeUnmount(()=>{generation++;controller?.abort()})
 .tb-help summary { min-height:26px; padding:3px 0; font-size:13px; color:var(--foreground); line-height:1.6; }
 .tb-help details p { margin:6px 0 0; font-size:13px; line-height:1.65; color:var(--muted-foreground); }
 .tb-help-note { margin-top:10px; }
-.tb-viewer { min-width:0; display:flex; flex-direction:column; background:var(--background); }
-.tb-viewer-heading { min-height:58px; padding:10px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--border); background:var(--card); }
+.tb-viewer { min-width:0; min-height:0; display:flex; flex-direction:column; background:var(--background); }
+.tb-viewer-heading { flex:none; padding:5px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--border); background:var(--card); }
 .tb-viewer-title { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .tb-viewer-actions { display:flex; justify-content:flex-end; align-items:center; gap:8px; flex-wrap:wrap; }
-.tb-frame { display:block; flex:1; width:100%; min-height:680px; height:calc(100dvh - 320px); border:0; background:white; }
-.tb-empty { display:flex; flex:1; min-height:680px; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px; }
+.tb-frame { display:block; flex:1; width:100%; min-height:0; border:0; background:white; }
+.tb-empty { display:flex; flex:1; min-height:0; overflow:auto; flex-direction:column; align-items:center; justify-content:safe center; text-align:center; padding:20px; }
 .tb-empty>svg { width:96px; height:70px; margin-bottom:24px; fill:none; stroke:var(--muted-foreground); stroke-width:1.5; opacity:.65; }
 .tb-empty h3 { margin-bottom:10px; font-size:18px; }
 .tb-empty p { max-width:340px; margin:0 0 22px; font-size:14px; line-height:1.8; color:var(--muted-foreground); }
 .tb-empty .btn { min-height:40px; padding-inline:18px; }
-.tb-error { padding:12px 16px; margin:0 0 14px; border:1px solid var(--destructive); border-radius:6px; color:var(--destructive); background:color-mix(in srgb,var(--destructive) 6%,var(--background)); overflow-wrap:anywhere; }
+.tb-error { flex:none; padding:8px 12px; margin:0; border-bottom:1px solid var(--destructive); color:var(--destructive); background:color-mix(in srgb,var(--destructive) 6%,var(--background)); overflow-wrap:anywhere; }
 .tb-viewer:fullscreen { overflow:auto; }
-.tb-viewer:fullscreen .tb-frame { min-height:0; height:calc(100dvh - 60px); }
-.tb-viewer:fullscreen .tb-empty { min-height:0; }
-@media(max-width:1000px) { .tb-layout { grid-template-columns:210px minmax(0,1fr); } .tb-section { padding:14px; } .tb-viewer-heading { flex-wrap:wrap; padding:10px 12px; } .tb-viewer-actions { justify-content:flex-start; } }
+@media(max-width:1000px) { .tb-layout { grid-template-columns:210px minmax(0,1fr); } .tb-section { padding:14px; } .tb-viewer-heading { flex-wrap:wrap; } .tb-viewer-actions { justify-content:flex-start; } }
 @media(max-width:760px) {
-  .tb-heading { align-items:flex-start; gap:10px; }
+  .tb-heading { gap:10px; }
   .tb-heading h2 { font-size:18px; }
   .tb-heading>.btn { padding-inline:9px; }
   .tb-layout { grid-template-columns:minmax(0,1fr); }
+  .tb-layout:not(.tb-collapsed) { grid-template-rows:minmax(0, 1fr) minmax(0, 3fr); }
   .tb-assistance { border-right:0; border-bottom:1px solid var(--border); }
   .tb-controls { display:flex; flex-wrap:wrap; }
   .tb-controls>.btn { flex:1; }
   .tb-meta>div { grid-template-columns:48px minmax(0,1fr); }
   .tb-help { flex:none; }
-  .tb-frame { min-height:640px; height:75dvh; }
-  .tb-empty { min-height:380px; padding:24px 18px; }
 }
 </style>

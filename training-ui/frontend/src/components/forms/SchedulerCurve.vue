@@ -5,6 +5,7 @@ const props = defineProps<{ name: string }>()
 const id = useId()
 const preview = computed(() => schedulerPreview(props.name))
 const paths = computed(() => curvePaths(props.name))
+const restartXs = computed(() => paths.value.length > 1 ? Array.from({ length: paths.value.length - 1 }, (_, i) => Number((curvePlot.left + curvePlot.width * (i + 1) / paths.value.length).toFixed(2))) : [])
 const floorY = computed(() => curvePlot.top + curvePlot.height * (1 - (preview.value?.floor ?? 0)))
 </script>
 <template>
@@ -21,6 +22,7 @@ const floorY = computed(() => curvePlot.top + curvePlot.height * (1 - (preview.v
         <g class="scheduler-axis"><path d="M35 12 V136 H291"/></g>
         <path v-if="paths.length === 1" :d="`${paths[0]} L285,136 L35,136 Z`" :fill="`url(#${id}-fill)`" class="scheduler-area"/>
         <path v-if="preview.floor !== undefined" :d="`M35 ${floorY} H285`" class="scheduler-floor"/>
+        <line v-for="rx in restartXs" :key="rx" :x1="rx" :y1="curvePlot.bottom" :x2="rx" :y2="curvePlot.top" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
         <path v-for="(path,index) in paths" :key="index" :d="path" class="scheduler-line"/>
         <g class="scheduler-axis-text"><text x="28" y="21" text-anchor="end">1</text><text x="28" y="140" text-anchor="end">0</text><text x="35" y="151">0%</text><text x="285" y="151" text-anchor="end">100%</text><text x="160" y="164" text-anchor="middle">训练进度</text><text x="35" y="10">相对学习率</text></g>
       </svg>

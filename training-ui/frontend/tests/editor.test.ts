@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { api } from '@/services/api'
 import { useEditorStore } from '@/stores/editor'
-import { Krea2 } from '@/domain/legacy'
+import { Krea2 } from '@/domain/training'
 vi.mock('@/services/api', () => ({ api: vi.fn(), jobUrl: (name: string, suffix = '') => `/api/jobs/${encodeURIComponent(name)}${suffix}` }))
 const request = vi.mocked(api)
 const anima = (name = 'anima') => ({ name, architecture: 'anima', config: {

@@ -112,4 +112,34 @@ describe('dataset draft preservation', () => {
     expect(wrapper.find('.total-lbai').text()).toContain('总 LBAI 0.009')
     wrapper.unmount()
   })
+  it('exposes a single global class_tokens in dataset.general for anima only and deletes it when cleared', async () => {
+    const before = JSON.stringify(state.dataset)
+    const wrapper = shallowMount(DatasetPanel)
+    expect(JSON.stringify(state.dataset)).toBe(before)
+
+    const fields = wrapper.findAllComponents({ name: 'ConfigField' }).filter(f => f.props('field') === 'class_tokens')
+    expect(fields).toHaveLength(1)
+    const field = fields[0]!
+    field.vm.$emit('change', 'my_trigger')
+    await flushPromises()
+    expect(state.dataset.general.class_tokens).toBe('my_trigger')
+    expect(state.touch).toHaveBeenCalled()
+
+    field.vm.$emit('change', '')
+    await flushPromises()
+    expect('class_tokens' in state.dataset.general).toBe(false)
+
+    state.dataset.general.class_tokens = '   '
+    field.vm.$emit('change', '   ')
+    await flushPromises()
+    expect('class_tokens' in state.dataset.general).toBe(false)
+    wrapper.unmount()
+
+    for (const arch of ['krea2', 'moss_image']) {
+      state.architecture = arch
+      const other = shallowMount(DatasetPanel)
+      expect(other.findAllComponents({ name: 'ConfigField' }).some(f => f.props('field') === 'class_tokens')).toBe(false)
+      other.unmount()
+    }
+  })
 })

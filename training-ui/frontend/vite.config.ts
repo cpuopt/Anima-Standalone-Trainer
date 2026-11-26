@@ -8,7 +8,7 @@ export default defineConfig({
   base: '/ui/',
   plugins: [vue(), tailwindcss()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
-  build: { commonjsOptions: { include: [/node_modules/, /public[\\/]js/] } },
+  build: { commonjsOptions: { include: [/node_modules/, /training-ui[\\/]shared[\\/]/] } },
   server: {
     port: 5173,
     proxy: {

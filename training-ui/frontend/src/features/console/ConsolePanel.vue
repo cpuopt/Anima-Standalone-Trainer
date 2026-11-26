@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { memoryRows, unattributedBytes } from './memory-view'
 import { filterLogLines, keyLogEvents, logLines, type LogLine } from './log-view'
@@ -21,7 +21,7 @@ const memoryTraceEnabled = computed(() => store.config?.training_arguments?.memo
 const memoryTraceSupported = computed(() => ['anima','lumina'].includes(store.architecture))
 const memoryTraceLocked = computed(() => !store.name || store.running || store.loading || store.saving || !memoryTraceSupported.value)
 let observer: ResizeObserver|undefined, previousFocus: HTMLElement|null = null, previousOverflow = ''
-let followingUpdate = false, mounted = true
+let followingUpdate = false, mounted = true, savedScrollTop = 0
 
 function setMemoryTrace(event: Event) {
   if (memoryTraceLocked.value) return
@@ -102,6 +102,17 @@ onMounted(() => {
   sizePanel(); void bottom()
   if (typeof ResizeObserver !== 'undefined' && root.value?.parentElement) { observer = new ResizeObserver(sizePanel); observer.observe(root.value.parentElement) }
   window.addEventListener('resize',sizePanel); document.addEventListener('keydown',drawerKeydown)
+})
+onActivated(() => {
+  void nextTick().then(() => {
+    if (!mounted) return
+    sizePanel()
+    if (follow.value) void bottom()
+    else if (output.value) output.value.scrollTop = savedScrollTop
+  })
+})
+onDeactivated(() => {
+  if (output.value) savedScrollTop = output.value.scrollTop
 })
 onUnmounted(() => {
   mounted = false; observer?.disconnect(); window.removeEventListener('resize',sizePanel); document.removeEventListener('keydown',drawerKeydown)

@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const TOML = require('@iarna/toml');
-const L = require('../public/js/layer-rank');
+const L = require('../shared/layer-rank');
 const {readAnimaLayers, validateLayerArgs} = require('../lib/anima-layers');
 
 function fixture(count, run) {

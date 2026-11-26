@@ -20,11 +20,10 @@ function fingerprint() {
         } else { hash.update(path.relative(root, filename)); hash.update(fs.readFileSync(filename)); }
     }
     for (const filename of ['src', 'package.json', 'package-lock.json', 'index.html', 'tsconfig.json', 'vite.config.ts']) add(path.join(frontend, filename));
-    for (const filename of ['krea2.js', 'layer-rank.js', 'adapter-matrix.js', 'lbai.js']) add(path.join(root, 'public', 'js', filename));
+    add(path.join(root, 'shared'));
     return hash.digest('hex');
 }
 function ensureFrontend(force = false) {
-    if (!force && process.env.TRAINER_UI === 'legacy') return;
     const lock = path.join(frontend, 'package-lock.json');
     const lockHash = crypto.createHash('sha256').update(fs.readFileSync(lock)).digest('hex');
     const dependencyStamp = path.join(frontend, 'node_modules', '.trainer-lock-hash');

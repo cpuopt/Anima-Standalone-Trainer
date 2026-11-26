@@ -1,5 +1,5 @@
 const fs = require('fs');
-const LayerRank = require('../public/js/layer-rank');
+const LayerRank = require('../shared/layer-rank');
 
 function readAnimaLayers(file) {
   if (!file || !file.toLowerCase().endsWith('.safetensors')) throw Error('请先配置可读取的 DiT .safetensors 模型文件');

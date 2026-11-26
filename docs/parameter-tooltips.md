@@ -24,7 +24,7 @@ and advanced layer rows use `FieldHelp` explicitly. Other tabs are unaffected.
 
 Keep confirmed mutual exclusions distinct from dependency requirements,
 ignored/overridden options, and combinations that require testing. Check
-`features/training/rules.ts`, `public/js/krea2.js`, `public/js/moss.js`, and the
+`features/training/rules.ts`, `shared/krea2.js`, `shared/moss.js`, and the
 actual Python backend before changing compatibility claims. Importing Triton
 does not prove that a complete compiled GPU training run works.
 

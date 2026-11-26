@@ -83,4 +83,11 @@ describe('configuration editing rules', () => {
     await expect(validateConfig(config)).rejects.toThrow('模型中不存在该层')
     expect(JSON.stringify(config)).toBe(original)
   })
+
+  it('validates lr_scheduler_num_cycles as positive integer', async () => {
+    await expect(validateConfig({ training_arguments: { lr_scheduler: 'cosine_with_min_lr', lr_scheduler_num_cycles: 0 } })).rejects.toThrow('lr_scheduler_num_cycles')
+    await expect(validateConfig({ training_arguments: { lr_scheduler: 'cosine_with_min_lr', lr_scheduler_num_cycles: 1.5 } })).rejects.toThrow('lr_scheduler_num_cycles')
+    await expect(validateConfig({ training_arguments: { lr_scheduler: 'cosine_with_min_lr', lr_scheduler_num_cycles: 1 } })).resolves.toBeUndefined()
+    await expect(validateConfig({ training_arguments: { lr_scheduler: 'cosine_with_min_lr', lr_scheduler_num_cycles: 3 } })).resolves.toBeUndefined()
+  })
 })

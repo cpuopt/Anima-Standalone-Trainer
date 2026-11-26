@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('events');
 const TOML = require('@iarna/toml');
-const K = require('../public/js/krea2');
+const K = require('../shared/krea2');
 const B = require('../lib/krea2-backend');
 
 function fixture(t) {
